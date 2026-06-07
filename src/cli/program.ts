@@ -6,7 +6,7 @@ import { Command } from "commander";
 import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { JobsucheClient } from "../client/client.js";
-import { parseIntArg } from "./shared.js";
+import { parseBaseUrl, parseIntArg } from "./shared.js";
 import { registerJobCommands } from "./commands/jobs.js";
 
 export const VERSION = "1.0.0";
@@ -27,7 +27,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
         "(rest.arbeitsagentur.de/jobboerse/jobsuche-service). Uses the public X-API-Key by default.",
     )
     .version(VERSION)
-    .option("--base-url <url>", "API base URL", "https://rest.arbeitsagentur.de")
+    .option("--base-url <url>", "API base URL", parseBaseUrl, "https://rest.arbeitsagentur.de")
     .option("--api-key <key>", "override the X-API-Key header (env: JOBSUCHE_API_KEY)")
     .option("--timeout <ms>", "per-request timeout in milliseconds", parseIntArg)
     .option("--user-agent <ua>", "User-Agent header value")

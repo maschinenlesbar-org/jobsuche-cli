@@ -15,11 +15,12 @@ import type { JobSearchResult, JobDetails, JobSearchParams } from "./types.js";
 const SERVICE = "/jobboerse/jobsuche-service";
 /**
  * Shape of a reference number once base64-decoded. Refnrs are made of digits,
- * uppercase letters and hyphens (e.g. "10001-1002716922-S"). A purely numeric
- * refnr such as "1002716922" is also valid. Used to distinguish a refnr from an
+ * letters and hyphens (e.g. "10001-1002716922-S", and real listings contain
+ * lowercase hex such as "14225-dafcdd47aabe512d-S"). A purely numeric refnr such
+ * as "1002716922" is also valid. Used to distinguish a refnr from an
  * already-base64-encoded `encryptedJobCode`.
  */
-const REFNR_PATTERN = /^[A-Z0-9-]+$/;
+const REFNR_PATTERN = /^[A-Za-z0-9-]+$/;
 /** The static, publicly-documented API key for the Jobsuche service. */
 export const DEFAULT_API_KEY = "jobboerse-jobsuche";
 
@@ -29,11 +30,18 @@ export interface JobsucheClientOptions extends EngineOptions {
   apiKey?: string;
 }
 
-/** Drop undefined values so only the parameters the caller set are sent. */
+/**
+ * Drop values that should not be sent so only the parameters the caller
+ * meaningfully set survive: `undefined`/`null` and empty / whitespace-only
+ * strings (an empty `--was ""` is treated as "not provided", not as `was=`,
+ * which the live API rejects with HTTP 400).
+ */
 function prune(params: Record<string, unknown>): QueryParams {
   const out: QueryParams = {};
   for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined) out[k] = v as QueryParams[string];
+    if (v === undefined || v === null) continue;
+    if (typeof v === "string" && v.trim().length === 0) continue;
+    out[k] = v as QueryParams[string];
   }
   return out;
 }

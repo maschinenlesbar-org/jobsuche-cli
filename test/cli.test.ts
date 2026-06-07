@@ -66,7 +66,14 @@ test("a 401 maps to exit code 3 with an actionable message", async () => {
   const cli = makeCli(() => jsonResponse({}, 401));
   const code = await run(["details", "a-b-c"], cli.deps);
   assert.equal(code, 3);
-  assert.match(cli.err.join("\n"), /API key rejected.*JOBSUCHE_API_KEY/s);
+  assert.match(cli.err.join("\n"), /request rejected.*JOBSUCHE_API_KEY/s);
+});
+
+test("a 403 with a server detail surfaces that detail (not a blanket key message)", async () => {
+  const cli = makeCli(() => jsonResponse({ detail: "quota exceeded" }, 403));
+  const code = await run(["details", "a-b-c"], cli.deps);
+  assert.equal(code, 3);
+  assert.match(cli.err.join("\n"), /quota exceeded/);
 });
 
 test("a 403 maps to exit code 3", async () => {
@@ -103,4 +110,46 @@ test("a 404 from the API maps to exit code 4", async () => {
   const cli = makeCli(() => jsonResponse({}, 404));
   const code = await run(["details", "a-b-c"], cli.deps);
   assert.equal(code, 4);
+});
+
+test("an already-encoded lowercase-hex refnr is passed through unchanged (B1)", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  // base64 of the live refnr "14225-dafcdd47aabe512d-S"
+  const encoded = "MTQyMjUtZGFmY2RkNDdhYWJlNTEyZC1T";
+  await run(["details", encoded], cli.deps);
+  assert.equal(
+    new URL(cli.mt.last().url).pathname,
+    `${SERVICE}/pc/v4/jobdetails/${encoded}`,
+  );
+});
+
+test("an empty --was is omitted from the query, not sent as was= (B5/B17)", async () => {
+  const cli = makeCli(() => jsonResponse({ stellenangebote: [] }));
+  await run(["search", "--was", "", "--wo", "Berlin"], cli.deps);
+  const url = new URL(cli.mt.last().url);
+  assert.equal(url.searchParams.has("was"), false);
+  assert.equal(url.searchParams.get("wo"), "Berlin");
+});
+
+test("a blank --api-key falls back to the default key (B7)", async () => {
+  const cli = makeCli(() => jsonResponse({ stellenangebote: [] }));
+  await run(["--api-key", "", "search", "--was", "x"], cli.deps);
+  assert.equal(cli.mt.last().headers?.["X-API-Key"], "jobboerse-jobsuche");
+});
+
+test("a bad integer flag is a usage error (exit 2), distinct from runtime errors (B10)", async () => {
+  const cli = makeCli(() => jsonResponse({ stellenangebote: [] }));
+  const code = await run(["search", "--size", "0x10"], cli.deps);
+  assert.equal(code, 2);
+});
+
+test("a non-JSON 200 response surfaces the Content-Type (B16)", async () => {
+  const cli = makeCli(() => ({
+    status: 200,
+    headers: { "content-type": "text/html" },
+    body: Buffer.from("<html>nope</html>"),
+  }));
+  const code = await run(["search", "--was", "x"], cli.deps);
+  assert.equal(code, 1);
+  assert.match(cli.err.join("\n"), /text\/html/);
 });

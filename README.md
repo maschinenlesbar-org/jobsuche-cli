@@ -48,7 +48,7 @@ Every command prints pretty JSON to stdout (`--compact` for a single line).
 | Option | Description |
 | --- | --- |
 | `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`) |
-| `--api-key <key>` | override the `X-API-Key` (env `JOBSUCHE_API_KEY`) |
+| `--api-key <key>` | override the `X-API-Key` (env `JOBSUCHE_API_KEY`); a blank/whitespace value is ignored and the default key is used |
 | `--timeout <ms>` | Per-request timeout (default `30000`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
@@ -59,7 +59,9 @@ Credential headers (`X-API-Key` / `Authorization` / `Cookie`) are **not**
 forwarded if the API redirects to a different origin, so the key cannot leak to
 a third-party host. Same-origin redirects keep them.
 
-Global options go **before** the command, e.g. `jobsuche --compact search --was Informatiker`.
+Global options are accepted either before or after the command, e.g. both
+`jobsuche --compact search --was Informatiker` and
+`jobsuche search --was Informatiker --compact` work.
 
 ### Commands
 
@@ -83,8 +85,11 @@ jobsuche search --was Pflege --wo "München" --umkreis 50 --veroeffentlicht-seit
 jobsuche details 10001-1002716922-S
 ```
 
-Exit codes: `0` success, `3` on a `401`/`403` (API key missing/rejected), `4` on
-a `404` from the API, `1` for any other error, non-zero for usage errors.
+Exit codes: `0` success; `2` for usage errors (bad flag/value, missing command);
+`3` on any `401`/`403` from the API (typically a key problem, but a
+resource-level forbidden or quota/rate reason also lands here — the server's
+`detail` is surfaced when present); `4` on a `404` from the API; `1` for any
+other error, including network/transport failures and JSON parse failures.
 
 ---
 

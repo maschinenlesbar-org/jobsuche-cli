@@ -6,13 +6,58 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { JobsucheClientOptions } from "../client/client.js";
 
-/** commander value-parser: a non-negative integer. */
+/**
+ * commander value-parser: a non-negative decimal integer.
+ *
+ * Only a plain run of ASCII digits is accepted. `Number()` would otherwise
+ * silently accept (and transform) hex/binary/octal/scientific forms, a leading
+ * `+`, surrounding whitespace and the empty string, sending the API a value
+ * different from what the user typed. The result must also be a safe integer so
+ * very large inputs cannot lose precision.
+ */
 export function parseIntArg(value: string): number {
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < 0) {
+  if (!/^\d+$/.test(value)) {
     throw new InvalidArgumentError("Expected a non-negative integer.");
   }
+  const n = Number(value);
+  if (!Number.isSafeInteger(n)) {
+    throw new InvalidArgumentError("Integer is too large.");
+  }
   return n;
+}
+
+/**
+ * commander value-parser for a free-text option. Rejects a value that looks like
+ * another option flag (e.g. `--was --wo`): without this, commander silently
+ * consumes the following flag as the value and the real error never mentions the
+ * starved option. Use `--` to pass a literal value that begins with `--`.
+ */
+export function parseTextArg(value: string): string {
+  if (/^--?[^\s]/.test(value)) {
+    throw new InvalidArgumentError(
+      `looks like a missing value (received "${value}"). ` +
+        `Use -- before a value that starts with a dash.`,
+    );
+  }
+  return value;
+}
+
+/**
+ * commander value-parser for `--base-url`. Rejects a malformed URL or an
+ * unsupported protocol up front (as a usage error) instead of letting it fail
+ * late inside the transport with a generic runtime error.
+ */
+export function parseBaseUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new InvalidArgumentError(`Invalid URL: "${value}".`);
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new InvalidArgumentError(`Unsupported protocol "${url.protocol}" (use http: or https:).`);
+  }
+  return value;
 }
 
 export interface GlobalOptions {
@@ -29,9 +74,10 @@ export interface GlobalOptions {
  * Translate resolved global CLI options into client options.
  *
  * `env` (defaulting to `process.env`) supplies the `JOBSUCHE_API_KEY` fallback.
- * Precedence: an explicit `--api-key` (in `global.apiKey`) wins; otherwise a
- * non-empty (trimmed) `JOBSUCHE_API_KEY` seeds the key; otherwise the client's
- * built-in public default applies.
+ * Precedence: an explicit, non-empty `--api-key` (in `global.apiKey`) wins;
+ * otherwise a non-empty (trimmed) `JOBSUCHE_API_KEY` seeds the key; otherwise
+ * the client's built-in public default applies. A blank/whitespace `--api-key`
+ * is ignored (mirrors the env path) rather than forwarded as an empty header.
  */
 export function toEngineOptions(
   global: GlobalOptions,
@@ -44,8 +90,9 @@ export function toEngineOptions(
   if (global.maxRetries !== undefined) options.maxRetries = global.maxRetries;
   if (global.maxResponseBytes !== undefined) options.maxResponseBytes = global.maxResponseBytes;
 
-  if (global.apiKey !== undefined) {
-    options.apiKey = global.apiKey;
+  const flagKey = global.apiKey?.trim();
+  if (flagKey) {
+    options.apiKey = flagKey;
   } else {
     const envKey = env["JOBSUCHE_API_KEY"]?.trim();
     if (envKey) options.apiKey = envKey;

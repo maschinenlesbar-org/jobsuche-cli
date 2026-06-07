@@ -163,6 +163,17 @@ export class RequestEngine {
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
     const res = await this.request("GET", path, { query, accept: "application/json" });
     const text = res.data.toString("utf8");
+    // Guard against a 200 that is not actually JSON (e.g. an HTML error/landing
+    // page from a misconfigured --base-url that resolves to an unexpected host).
+    // Inspecting the Content-Type yields a clearer message than a raw parse error.
+    const isJsonType = /\bjson\b/i.test(res.contentType);
+    if (!isJsonType && res.contentType) {
+      const snippet = text.slice(0, 200);
+      throw new JobsucheParseError(
+        `Expected a JSON response from ${path} but got Content-Type "${res.contentType}"`,
+        { cause: snippet ? new Error(snippet) : undefined },
+      );
+    }
     try {
       return JSON.parse(text) as T;
     } catch (cause) {

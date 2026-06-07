@@ -29,7 +29,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
 
 ## HIGH
 
-### B1. Already-base64-encoded `encryptedJobCode` for a real listing is double-encoded → 404
+### B1. Already-base64-encoded `encryptedJobCode` for a real listing is double-encoded → 404 — ✅ FIXED
+**Fix:** Widened `REFNR_PATTERN` in `src/client/client.ts` from `/^[A-Z0-9-]+$/` to `/^[A-Za-z0-9-]+$/` so refnrs containing lowercase hex round-trip correctly and a legitimately-encoded code is passed through unchanged. Regression test added in `test/cli.test.ts`.
 - Severity: High · Confidence: High
 - Repro:
   ```
@@ -54,7 +55,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
   (`client.ts:75-77`). Pass-through is effectively broken for the majority of real
   listings. Fix: allow lowercase in the pattern (`/^[A-Za-z0-9-]+$/`).
 
-### B2. `parseIntArg` accepts non-decimal / scientific / whitespace forms and silently transforms them
+### B2. `parseIntArg` accepts non-decimal / scientific / whitespace forms and silently transforms them — ✅ FIXED
+**Fix:** Rewrote `parseIntArg` in `src/cli/shared.ts` to require a strict `/^\d+$/` match before `Number()`, rejecting hex/binary/octal/scientific/`+`/leading-space forms.
 - Severity: High · Confidence: High
 - Repro (captured against a local server that echoes the request line):
   ```
@@ -78,7 +80,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
 
 ## MEDIUM
 
-### B3. Empty-string `--size`/`--page`/`--umkreis`/etc. is accepted as 0
+### B3. Empty-string `--size`/`--page`/`--umkreis`/etc. is accepted as 0 — ✅ FIXED
+**Fix:** Same `parseIntArg` rewrite in `src/cli/shared.ts`: `""` fails `/^\d+$/` and is now rejected as a usage error.
 - Severity: Medium · Confidence: High
 - Repro:
   ```
@@ -90,7 +93,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
   `size=0` is sent.
 - Root cause: same parser, `src/cli/shared.ts:10-16` (`Number("")` is 0).
 
-### B4. Huge integer args lose precision; the value sent ≠ the value typed
+### B4. Huge integer args lose precision; the value sent ≠ the value typed — ✅ FIXED
+**Fix:** `parseIntArg` in `src/cli/shared.ts` now rejects values that are not `Number.isSafeInteger` with "Integer is too large."
 - Severity: Medium · Confidence: High
 - Repro:
   ```
@@ -104,7 +108,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
   is accepted, exit 0).
 - Root cause: `src/cli/shared.ts:10-16` — no `Number.isSafeInteger` / range check.
 
-### B5. Empty `--was ""` (or `--wo ""`) sends an empty query param and breaks an otherwise-valid live search (HTTP 400)
+### B5. Empty `--was ""` (or `--wo ""`) sends an empty query param and breaks an otherwise-valid live search (HTTP 400) — ✅ FIXED
+**Fix:** `prune()` in `src/client/client.ts` now drops empty / whitespace-only string values (as well as `null`), so an empty `--was ""` is treated as "not provided" and omitted. Regression test added.
 - Severity: Medium · Confidence: High
 - Repro:
   ```
@@ -122,7 +127,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
   empty strings; `src/cli/commands/jobs.ts:22-33` passes the raw option through. An
   empty string from commander is `""`, not `undefined`, so it survives.
 
-### B6. 401/403 handler discards the server-supplied `detail`, even for non-auth 403s
+### B6. 401/403 handler discards the server-supplied `detail`, even for non-auth 403s — ✅ FIXED
+**Fix:** `src/cli/run.ts` now surfaces `err.detail` when present and uses a neutral "request rejected (HTTP n): <detail>" message with the key hint appended, instead of unconditionally asserting "API key rejected". Existing 401 test updated, new detail test added.
 - Severity: Medium · Confidence: High
 - Repro (local server returning 403 with body `{"detail":"forbidden"}`):
   ```
@@ -139,7 +145,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
 - Root cause: `src/cli/run.ts:38-45` overrides the message for all 401/403 and ignores
   `err.detail`.
 
-### B7. `--api-key ""` (blank) is forwarded as an empty `X-API-Key` instead of falling back to the default
+### B7. `--api-key ""` (blank) is forwarded as an empty `X-API-Key` instead of falling back to the default — ✅ FIXED
+**Fix:** `toEngineOptions` in `src/cli/shared.ts` now `.trim()`s `--api-key` and only uses it when non-empty, mirroring the env path (otherwise falls back to env / default). Regression test added.
 - Severity: Medium · Confidence: High
 - Repro:
   ```
@@ -155,7 +162,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
 - Root cause: `src/cli/shared.ts:47-52` — `--api-key` branch checks only `!== undefined`,
   while the env branch checks for non-empty after `trim()`. Inconsistent handling.
 
-### B8. `--was`/`--wo` value that begins with `--` is swallowed as the option value, producing a misleading error
+### B8. `--was`/`--wo` value that begins with `--` is swallowed as the option value, producing a misleading error — ✅ FIXED
+**Fix:** Added a `parseTextArg` value-parser in `src/cli/shared.ts` (rejects values that look like an option flag) and applied it to `--was`/`--wo`/`--berufsfeld`/`--arbeitgeber` in `src/cli/commands/jobs.ts`. The error now names the starved option and suggests `--`.
 - Severity: Medium · Confidence: High
 - Repro:
   ```
@@ -171,7 +179,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
 - Root cause: commander default option-argument parsing in
   `src/cli/commands/jobs.ts:11-12`; no `--` discipline or value validation.
 
-### B9. No-argument invocation exits 1 with no error line (just help)
+### B9. No-argument invocation exits 1 with no error line (just help) — ✅ FIXED
+**Fix:** `src/cli/run.ts` now detects the `commander.help` (no-command) case, prints an explicit "error: missing command (see usage above)." diagnostic, and returns exit 2.
 - Severity: Medium · Confidence: High
 - Repro:
   ```
@@ -185,7 +194,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
   CommanderError exit code (1) but the program prints help via `writeOut` (no error
   line). Not handled distinctly.
 
-### B10. Usage errors and generic runtime errors share exit code 1 — not script-distinguishable
+### B10. Usage errors and generic runtime errors share exit code 1 — not script-distinguishable — ✅ FIXED
+**Fix:** `src/cli/run.ts` now maps genuine CommanderError parse/usage errors to exit code 2 (help/version stay 0), while runtime/network errors remain exit 1. README exit-code section updated. Regression test added.
 - Severity: Medium · Confidence: High
 - Repro:
   ```
@@ -199,7 +209,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
 - Root cause: `src/cli/run.ts:32-34` returns `err.exitCode` for CommanderError (which
   is 1) and the generic branch also returns 1 (`run.ts:50-56`).
 
-### B11. Network / transport failures are reported with raw Node messages, not as a typed "network error"
+### B11. Network / transport failures are reported with raw Node messages, not as a typed "network error" — ✅ FIXED
+**Fix:** Added a dedicated `JobsucheNetworkError` branch in `src/cli/run.ts` that frames the failure as "Network error: could not reach the API (...)".
 - Severity: Medium · Confidence: High
 - Repro:
   ```
@@ -221,7 +232,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
 
 ## LOW
 
-### B12. `--compact` is documented as a "global option that must go before the command" but works after it too
+### B12. `--compact` is documented as a "global option that must go before the command" but works after it too — ✅ FIXED
+**Fix:** Updated `README.md` to state global options are accepted before or after the command (with both example invocations), matching the actual commander behavior.
 - Severity: Low · Confidence: High
 - Repro:
   ```
@@ -233,7 +245,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
   not).
 - Root cause: docs vs. behavior mismatch; `README.md:62`.
 
-### B13. JSON parse failure message omits the underlying cause
+### B13. JSON parse failure message omits the underlying cause — ✅ FIXED
+**Fix:** Added a `JobsucheParseError` branch in `src/cli/run.ts` that appends `err.cause` (the parser error / body snippet) to the message.
 - Severity: Low · Confidence: High
 - Repro (local server returns `this is not json{{` with 200):
   ```
@@ -248,7 +261,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
   user has no idea what came back.
 - Root cause: `src/cli/run.ts:50-53` prints only `err.message`, dropping `err.cause`.
 
-### B14. `--max-response-bytes 1` aborts with a network-style message and exit 1
+### B14. `--max-response-bytes 1` aborts with a network-style message and exit 1 — ✅ FIXED
+**Fix:** The body-cap is a `JobsucheNetworkError`, now caught by the new network branch in `src/cli/run.ts` and framed as a network error (still exit 1; a clearly-labelled connectivity message rather than a bare generic error).
 - Severity: Low · Confidence: High
 - Repro:
   ```
@@ -264,7 +278,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
 - Root cause: `src/client/http.ts:75-79` raises a `JobsucheNetworkError`; `run.ts`
   formats it generically.
 
-### B15. Unsupported-protocol base URL is reported as a generic error, exit 1
+### B15. Unsupported-protocol base URL is reported as a generic error, exit 1 — ✅ FIXED
+**Fix:** Added a `parseBaseUrl` value-parser in `src/cli/shared.ts` and applied it to `--base-url` in `src/cli/program.ts`, so a malformed URL or non-http(s) protocol is rejected up front as a usage error (exit 2).
 - Severity: Low · Confidence: High
 - Repro:
   ```
@@ -281,7 +296,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
 - Root cause: `--base-url` is accepted verbatim in `src/cli/program.ts:30`; rejection
   happens late in `src/client/http.ts:52-55`.
 
-### B16. `JobsucheParseError` returned for a transport failure when DNS resolves to an unexpected host (no scheme/host validation of `--base-url`)
+### B16. `JobsucheParseError` returned for a transport failure when DNS resolves to an unexpected host (no scheme/host validation of `--base-url`) — ✅ FIXED
+**Fix:** `getJson` in `src/client/engine.ts` now inspects `Content-Type` before `JSON.parse`; a non-JSON body yields a clear "Expected a JSON response ... but got Content-Type ..." error (with a body snippet) instead of an opaque parse failure. Regression test added.
 - Severity: Low · Confidence: Medium
 - Repro (depends on resolver, but reproducible whenever `--base-url` host returns a
   non-JSON 200):
@@ -296,7 +312,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
 - Root cause: `src/client/engine.ts:163-171` parses JSON without inspecting
   `Content-Type`.
 
-### B17. `--was ""` empty value also sent on `search` even when other params are valid — empty params not pruned (data-shape)
+### B17. `--was ""` empty value also sent on `search` even when other params are valid — empty params not pruned (data-shape) — ✅ FIXED
+**Fix:** Same `prune()` change in `src/client/client.ts` as B5 — empty / whitespace-only string params are dropped from the query for every text parameter.
 - Severity: Low · Confidence: High
 - Repro:
   ```
@@ -310,7 +327,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
 - Root cause: `src/client/query.ts:25-33` only skips `undefined`/`null`, not `""`;
   combined with `prune()` (`client.ts:33-39`) keeping `""`.
 
-### B18. Help / README do not document the exit-code-3 "any 403" overreach or the parse-error/network exit semantics
+### B18. Help / README do not document the exit-code-3 "any 403" overreach or the parse-error/network exit semantics — ✅ FIXED
+**Fix:** Rewrote the exit-code paragraph in `README.md` to document that exit 3 covers all 401/403 (not only key problems, with the server `detail` surfaced), exit 2 for usage errors, and exit 1 for network/parse failures.
 - Severity: Low · Confidence: High
 - Repro: compare `README.md:86-87` ("3 on a 401/403 (API key missing/rejected)")
   with B6: a *resource* 403 unrelated to the key also yields exit 3 and the "API key
@@ -321,7 +339,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
   there. Docs/behavior mismatch.
 - Root cause: `README.md:86-87` vs `src/cli/run.ts:38-45`.
 
-### B19. `--help` / README do not mention that `--api-key ""` produces an empty credential header
+### B19. `--help` / README do not mention that `--api-key ""` produces an empty credential header — ✅ FIXED
+**Fix:** Moot after B7 (a blank `--api-key` is now ignored, not forwarded). Documented the new behavior in the `--api-key` row of the options table in `README.md`.
 - Severity: Low · Confidence: High
 - Repro: `node dist/src/cli/index.js --help` lists `--api-key <key>` with no note that
   an empty value is forwarded literally (see B7).
@@ -331,7 +350,8 @@ Counts by severity: **High: 2 · Medium: 9 · Low: 9**.
   env path which ignores empties.
 - Root cause: doc gap; `program.ts:31`, `shared.ts:47-52`.
 
-### B20. Domain types are missing fields the live API returns (`woOutput`, `modifikationsTimestamp`, `externeUrl`, `arbeitsort.entfernung`, …)
+### B20. Domain types are missing fields the live API returns (`woOutput`, `modifikationsTimestamp`, `externeUrl`, `arbeitsort.entfernung`, …) — ✅ FIXED
+**Fix:** Extended the interfaces in `src/client/types.ts`: added `entfernung` to `Arbeitsort`, `modifikationsTimestamp`/`externeUrl` (plus an index signature for forward-compat extra keys) to `Stellenangebot`, and `woOutput` to `JobSearchResult`.
 - Severity: Low · Confidence: High
 - Repro (library/type-consumer level): the live `search` response includes
   `woOutput`, and each `stellenangebot` includes `modifikationsTimestamp`,

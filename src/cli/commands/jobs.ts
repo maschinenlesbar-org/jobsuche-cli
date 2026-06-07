@@ -1,16 +1,16 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, parseIntArg, renderJson } from "../shared.js";
+import { action, parseIntArg, parseTextArg, renderJson } from "../shared.js";
 import type { JobSearchParams } from "../../client/types.js";
 
 export function registerJobCommands(program: Command, deps: CliDeps): void {
   program
     .command("search")
     .description("Search job listings")
-    .option("--was <text>", "job title / keyword (was)")
-    .option("--wo <text>", "location (wo)")
-    .option("--berufsfeld <text>", "occupational field")
-    .option("--arbeitgeber <text>", "employer name")
+    .option("--was <text>", "job title / keyword (was)", parseTextArg)
+    .option("--wo <text>", "location (wo)", parseTextArg)
+    .option("--berufsfeld <text>", "occupational field", parseTextArg)
+    .option("--arbeitgeber <text>", "employer name", parseTextArg)
     .option("--umkreis <km>", "radius in km around the location", parseIntArg)
     .option("--veroeffentlicht-seit <days>", "published within the last N days", parseIntArg)
     .option("--zeitarbeit", "include temp-work agencies")

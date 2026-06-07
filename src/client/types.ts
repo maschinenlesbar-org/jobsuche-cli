@@ -17,6 +17,8 @@ export interface Arbeitsort {
   strasse?: string;
   region?: string;
   land?: string;
+  /** Distance in km from the searched location, when a radius search was used. */
+  entfernung?: number;
   koordinaten?: { lat?: number; lon?: number };
 }
 
@@ -31,6 +33,12 @@ export interface Stellenangebot {
   aktuelleVeroeffentlichungsdatum?: string;
   eintrittsdatum?: string;
   hashId?: string;
+  /** Last-modification timestamp the API stamps on the listing. */
+  modifikationsTimestamp?: string;
+  /** Present when the listing points at an external (third-party) posting. */
+  externeUrl?: string;
+  /** Allow the extra keys the live API may add without losing type-safety. */
+  [key: string]: JsonValue | Arbeitsort | undefined;
 }
 
 /** Response of the jobs search endpoint. */
@@ -40,6 +48,8 @@ export interface JobSearchResult {
   page?: number;
   size?: number;
   facetten?: JsonObject;
+  /** Echo of the resolved location (`wo`) the API searched against. */
+  woOutput?: JsonObject;
 }
 
 /** Full single-job payload — kept as a faithful raw object. */
