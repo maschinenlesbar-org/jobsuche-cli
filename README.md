@@ -96,7 +96,7 @@ other error, including network/transport failures and JSON parse failures.
 ## Library usage
 
 ```ts
-import { JobsucheClient, JobsucheApiError } from "jobsuche-cli";
+import { JobsucheClient, JobsucheApiError } from "@maschinenlesbar.org/jobsuche-cli";
 
 const client = new JobsucheClient(); // sends the public X-API-Key by default
 
