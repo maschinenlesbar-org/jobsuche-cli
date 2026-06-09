@@ -145,32 +145,6 @@ so the key cannot leak to a third-party host. Same-origin redirects keep them.
 
 ---
 
-## Project / technical terms
-
-**API client.** [`JobsucheClient`](src/client/client.ts) — the typed wrapper over
-the API (`search` + `details`). Usable as a library independently of the CLI.
-
-**Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
-([`http.ts`](src/client/http.ts)). The default uses Node's built-in
-`http`/`https`; tests inject a mock. This is the only HTTP seam.
-
-**Request engine.** [`RequestEngine`](src/client/engine.ts) — builds URLs,
-serialises queries, applies retry/backoff, follows redirects (stripping
-credentials cross-origin), decodes JSON/raw responses and maps errors. Sits
-between the client and the transport. Caps response size (`maxResponseBytes`,
-default 100 MiB) to defend against memory exhaustion.
-
-**RawResponse.** The result of a raw request: `{ data: Buffer, contentType,
-status }` — raw bytes, never lossily decoded.
-
-**CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`io.ts`](src/cli/io.ts)): a client factory plus an I/O object (`out`/`err`) and
-an injectable `env`. Lets the whole CLI run in tests with a mocked client and
-captured output — no subprocess.
-
-**Error types.** [`errors.ts`](src/client/errors.ts): `JobsucheApiError` (non-2xx,
-carries `status`/`detail`/`url`/`body`, with an `isRetryable` getter for
-429/503), `JobsucheNetworkError` (transport failure/timeout), `JobsucheParseError`
-(bad/non-JSON body), all extending `JobsucheError`. The CLI maps `401`/`403` to
-exit code `3`, `404` to exit code `4`, usage errors to `2`, and any other error
-to `1`.
+> **Library & internals.** Terms for the TypeScript client and its internals —
+> `JobsucheClient`, the request engine, transport, retry/backoff, error
+> types, query builder — now live in **[DEVELOPING.md](DEVELOPING.md)**.
