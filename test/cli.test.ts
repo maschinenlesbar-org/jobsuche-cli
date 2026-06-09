@@ -27,12 +27,13 @@ function makeCli(
   return { deps, out, err, mt };
 }
 
-test("search builds the query and sends the default key", async () => {
+test("search builds the query and sends no key when none is configured", async () => {
   const cli = makeCli(() => jsonResponse({ stellenangebote: [] }));
   const code = await run(["search", "--was", "Informatiker", "--size", "5"], cli.deps);
   assert.equal(code, 0);
   const req = cli.mt.last();
-  assert.equal(req.headers?.["X-API-Key"], "jobboerse-jobsuche");
+  // No key is bundled: without --api-key/env the header is omitted.
+  assert.equal(req.headers?.["X-API-Key"], undefined);
   const url = new URL(req.url);
   assert.equal(url.pathname, `${SERVICE}/pc/v4/jobs`);
   assert.equal(url.searchParams.get("was"), "Informatiker");
@@ -56,10 +57,10 @@ test("--api-key overrides JOBSUCHE_API_KEY", async () => {
   assert.equal(cli.mt.last().headers?.["X-API-Key"], "flag-key");
 });
 
-test("an all-whitespace JOBSUCHE_API_KEY is ignored (falls back to default)", async () => {
+test("an all-whitespace JOBSUCHE_API_KEY is ignored (no header sent)", async () => {
   const cli = makeCli(() => jsonResponse({ stellenangebote: [] }), { JOBSUCHE_API_KEY: "   " });
   await run(["search", "--was", "x"], cli.deps);
-  assert.equal(cli.mt.last().headers?.["X-API-Key"], "jobboerse-jobsuche");
+  assert.equal(cli.mt.last().headers?.["X-API-Key"], undefined);
 });
 
 test("a 401 maps to exit code 3 with an actionable message", async () => {
@@ -131,10 +132,10 @@ test("an empty --was is omitted from the query, not sent as was= (B5/B17)", asyn
   assert.equal(url.searchParams.get("wo"), "Berlin");
 });
 
-test("a blank --api-key falls back to the default key (B7)", async () => {
+test("a blank --api-key sends no header (no bundled default) (B7)", async () => {
   const cli = makeCli(() => jsonResponse({ stellenangebote: [] }));
   await run(["--api-key", "", "search", "--was", "x"], cli.deps);
-  assert.equal(cli.mt.last().headers?.["X-API-Key"], "jobboerse-jobsuche");
+  assert.equal(cli.mt.last().headers?.["X-API-Key"], undefined);
 });
 
 test("a bad integer flag is a usage error (exit 2), distinct from runtime errors (B10)", async () => {

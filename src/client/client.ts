@@ -1,8 +1,11 @@
 // JobsucheClient — a typed client over the open Jobsuche API of the
 // Bundesagentur für Arbeit (rest.arbeitsagentur.de/jobboerse/jobsuche-service).
 //
-// Auth: the API requires a static, publicly-documented `X-API-Key` header
-// ("jobboerse-jobsuche"). It is applied automatically; override via `apiKey`.
+// Auth: the API requires a static, publicly-documented `X-API-Key` header. The
+// key is NOT bundled with this client — pass it via `apiKey` (the CLI maps this
+// to `--api-key` / the JOBSUCHE_API_KEY env var). When no key is supplied the
+// header is omitted and the API answers 401/403. The public key can be fetched
+// out-of-band for CI / live testing via scripts/fetch-api-key.mjs.
 //
 //   client.search({ was: "Informatiker", wo: "Berlin", size: 10 })
 //   client.details(stellenangebot.refnr)
@@ -21,12 +24,13 @@ const SERVICE = "/jobboerse/jobsuche-service";
  * already-base64-encoded `encryptedJobCode`.
  */
 const REFNR_PATTERN = /^[A-Za-z0-9-]+$/;
-/** The static, publicly-documented API key for the Jobsuche service. */
-export const DEFAULT_API_KEY = "jobboerse-jobsuche";
 
 /** Options for the Jobsuche client (engine options plus the API key). */
 export interface JobsucheClientOptions extends EngineOptions {
-  /** Overrides the default `X-API-Key`. */
+  /**
+   * The `X-API-Key` to send. No key is bundled; when omitted (or blank) the
+   * header is not sent. Obtain the public key via scripts/fetch-api-key.mjs.
+   */
   apiKey?: string;
 }
 
@@ -51,9 +55,14 @@ export class JobsucheClient {
 
   constructor(options: JobsucheClientOptions = {}) {
     const { apiKey, ...engineOptions } = options;
+    // Only send X-API-Key when a non-blank key was supplied; never default one.
+    const key = apiKey?.trim() ? apiKey : undefined;
     this.engine = new RequestEngine({
       ...engineOptions,
-      defaultHeaders: { "X-API-Key": apiKey ?? DEFAULT_API_KEY, ...engineOptions.defaultHeaders },
+      defaultHeaders: {
+        ...(key ? { "X-API-Key": key } : {}),
+        ...engineOptions.defaultHeaders,
+      },
     });
   }
 

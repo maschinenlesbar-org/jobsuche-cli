@@ -34,9 +34,11 @@ job database. Base URL `https://rest.arbeitsagentur.de`, service path
 two open, read-only endpoints (search + details).
 
 **X-API-Key.** The API requires a static, publicly-documented API key
-(`jobboerse-jobsuche`) on every request. It is not a secret; the client sends it
-by default. Override via `--api-key`, the `JOBSUCHE_API_KEY` env var, or the
-`apiKey` client option. (`DEFAULT_API_KEY` in `src/client/client.ts`.)
+(`jobboerse-jobsuche`) on every request. It is not a secret, but it is **not
+bundled** with the client — supply it via `--api-key`, the `JOBSUCHE_API_KEY` env
+var, or the `apiKey` client option, else the header is omitted and the API
+answers 401/403. For CI / live testing the public key can be fetched out-of-band
+(never from the CLI) via `scripts/fetch-api-key.mjs` (`npm run fetch-key`).
 
 ---
 

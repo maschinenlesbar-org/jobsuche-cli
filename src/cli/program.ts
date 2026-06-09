@@ -42,11 +42,12 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .name("jobsuche")
     .description(
       "CLI for the Bundesagentur für Arbeit Jobsuche API " +
-        "(rest.arbeitsagentur.de/jobboerse/jobsuche-service). Uses the public X-API-Key by default.",
+        "(rest.arbeitsagentur.de/jobboerse/jobsuche-service). Requires an X-API-Key: " +
+        "pass --api-key or set JOBSUCHE_API_KEY (no key is bundled).",
     )
     .version(VERSION)
     .option("--base-url <url>", "API base URL", parseBaseUrl, "https://rest.arbeitsagentur.de")
-    .option("--api-key <key>", "override the X-API-Key header (env: JOBSUCHE_API_KEY)")
+    .option("--api-key <key>", "X-API-Key header value (env: JOBSUCHE_API_KEY)")
     .option("--timeout <ms>", "per-request timeout in milliseconds", parseIntArg)
     .option("--user-agent <ua>", "User-Agent header value")
     .option("--max-retries <n>", "retries for transient 429/503 responses", parseIntArg)

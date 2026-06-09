@@ -76,8 +76,10 @@ export interface GlobalOptions {
  * `env` (defaulting to `process.env`) supplies the `JOBSUCHE_API_KEY` fallback.
  * Precedence: an explicit, non-empty `--api-key` (in `global.apiKey`) wins;
  * otherwise a non-empty (trimmed) `JOBSUCHE_API_KEY` seeds the key; otherwise
- * the client's built-in public default applies. A blank/whitespace `--api-key`
- * is ignored (mirrors the env path) rather than forwarded as an empty header.
+ * no key is set and the `X-API-Key` header is omitted (the API then answers
+ * 401/403). No key is bundled — obtain the public one via
+ * scripts/fetch-api-key.mjs. A blank/whitespace `--api-key` is ignored (mirrors
+ * the env path) rather than forwarded as an empty header.
  */
 export function toEngineOptions(
   global: GlobalOptions,

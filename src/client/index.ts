@@ -1,6 +1,6 @@
 // Public entry point for the API client library.
 
-export { JobsucheClient, DEFAULT_API_KEY } from "./client.js";
+export { JobsucheClient } from "./client.js";
 export type { JobsucheClientOptions } from "./client.js";
 export { RequestEngine, DEFAULT_BASE_URL } from "./engine.js";
 export type { EngineOptions, RawResponse } from "./engine.js";

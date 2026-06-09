@@ -14,9 +14,21 @@ database**: search listings and fetch full job details.
 ## Authentication
 
 The Jobsuche API requires a static, publicly-documented `X-API-Key`
-(`jobboerse-jobsuche`). This client sends it **by default**, so no setup is
-needed. Override it with `--api-key`, the `JOBSUCHE_API_KEY` env var, or the
-`apiKey` client option.
+(`jobboerse-jobsuche`). **The key is not bundled** with the client or CLI — you
+supply it via `--api-key`, the `JOBSUCHE_API_KEY` env var, or the `apiKey` client
+option. With no key, the header is omitted and the API answers `401`/`403`.
+
+Because the key is publicly documented, you can fetch it out-of-band (for CI or
+local live testing — never from the CLI/production) with the bundled script:
+
+```bash
+npm run fetch-key                                  # prints the current public key
+JOBSUCHE_API_KEY="$(npm run --silent fetch-key)" jobsuche search --was Informatiker
+```
+
+The script scrapes the key from the upstream
+[bundesAPI README](https://github.com/bundesAPI/jobsuche-api); it is a dev/CI
+tool only and is not part of the published package.
 
 ## Requirements
 
