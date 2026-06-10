@@ -222,6 +222,8 @@ host.
 
 ## Learn more
 
+- **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills bundled with this repo
+  (market scan, job hunt, employer watch), installable as a plugin.
 - **[Usage.md](Usage.md)** — full use-case-driven cookbook.
 - **[GLOSSARY.md](GLOSSARY.md)** — every flag and domain term explained.
 - **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.

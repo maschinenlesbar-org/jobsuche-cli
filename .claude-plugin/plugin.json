@@ -1,0 +1,23 @@
+{
+  "name": "jobsuche",
+  "version": "0.1.0",
+  "description": "German job-market intelligence skills powered by the jobsuche-cli (Bundesagentur für Arbeit Jobsuche API).",
+  "author": {
+    "name": "Sebastian Schürmann",
+    "email": "sebs@2xs.org"
+  },
+  "license": "AGPL-3.0-or-later",
+  "repository": "https://github.com/maschinenlesbar-org/jobsuche-cli",
+  "homepage": "https://github.com/maschinenlesbar-org/jobsuche-cli#readme",
+  "keywords": [
+    "jobsuche",
+    "arbeitsagentur",
+    "jobboerse",
+    "jobs",
+    "employment",
+    "labour-market",
+    "recruiting",
+    "germany",
+    "bund.dev"
+  ]
+}
