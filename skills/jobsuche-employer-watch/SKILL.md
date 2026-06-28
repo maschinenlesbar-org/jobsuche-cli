@@ -3,8 +3,8 @@ name: jobsuche-employer-watch
 description: >
   Track a specific employer's open vacancies in Germany using the jobsuche-cli.
   Trigger when the user asks "what's Deutsche Bahn hiring right now?", "show all
-  open roles at SAP near Walldorf", "is <company> hiring in <city>?", "new
-  postings at <employer> this week", "where is <company> recruiting and for
+  open roles at SAP near Walldorf", "is a company hiring in a city?", "new
+  postings at an employer this week", "where is a company recruiting and for
   what". Pulls all of one employer's listings, breaks them down by location,
   role and freshness, and (re-run) flags what's new since last time.
 version: 1.0.0
