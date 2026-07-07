@@ -119,3 +119,62 @@ test("a cross-origin redirect strips credential headers", async () => {
   // Non-credential headers are still present.
   assert.equal(last.headers?.["Accept"], "application/json");
 });
+
+// Control characters are built from char codes so no raw control bytes ever
+// appear in this source file.
+const ESC = String.fromCharCode(0x1b);
+const BEL = String.fromCharCode(0x07);
+const C1 = String.fromCharCode(0x9b); // a C1 control (CSI)
+const DEL = String.fromCharCode(0x7f);
+
+/** True if the string contains any C0/C1 control char except tab/newline. */
+function hasControlChars(s: string): boolean {
+  return [...s].some((c) => {
+    const n = c.charCodeAt(0);
+    return n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f);
+  });
+}
+
+test("error detail is stripped of terminal control characters", async () => {
+  // ESC + C1 + BEL + DEL interleaved with printable text.
+  const evil = `boom${ESC}[31mred${BEL}${C1}2J${DEL}!`;
+  const mt = makeMockTransport(() => jsonResponse({ detail: evil }, 500));
+  const e = new RequestEngine({
+    baseUrl: "https://example.test",
+    transport: mt.transport,
+    maxRetries: 0,
+  });
+
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err: unknown) => {
+      assert.ok(err instanceof JobsucheApiError);
+      // The control bytes are gone from both the structured detail and the
+      // human-readable message that run.ts prints to stderr...
+      assert.ok(!hasControlChars(err.detail ?? ""));
+      assert.ok(!hasControlChars(err.message));
+      // ...while the printable characters are preserved (tab/newline kept too).
+      assert.equal(err.detail, "boom[31mred2J!");
+      return true;
+    },
+  );
+});
+
+test("a non-JSON content type is stripped of control chars in the parse error", async () => {
+  const evilType = `text/html${ESC}[2K`;
+  const mt = makeMockTransport(() =>
+    rawResponse(`<html>${BEL}bad</html>`, evilType),
+  );
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
+
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err: unknown) => {
+      assert.ok(err instanceof JobsucheParseError);
+      assert.ok(!hasControlChars(err.message));
+      const cause = err.cause instanceof Error ? err.cause.message : "";
+      assert.ok(!hasControlChars(cause));
+      return true;
+    },
+  );
+});

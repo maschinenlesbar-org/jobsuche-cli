@@ -63,6 +63,28 @@ function stripCredentialHeaders(headers: Record<string, string>): Record<string,
   return out;
 }
 
+/**
+ * Strip control characters (all C0/C1 controls except tab and newline, plus DEL)
+ * from a string that originates in an attacker-controlled response — the error
+ * `detail` and the echoed Content-Type. `JSON.parse` decodes an escaped ESC in an
+ * error body into a real ESC byte, so without this a hostile or MITM-controlled endpoint
+ * could drive ANSI/OSC terminal escape sequences into the user's terminal when the
+ * message is printed to stderr (display spoofing, title changes). The success path
+ * is already safe because `JSON.stringify` escapes these; this only needs to cover
+ * text that flows into an error message. The API key lives in a request header and
+ * is never part of this text, so it cannot leak here.
+ */
+function sanitizeServerText(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const n = ch.codePointAt(0) ?? 0;
+    // Drop C0 (except tab 0x09 / newline 0x0a), DEL and C1; keep everything else.
+    if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
+    out += ch;
+  }
+  return out;
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -168,9 +190,12 @@ export class RequestEngine {
     // Inspecting the Content-Type yields a clearer message than a raw parse error.
     const isJsonType = /\bjson\b/i.test(res.contentType);
     if (!isJsonType && res.contentType) {
-      const snippet = text.slice(0, 200);
+      // Both the echoed Content-Type and the body snippet are server-controlled and
+      // are printed to stderr by run.ts; strip control chars so a hostile endpoint
+      // cannot inject terminal escape sequences via the parse-error message.
+      const snippet = sanitizeServerText(text.slice(0, 200));
       throw new JobsucheParseError(
-        `Expected a JSON response from ${path} but got Content-Type "${res.contentType}"`,
+        `Expected a JSON response from ${path} but got Content-Type "${sanitizeServerText(res.contentType)}"`,
         { cause: snippet ? new Error(snippet) : undefined },
       );
     }
@@ -196,6 +221,10 @@ export class RequestEngine {
     } catch {
       // Non-JSON error body; leave detail undefined.
     }
+    // `detail` came from the response body and ends up in the Error.message that
+    // run.ts prints to stderr; strip control characters so a hostile endpoint
+    // cannot inject terminal escape sequences via that message.
+    if (detail !== undefined) detail = sanitizeServerText(detail);
     return new JobsucheApiError({ status, url, method, body: text, detail });
   }
 }
