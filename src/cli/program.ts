@@ -47,7 +47,11 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     )
     .version(VERSION)
     .option("--base-url <url>", "API base URL", parseBaseUrl, "https://rest.arbeitsagentur.de")
-    .option("--api-key <key>", "X-API-Key header value (env: JOBSUCHE_API_KEY)")
+    .option(
+      "--api-key <key>",
+      "X-API-Key header value. Prefer JOBSUCHE_API_KEY: an --api-key argument is " +
+        "visible to other local users via the process table and shell history.",
+    )
     .option("--timeout <ms>", "per-request timeout in milliseconds", parseIntArg)
     .option("--user-agent <ua>", "User-Agent header value")
     .option("--max-retries <n>", "retries for transient 429/503 responses", parseIntArg)

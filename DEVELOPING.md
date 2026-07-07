@@ -84,6 +84,13 @@ on every request. The key is **not bundled** — pass it via `apiKey` (library),
 **`--api-key` > env var**; a blank/whitespace key is treated as absent (header
 omitted), and the API then answers `401`/`403`.
 
+Prefer the `JOBSUCHE_API_KEY` env var over `--api-key`: a value passed on the
+command line is visible to other local users through the process table (`ps`) and
+is recorded in shell history. The customary key for this API is public, so the
+exposure is low, but the env var is the recommended path and the `--help` text
+says so. The key is only ever carried as a request header — never placed in a URL,
+log line, error message, or output — and is stripped on a cross-origin redirect.
+
 The key is publicly documented and can be fetched out-of-band (for CI or local
 live testing — never from production) with the bundled script:
 
