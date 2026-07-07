@@ -164,7 +164,11 @@ so the key is never forwarded to another host. Same-origin redirects keep the ke
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
 retried automatically with backoff, up to `--max-retries`. `JobsucheApiError`
-exposes `isRetryable` (true for `429`/`503`).
+exposes `isRetryable` (true for `429`/`503`). **Divergence from the portfolio
+default:** this repo uses linear backoff only (`retryDelayMs * attempt`) and does
+**not** honour a `Retry-After` header — the retry count is bounded by
+`--max-retries` (default 2), so there is no runaway, but the client is not as
+polite to the server's stated cool-off as the shared convention would be.
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;
 default 100 MiB), guarding against unbounded responses.
