@@ -53,3 +53,31 @@ test("enforces maxResponseBytes", async () => {
     },
   );
 });
+
+test("a slow-drip response is bounded by the wall-clock deadline", async () => {
+  // The server dribbles one byte every 20ms and never ends. Each byte resets the
+  // idle-socket timeout, so without a separate wall-clock deadline the request
+  // would hang forever while staying under maxResponseBytes. The deadline must
+  // still fire and surface a JobsucheNetworkError.
+  const timers: NodeJS.Timeout[] = [];
+  await withServer(
+    (_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      const t = setInterval(() => res.write("x"), 20);
+      timers.push(t);
+      res.on("close", () => clearInterval(t));
+    },
+    async (baseUrl) => {
+      await assert.rejects(
+        () => nodeHttpTransport({ method: "GET", url: baseUrl, timeoutMs: 80 }),
+        (err: unknown) => {
+          assert.ok(err instanceof JobsucheNetworkError);
+          // The wall-clock deadline, not the idle timeout, is what caught it.
+          assert.match(err.message, /deadline/);
+          return true;
+        },
+      );
+    },
+  );
+  for (const t of timers) clearInterval(t);
+});
