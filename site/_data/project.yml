@@ -1,0 +1,18 @@
+# The only repo-specific texts of the website. Everything else comes from the
+# repository: the English intro from README.md, the commands from the built CLI.
+
+# How the API is accessed: open | key (env: VAR) | account (token, user, password: VARs)
+access:
+  type: key
+  env: JOBSUCHE_API_KEY
+
+de:
+  # German version of the README's intro paragraph. Keep it in step with README.md.
+  intro: >-
+    Die bundesweite **Stellendatenbank** direkt im Terminal durchsuchen. `jobsuche` ist ein
+    kleines Kommandozeilen-Tool für die [Jobsuche-API der Bundesagentur für
+    Arbeit](https://jobsuche.api.bund.dev/)
+    (`rest.arbeitsagentur.de/jobboerse/jobsuche-service`): Stellenangebote nach Stichwort,
+    Ort, Umkreis oder Arbeitgeber finden und den vollständigen Datensatz zu jedem Angebot
+    abrufen – als sauberes JSON, das Sie direkt an [`jq`](https://jqlang.github.io/jq/)
+    weitergeben können.
