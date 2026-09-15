@@ -103,8 +103,10 @@ within the last N days (`--veroeffentlicht-seit`).
 agencies (`--zeitarbeit`).
 
 **angebotsart (offer type).** A numeric code selecting the kind of offer
-(`--angebotsart`), e.g. a regular job vacancy vs. a self-employment, trainee or
-secondment posting. Passed through verbatim to the API.
+(`--angebotsart`): `1` job vacancy (Arbeit), `2` self-employment
+(Selbstständigkeit), `4` apprenticeship or dual study (Ausbildung / Duales
+Studium), `34` internship or trainee post (Praktikum / Trainee). These are the
+codes in the upstream bundesAPI OpenAPI spec. Passed through verbatim to the API.
 
 **page / size.** Pagination: `page` is 1-based, `size` is the page size
 (`--page`, `--size`).

@@ -104,8 +104,9 @@ N Tagen veröffentlicht wurden (`--veroeffentlicht-seit`).
 einzubeziehen (`--zeitarbeit`).
 
 **angebotsart.** Ein numerischer Code für die Art des Angebots
-(`--angebotsart`), z. B. eine reguläre Arbeitsstelle im Unterschied zu einem Angebot für
-Selbstständigkeit, Trainee oder Entsendung. Wird unverändert an die API weitergegeben.
+(`--angebotsart`): `1` Arbeit, `2` Selbstständigkeit, `4` Ausbildung bzw. Duales
+Studium, `34` Praktikum bzw. Trainee. Das sind die Codes aus der OpenAPI-Spezifikation
+von bundesAPI. Wird unverändert an die API weitergegeben.
 
 **page / size.** Paginierung: `page` beginnt bei 1, `size` ist die Seitengröße
 (`--page`, `--size`).
