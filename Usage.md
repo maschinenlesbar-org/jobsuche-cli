@@ -172,7 +172,7 @@ These apply to every command and may be given before or after the command name
 | --- | --- |
 | `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`) |
 | `--api-key <key>` | override the `X-API-Key` (env `JOBSUCHE_API_KEY`); blank/whitespace is ignored and the default public key is used |
-| `--timeout <ms>` | per-request timeout in milliseconds |
+| `--timeout <ms>` | per-request timeout in milliseconds (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | retries for transient `429`/`503` responses |
 | `--max-response-bytes <n>` | cap response body size in bytes (`0` = unlimited; default 100 MiB) |

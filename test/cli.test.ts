@@ -160,6 +160,17 @@ test("a bad integer flag is a usage error (exit 2), distinct from runtime errors
   assert.equal(code, 2);
 });
 
+test("--timeout accepts up to the largest timer Node supports", async () => {
+  const cli = makeCli(() => jsonResponse({ stellenangebote: [] }));
+  assert.equal(await run(["--timeout", "2147483647", "search", "--was", "x"], cli.deps), 0);
+  assert.equal(cli.mt.last().timeoutMs, 2_147_483_647);
+
+  const over = makeCli(() => jsonResponse({ stellenangebote: [] }));
+  assert.equal(await run(["--timeout", "2147483648", "search", "--was", "x"], over.deps), 2);
+  assert.equal(over.mt.calls.length, 0); // rejected before any request
+  assert.match(over.err.join("\n"), /Must be <= 2147483647/);
+});
+
 test("a non-JSON 200 response surfaces the Content-Type (B16)", async () => {
   const cli = makeCli(() => ({
     status: 200,

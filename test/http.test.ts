@@ -54,6 +54,25 @@ test("enforces maxResponseBytes", async () => {
   );
 });
 
+test("a timeoutMs beyond Node's timer range is capped, not fired after 1 ms", async () => {
+  const warnings: string[] = [];
+  const onWarning = (warning: Error) => void warnings.push(warning.name);
+  process.on("warning", onWarning);
+  try {
+    await withServer(
+      (_req, res) => void setTimeout(() => res.end("{}"), 50),
+      async (baseUrl) => {
+        const resp = await nodeHttpTransport({ method: "GET", url: baseUrl, timeoutMs: 3_000_000_000 });
+        assert.equal(resp.body.toString("utf8"), "{}");
+      },
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(warnings.filter((name) => name === "TimeoutOverflowWarning"), []);
+  } finally {
+    process.off("warning", onWarning);
+  }
+});
+
 test("a slow-drip response is bounded by the wall-clock deadline", async () => {
   // The server dribbles one byte every 20ms and never ends. Each byte resets the
   // idle-socket timeout, so without a separate wall-clock deadline the request

@@ -205,7 +205,7 @@ These apply to every command and may be given before *or* after it:
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `--api-key <key>` | Override or supply the `X-API-Key` (env `JOBSUCHE_API_KEY`) |
 | `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`) |
-| `--timeout <ms>` | Per-request timeout (default `30000`) |
+| `--timeout <ms>` | Per-request timeout (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
