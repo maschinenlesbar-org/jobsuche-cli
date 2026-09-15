@@ -4,7 +4,7 @@ import { run } from "../src/cli/run.js";
 import { JobsucheClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { makeMockTransport, jsonResponse } from "./helpers.js";
+import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 const SERVICE = "/jobboerse/jobsuche-service";
 
@@ -81,6 +81,23 @@ test("a 403 maps to exit code 3", async () => {
   const cli = makeCli(() => jsonResponse({}, 403));
   const code = await run(["details", "a-b-c"], cli.deps);
   assert.equal(code, 3);
+});
+
+test("an empty-body 403 hint names both a wrong key and a refused network", async () => {
+  // The gateway sends text/plain with a one-space body for a wrong key too.
+  const cli = makeCli(() => rawResponse(" ", "text/plain", 403));
+  const code = await run(["search", "--was", "x"], cli.deps);
+  assert.equal(code, 3);
+  const err = cli.err.join("\n");
+  assert.match(err, /JOBSUCHE_API_KEY/);
+  assert.match(err, /wrong key and for a refused network/);
+  assert.match(err, /bundesAPI\/jobsuche-api README/);
+});
+
+test("a 403 with a server detail gets no network hint", async () => {
+  const cli = makeCli(() => jsonResponse({ detail: "quota exceeded" }, 403));
+  await run(["details", "a-b-c"], cli.deps);
+  assert.doesNotMatch(cli.err.join("\n"), /refused network/);
 });
 
 test("details encodes a hyphenless numeric refnr", async () => {

@@ -64,6 +64,16 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
             `If this is an auth problem, check --api-key or the ` +
             `JOBSUCHE_API_KEY environment variable.`,
         );
+        // The rest.arbeitsagentur.de gateway answers a wrong or missing key with
+        // the same detail-less 403 (text/plain, one-space body) that it uses when
+        // it refuses the caller's network, so the response can't tell them apart.
+        if (err.status === 403 && !err.detail) {
+          deps.io.err(
+            "Hint: an empty 403 looks the same for a wrong key and for a refused network. " +
+              "Re-check the key against the bundesAPI/jobsuche-api README; if it matches, " +
+              "try from another network.",
+          );
+        }
         return 3;
       }
       deps.io.err(`Error: ${err.message}`);
