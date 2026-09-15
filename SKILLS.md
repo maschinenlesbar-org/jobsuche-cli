@@ -35,7 +35,9 @@ names on `details`) so Claude doesn't have to rediscover them each time.
   ```bash
   export JOBSUCHE_API_KEY="jobboerse-jobsuche"
   ```
-  With no key the API answers `401`/`403` and the CLI exits `3`.
+  With no key the API answers `401`/`403` and the CLI exits `3`. An empty-body `403`
+  looks the same for a wrong key and for a network the service refuses, so if the key
+  matches the bundesAPI README, try from another network.
 
 ## Installation
 

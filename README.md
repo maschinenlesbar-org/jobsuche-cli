@@ -174,7 +174,7 @@ same thing.
 | --- | --- |
 | `0` | success (also `--help` / `--version`) |
 | `2` | bad usage / invalid argument (nothing was sent) |
-| `3` | request rejected (`401`/`403`) — usually a missing or wrong API key |
+| `3` | request rejected (`401`/`403`) — a missing or wrong API key, or a refused network |
 | `4` | listing not found (`404`) |
 | `1` | any other error (network/transport failure, JSON parse error, etc.) |
 
@@ -183,10 +183,12 @@ same thing.
 - **`command not found: jobsuche`** — the global npm bin directory isn't on
   your `PATH`. Run `npm bin -g` to find it and add it, or run via
   `npx @maschinenlesbar.org/jobsuche-cli …`.
-- **Exit `3` / "request rejected"** — the API declined the request. The most
-  common cause is a missing or incorrect key. Check that `JOBSUCHE_API_KEY` is
-  set and non-empty, or pass `--api-key` explicitly. The public key is
-  `jobboerse-jobsuche` (see [bundesAPI/jobsuche-api](https://github.com/bundesAPI/jobsuche-api)).
+- **Exit `3` / "request rejected"** — the API declined the request. Check that
+  `JOBSUCHE_API_KEY` is set and non-empty, or pass `--api-key` explicitly. The
+  public key is `jobboerse-jobsuche` (see [bundesAPI/jobsuche-api](https://github.com/bundesAPI/jobsuche-api)).
+  A `403` with an empty body is ambiguous: the gateway sends the same response for
+  a wrong key and for a network it refuses. If the key matches the README, try
+  from another network.
 - **Exit `4` / "not found"** — the listing no longer exists. Listings expire;
   re-run a fresh `search` to get current `refnr` values.
 - **Exit `1` / "Network error"** — connectivity, DNS, or a timeout. Try again

@@ -34,6 +34,13 @@ key the API answers `401`/`403` and the CLI exits `3`. Set it once:
 export JOBSUCHE_API_KEY="jobboerse-jobsuche"
 ```
 
+**If a call exits `3` with `HTTP 403`, the cause is ambiguous.** The gateway at
+`rest.arbeitsagentur.de` sends the same empty-body 403 for a wrong or missing key as when
+it refuses the network you are on, so the response can't tell you which. Don't assume
+either: re-check the key against the
+[bundesAPI/jobsuche-api](https://github.com/bundesAPI/jobsuche-api) README first, and if it
+matches, tell the user to try from another network.
+
 Always pass `--compact` so output is one line for `jq`.
 
 ## Step 1 — The key move: ask for facets, not listings
