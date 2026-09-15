@@ -69,9 +69,10 @@ function stripCredentialHeaders(headers: Record<string, string>): Record<string,
  * `detail` and the echoed Content-Type. `JSON.parse` decodes an escaped ESC in an
  * error body into a real ESC byte, so without this a hostile or MITM-controlled endpoint
  * could drive ANSI/OSC terminal escape sequences into the user's terminal when the
- * message is printed to stderr (display spoofing, title changes). The success path
- * is already safe because `JSON.stringify` escapes these; this only needs to cover
- * text that flows into an error message. The API key lives in a request header and
+ * message is printed to stderr (display spoofing, title changes). This only covers
+ * text that flows into an error message; the CLI's JSON output is escaped separately
+ * (escapeControlChars in cli/shared.ts), since `JSON.stringify` alone leaves DEL and
+ * the C1 range raw. The API key lives in a request header and
  * is never part of this text, so it cannot leak here.
  */
 function sanitizeServerText(text: string): string {
