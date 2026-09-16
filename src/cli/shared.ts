@@ -40,13 +40,20 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
  * commander value-parser for a free-text option. Rejects a value that looks like
  * another option flag (e.g. `--was --wo`): without this, commander silently
  * consumes the following flag as the value and the real error never mentions the
- * starved option. Use `--` to pass a literal value that begins with `--`.
+ * starved option.
+ *
+ * Every dash-leading value is refused, with no escape hatch. commander hands this
+ * parser the same string for `--was -x` and `--was=-x`, so the two cannot be told
+ * apart here, and `--was -- -x` merely makes the value `--`. (A `--` *does* work
+ * for a positional argument, which is a different case — see lobbyregister-cli's
+ * `search` query.) No job title, place, occupational field or employer name is
+ * searched with a leading dash, so nothing legitimate is lost.
  */
 export function parseTextArg(value: string): string {
   if (/^--?[^\s]/.test(value)) {
     throw new InvalidArgumentError(
-      `looks like a missing value (received "${value}"). ` +
-        `Use -- before a value that starts with a dash.`,
+      `looks like a missing value — "${value}" is the next option, consumed because ` +
+        "this one was left without a value. Supply the intended search term.",
     );
   }
   return value;

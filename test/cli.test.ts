@@ -198,3 +198,16 @@ test("a non-JSON 200 response surfaces the Content-Type (B16)", async () => {
   assert.equal(code, 1);
   assert.match(cli.err.join("\n"), /text\/html/);
 });
+
+test("a starved free-text option is a usage error, not a silent search", async () => {
+  // `--was --wo Berlin` makes commander hand "--wo" to --was as its value; the
+  // location filter is then never applied. Fail loudly instead of quietly
+  // searching for something the user never asked for.
+  const cli = makeCli(() => jsonResponse({ stellenangebote: [] }));
+  const code = await run(["search", "--was", "--wo", "Berlin"], cli.deps);
+  assert.equal(code, 2);
+  assert.deepEqual(cli.out, []);
+  assert.match(cli.err.join("\n"), /is the next option, consumed because/);
+  // No request should have been made at all.
+  assert.equal(cli.mt.calls.length, 0);
+});
