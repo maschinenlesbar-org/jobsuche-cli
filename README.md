@@ -38,27 +38,49 @@ jobsuche --help
 
 ## Authentication
 
-The Jobsuche API requires a static, publicly-documented `X-API-Key`
-(`jobboerse-jobsuche`). **The key is not bundled** — you supply it once via the
-`JOBSUCHE_API_KEY` environment variable or per-call via `--api-key`. With no key
-the header is omitted and the API answers `401`/`403` (exit code `3`).
-
-The public key is documented in the upstream
-[bundesAPI/jobsuche-api](https://github.com/bundesAPI/jobsuche-api) repository.
-Set it in your shell profile for a seamless experience:
-
-```bash
-export JOBSUCHE_API_KEY="jobboerse-jobsuche"
-```
-
-Or fetch and export it in one step (handy for CI):
-
-```bash
-export JOBSUCHE_API_KEY="$(npm run --silent fetch-key --prefix $(npm root -g)/@maschinenlesbar.org/jobsuche-cli 2>/dev/null || echo jobboerse-jobsuche)"
-```
+The Jobsuche API requires a static `X-API-Key`. **No key is bundled with this
+package** — you supply it once via the `JOBSUCHE_API_KEY` environment variable
+or per-call via `--api-key`. With no key the header is omitted and the API
+answers `401`/`403` (exit code `3`).
 
 Precedence is `--api-key` > `JOBSUCHE_API_KEY` env var. A blank/whitespace key
-is ignored (no header sent).
+is ignored (no header sent). You do not have to go and find the key yourself —
+see **[Obtain key](#obtain-key)**.
+
+## Obtain key
+
+The Bundesagentur für Arbeit publishes one static key for public use. It is
+**not a secret** — it is the same value for everyone, printed in the upstream
+[bundesAPI/jobsuche-api](https://github.com/bundesAPI/jobsuche-api) README — but
+finding and copying it shouldn't be your job either. `obtain-key` reads it from
+that published source at run time and prints it:
+
+```bash
+jobsuche obtain-key          # -> jobboerse-jobsuche  (provenance note on stderr)
+```
+
+**From obtaining the key to having it where it is used, in one line:**
+
+```bash
+# this shell only
+eval "$(jobsuche obtain-key --export)"
+
+# or keep it for later — appends one `export …` line to your shell profile
+jobsuche obtain-key --export >> ~/.zshrc     # ~/.bashrc on bash
+```
+
+`--export` prints a single shell-quoted `export JOBSUCHE_API_KEY='…'` line on
+stdout (the "obtained from …" note goes to stderr, so it never lands in your
+profile). The plain form composes too:
+
+```bash
+export JOBSUCHE_API_KEY="$(jobsuche obtain-key)"
+```
+
+Because the key is fetched rather than compiled in, a rotated key needs no
+release of this CLI. If the upstream source is unreachable or stops publishing a
+key, `obtain-key` fails loudly with a non-zero exit rather than printing a guess
+— it will never invent a value.
 
 ## Quickstart
 
@@ -184,11 +206,11 @@ same thing.
   your `PATH`. Run `npm bin -g` to find it and add it, or run via
   `npx @maschinenlesbar.org/jobsuche-cli …`.
 - **Exit `3` / "request rejected"** — the API declined the request. Check that
-  `JOBSUCHE_API_KEY` is set and non-empty, or pass `--api-key` explicitly. The
-  public key is `jobboerse-jobsuche` (see [bundesAPI/jobsuche-api](https://github.com/bundesAPI/jobsuche-api)).
-  A `403` with an empty body is ambiguous: the gateway sends the same response for
-  a wrong key and for a network it refuses. If the key matches the README, try
-  from another network.
+  `JOBSUCHE_API_KEY` is set and non-empty, or pass `--api-key` explicitly —
+  `jobsuche obtain-key` gives you the current public value (see
+  [Obtain key](#obtain-key)). A `403` with an empty body is ambiguous: the gateway
+  sends the same response for a wrong key and for a network it refuses. If the key
+  matches what `obtain-key` returns, try from another network.
 - **Exit `4` / "not found"** — the listing no longer exists. Listings expire;
   re-run a fresh `search` to get current `refnr` values.
 - **Exit `1` / "Network error"** — connectivity, DNS, or a timeout. Try again

@@ -38,7 +38,8 @@ dokumentierten API-Key (`jobboerse-jobsuche`). Er ist nicht geheim, wird aber **
 dem Client ausgeliefert** – übergeben Sie ihn per `--api-key`, über die Umgebungsvariable
 `JOBSUCHE_API_KEY` oder die Client-Option `apiKey`; andernfalls fehlt der Header und die API
 antwortet mit 401/403. Für CI und Live-Tests lässt sich der öffentliche Key separat (nie
-über die CLI) mit `scripts/fetch-api-key.mjs` (`npm run fetch-key`) abrufen.
+mit dem CLI-Befehl `obtain-key` abrufen (`npm run obtain-key` in einem
+gebauten Checkout); er liest ihn zur Laufzeit aus der Veröffentlichungsquelle.
 
 ---
 

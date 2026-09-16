@@ -2,6 +2,7 @@
 // tests can capture output instead of hitting the real stdout/stderr/filesystem.
 
 import type { JobsucheClient, JobsucheClientOptions } from "../client/client.js";
+import type { Transport } from "../client/http.js";
 
 export interface CliIO {
   out(text: string): void;
@@ -17,6 +18,12 @@ export interface CliDeps {
    * the env path is testable in-process; defaults to the real `process.env`.
    */
   env?: Record<string, string | undefined>;
+  /**
+   * Transport for requests made *outside* the API client — currently only
+   * `obtain-key`, which runs before a key (and therefore a client) exists.
+   * Defaults to the built-in node:http/https transport.
+   */
+  transport?: Transport;
 }
 
 export const defaultIO: CliIO = {

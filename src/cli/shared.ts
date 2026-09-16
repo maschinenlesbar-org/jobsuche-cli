@@ -88,7 +88,7 @@ export interface GlobalOptions {
  * otherwise a non-empty (trimmed) `JOBSUCHE_API_KEY` seeds the key; otherwise
  * no key is set and the `X-API-Key` header is omitted (the API then answers
  * 401/403). No key is bundled — obtain the public one via
- * scripts/fetch-api-key.mjs. A blank/whitespace `--api-key` is ignored (mirrors
+ * the `obtain-key` command. A blank/whitespace `--api-key` is ignored (mirrors
  * the env path) rather than forwarded as an empty header.
  */
 export function toEngineOptions(

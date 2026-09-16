@@ -28,13 +28,14 @@ names on `details`) so Claude doesn't have to rediscover them each time.
   ```bash
   npm i -g @maschinenlesbar.org/jobsuche-cli   # installs the `jobsuche` bin
   ```
-- **An API key.** The Jobsuche API needs a static, publicly-documented `X-API-Key` that is
-  **not bundled** with the CLI. Supply it once via the `JOBSUCHE_API_KEY` env var (preferred)
-  or `--api-key`. The public value is `jobboerse-jobsuche`, documented in the upstream
-  [bundesAPI/jobsuche-api](https://github.com/bundesAPI/jobsuche-api) repo:
+- **An API key.** The Jobsuche API needs a static `X-API-Key` that is **not bundled** with
+  the CLI. It is public, not a secret, and you do not have to go and find it — the CLI
+  obtains it from the upstream source that publishes it:
   ```bash
-  export JOBSUCHE_API_KEY="jobboerse-jobsuche"
+  eval "$(jobsuche obtain-key --export)"        # this shell
+  jobsuche obtain-key --export >> ~/.zshrc      # or keep it for later
   ```
+  You can also supply it yourself via `JOBSUCHE_API_KEY` or `--api-key`.
   With no key the API answers `401`/`403` and the CLI exits `3`. An empty-body `403`
   looks the same for a wrong key and for a network the service refuses, so if the key
   matches the bundesAPI README, try from another network.

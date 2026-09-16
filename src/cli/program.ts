@@ -11,6 +11,8 @@ import { JobsucheClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
 import { parseBaseUrl, parseBoundedInt, parseIntArg } from "./shared.js";
 import { registerJobCommands } from "./commands/jobs.js";
+import { registerObtainKeyCommands } from "./commands/obtain-key.js";
+import { nodeHttpTransport } from "../client/http.js";
 
 /**
  * Single source of truth for the version: read from package.json at runtime
@@ -34,6 +36,7 @@ export const VERSION = readVersion();
 export const defaultDeps: CliDeps = {
   io: defaultIO,
   createClient: (options) => new JobsucheClient(options),
+  transport: nodeHttpTransport,
 };
 
 export function buildProgram(deps: CliDeps = defaultDeps): Command {
@@ -44,7 +47,8 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .description(
       "CLI for the Bundesagentur für Arbeit Jobsuche API " +
         "(rest.arbeitsagentur.de/jobboerse/jobsuche-service). Requires an X-API-Key: " +
-        "pass --api-key or set JOBSUCHE_API_KEY (no key is bundled).",
+        "pass --api-key or set JOBSUCHE_API_KEY. No key is bundled — run " +
+        "`jobsuche obtain-key` to fetch the published public one.",
     )
     .version(VERSION)
     .option("--base-url <url>", "API base URL", parseBaseUrl, "https://rest.arbeitsagentur.de")
@@ -69,6 +73,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
   // deps.env), so an explicit --api-key always overrides it and the env path
   // stays injectable/testable.
 
+  registerObtainKeyCommands(program, deps);
   registerJobCommands(program, deps);
 
   return program;

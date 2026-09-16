@@ -38,7 +38,8 @@ two open, read-only endpoints (search + details).
 bundled** with the client — supply it via `--api-key`, the `JOBSUCHE_API_KEY` env
 var, or the `apiKey` client option, else the header is omitted and the API
 answers 401/403. For CI / live testing the public key can be fetched out-of-band
-(never from the CLI) via `scripts/fetch-api-key.mjs` (`npm run fetch-key`).
+with the CLI's own `obtain-key` command (`npm run obtain-key` in a built
+checkout), which reads it from the upstream source at run time.
 
 ---
 

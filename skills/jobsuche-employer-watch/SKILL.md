@@ -22,14 +22,26 @@ company.
 
 This skill drives the `jobsuche` command. **Before anything else, validate it is available** — run `command -v jobsuche` (or `jobsuche --version`). If it is not on your PATH, STOP and inform the user that the `jobsuche` CLI (`@maschinenlesbar.org/jobsuche-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
 
-**API key (required).** Supply the static `X-API-Key` via `JOBSUCHE_API_KEY`
-(preferred) or `--api-key`. The public value is `jobboerse-jobsuche` (see
-[bundesAPI/jobsuche-api](https://github.com/bundesAPI/jobsuche-api)). Without it
-the CLI exits `3`. Set it once:
+**API key — obtain it once, then reuse it.** The API needs a static `X-API-Key`. **None is
+bundled**, and it is **not a secret**: one public value, the same for everyone. Finding it is
+not the user's job either. If `JOBSUCHE_API_KEY` is already set in the environment, use that;
+otherwise obtain it with the CLI's own command:
 
 ```bash
-export JOBSUCHE_API_KEY="jobboerse-jobsuche"
+jobsuche obtain-key
 ```
+
+It prints the key on stdout (the "obtained from …" note goes to stderr) and reads it from the
+published upstream source, so a rotated key needs no new release. **Keep that value for the
+rest of the session** and put it on every later call — a shell `export` does not survive
+between separate commands:
+
+```bash
+JOBSUCHE_API_KEY="<the key obtain-key printed>" jobsuche --compact search --was Informatiker
+```
+
+Say which key you used when you report back — it is public, not a credential to hide. If
+`obtain-key` exits non-zero, stop and tell the user; never guess a key or hard-code one.
 
 **If a call exits `3` with `HTTP 403`, the cause is ambiguous.** The gateway at
 `rest.arbeitsagentur.de` sends the same empty-body 403 for a wrong or missing key as when
