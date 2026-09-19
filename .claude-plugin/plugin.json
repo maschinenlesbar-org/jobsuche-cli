@@ -1,6 +1,6 @@
 {
   "name": "jobsuche",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "German job-market intelligence skills powered by the jobsuche-cli (Bundesagentur für Arbeit Jobsuche API).",
   "author": {
     "name": "Sebastian Schürmann",
