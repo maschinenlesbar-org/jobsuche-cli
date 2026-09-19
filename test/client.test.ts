@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JobsucheClient } from "../src/client/client.js";
-import { JobsucheApiError, JobsucheError } from "../src/client/errors.js";
+import { JobsucheApiError, JobsucheError, JobsucheNetworkError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>, apiKey?: string): JobsucheClient {
@@ -74,4 +74,16 @@ test("a 404 raises JobsucheApiError with status 404", async () => {
     () => clientWith(mt).details("x-y-z"),
     (err) => err instanceof JobsucheApiError && err.status === 404,
   );
+});
+
+test("the client rejects a non-http(s) base URL, so a custom transport never sees it with the key", () => {
+  for (const baseUrl of ["file:///etc/passwd", "ftp://example.org"]) {
+    const mt = constantJson({ stellenangebote: [] });
+    assert.throws(
+      () => new JobsucheClient({ baseUrl, transport: mt.transport, apiKey: "test-key" }),
+      JobsucheNetworkError,
+      baseUrl,
+    );
+    assert.equal(mt.calls.length, 0);
+  }
 });

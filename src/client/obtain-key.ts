@@ -15,6 +15,7 @@
 
 import type { Transport } from "./http.js";
 import { nodeHttpTransport } from "./http.js";
+import { assertHttpScheme } from "./engine.js";
 import { JobsucheError, JobsucheParseError } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
@@ -55,6 +56,8 @@ export interface ObtainedKey {
  */
 export async function obtainKey(options: ObtainKeyOptions = {}): Promise<ObtainedKey> {
   const sourceUrl = options.sourceUrl ?? KEY_SOURCE_URL;
+  // Same gate as the engine: a custom transport must never get a file:/ftp: URL.
+  assertHttpScheme(sourceUrl);
   const transport = options.transport ?? nodeHttpTransport;
 
   const response = await transport({

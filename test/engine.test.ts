@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RequestEngine } from "../src/client/engine.js";
-import { JobsucheApiError, JobsucheParseError } from "../src/client/errors.js";
+import { JobsucheApiError, JobsucheNetworkError, JobsucheParseError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 test("buildUrl normalises the path and appends the query", () => {
@@ -177,4 +177,21 @@ test("a non-JSON content type is stripped of control chars in the parse error", 
       return true;
     },
   );
+});
+
+test("the engine rejects a non-http(s) base URL before any request, even with a custom transport", () => {
+  for (const baseUrl of ["file:///etc/passwd", "ftp://example.org", "not a url"]) {
+    const mt = makeMockTransport(() => jsonResponse({}));
+    assert.throws(
+      () =>
+        new RequestEngine({
+          baseUrl,
+          transport: mt.transport,
+          defaultHeaders: { "X-API-Key": "test-key" },
+        }),
+      JobsucheNetworkError,
+      baseUrl,
+    );
+    assert.equal(mt.calls.length, 0);
+  }
 });
