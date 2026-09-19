@@ -48,8 +48,14 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
  * for a positional argument, which is a different case — see lobbyregister-cli's
  * `search` query.) No job title, place, occupational field or employer name is
  * searched with a leading dash, so nothing legitimate is lost.
+ *
+ * A blank value ("" or whitespace, often an unset shell variable) is rejected
+ * too: the client drops it, so the search would silently run unfiltered.
  */
 export function parseTextArg(value: string): string {
+  if (value.trim() === "") {
+    throw new InvalidArgumentError("Must not be blank.");
+  }
   if (/^--?[^\s]/.test(value)) {
     throw new InvalidArgumentError(
       `looks like a missing value — "${value}" is the next option, consumed because ` +

@@ -89,9 +89,10 @@ nutzen lässt (`--berufsfeld`).
 
 ## Suchparameter
 
-**was.** Berufsbezeichnung oder Stichwort als Freitext (`--was`). Ein leerer oder nur aus
-Leerzeichen bestehender Wert gilt als „nicht angegeben“ (die Live-API lehnt ein leeres
-`was=` mit HTTP 400 ab).
+**was.** Berufsbezeichnung oder Stichwort als Freitext (`--was`). Einen leeren oder nur
+aus Leerzeichen bestehenden Wert weist die CLI als Bedienfehler zurück (ebenso bei `--wo`,
+`--berufsfeld` und `--arbeitgeber`); der Bibliotheks-Client lässt ihn weg, statt ihn zu
+senden (die Live-API lehnt ein leeres `was=` mit HTTP 400 ab).
 
 **wo.** Der Ort, in dem oder um den herum gesucht wird (`--wo`). Die API gibt den
 aufgelösten Ort im Ergebnis als `woOutput` zurück.

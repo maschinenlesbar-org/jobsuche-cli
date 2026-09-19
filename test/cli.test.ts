@@ -157,13 +157,26 @@ test("an already-encoded lowercase-hex refnr is passed through unchanged (B1)", 
   );
 });
 
-test("an empty --was is omitted from the query, not sent as was= (B5/B17)", async () => {
-  const cli = makeCli(() => jsonResponse({ stellenangebote: [] }));
-  await run(["search", "--was", "", "--wo", "Berlin"], cli.deps);
-  const url = new URL(cli.mt.last().url);
-  assert.equal(url.searchParams.has("was"), false);
-  assert.equal(url.searchParams.get("wo"), "Berlin");
-});
+// A blank search term, place, field or employer (often an unset shell variable)
+// was silently dropped, so the search ran unfiltered and exited 0. Each is now a
+// usage error before any request.
+for (const [flag, value] of [
+  ["--was", ""],
+  ["--was", "   "],
+  ["--wo", ""],
+  ["--berufsfeld", ""],
+  ["--arbeitgeber", ""],
+] as const) {
+  test(`a blank ${flag} (${JSON.stringify(value)}) is a usage error, not an unfiltered search`, async () => {
+    const cli = makeCli(() => jsonResponse({ stellenangebote: [] }));
+    const code = await run(["--api-key", "dummy", "search", flag, value, "--wo", "Berlin"], cli.deps);
+    assert.notEqual(code, 0);
+    assert.equal(code, 2);
+    assert.deepEqual(cli.out, []);
+    assert.match(cli.err.join("\n"), /Must not be blank/);
+    assert.equal(cli.mt.calls.length, 0);
+  });
+}
 
 test("a blank --api-key sends no header (no bundled default) (B7)", async () => {
   const cli = makeCli(() => jsonResponse({ stellenangebote: [] }));
