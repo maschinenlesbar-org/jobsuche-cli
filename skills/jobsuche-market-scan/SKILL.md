@@ -9,8 +9,11 @@ description: >
   "is there demand for Y around Hamburg?", "how many openings for Z and where".
   Reads the API's facet aggregations instead of paging through thousands of
   listings.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `jobsuche` CLI (npm package @maschinenlesbar.org/jobsuche-cli) on
+  PATH, installed by the user; the skill never installs it. Uses jq for JSON
+  filtering. Network access to rest.arbeitsagentur.de. Needs the public API key
+  via --api-key or JOBSUCHE_API_KEY (`jobsuche obtain-key` prints it).
 ---
 
 # Jobsuche Market Scan
@@ -23,6 +26,8 @@ downloading thousands of individual listings.
 ## Tooling
 
 This skill drives the `jobsuche` command. **Before anything else, validate it is available** — run `command -v jobsuche` (or `jobsuche --version`). If it is not on your PATH, STOP and inform the user that the `jobsuche` CLI (`@maschinenlesbar.org/jobsuche-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
 **API key — obtain it once, then reuse it.** The API needs a static `X-API-Key`. **None is
 bundled**, and it is **not a secret**: one public value, the same for everyone. Finding it is
