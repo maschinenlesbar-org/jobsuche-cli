@@ -17,8 +17,18 @@ npm i -g @maschinenlesbar.org/jobsuche-cli
 
 The installed binary is **`jobsuche`**. Without a global install you can run the
 built CLI directly with `node dist/src/cli/index.js` (substitute that for
-`jobsuche` in any example below). The API's public `X-API-Key` is sent
-automatically, so no credentials setup is needed.
+`jobsuche` in any example below).
+
+The API needs an `X-API-Key`. **No key is bundled**: the public one is published
+upstream, and `obtain-key` reads it for you. Set it once per shell before the
+examples below:
+
+```bash
+eval "$(jobsuche obtain-key --export)"    # sets JOBSUCHE_API_KEY
+```
+
+Without a key the header is left out and the API answers `401`/`403` (exit code
+`3`).
 
 ## Use cases
 
@@ -173,7 +183,7 @@ These apply to every command and may be given before or after the command name
 | Option | Description |
 | --- | --- |
 | `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`) |
-| `--api-key <key>` | override the `X-API-Key` (env `JOBSUCHE_API_KEY`); blank/whitespace is ignored and the default public key is used |
+| `--api-key <key>` | the `X-API-Key` to send (env `JOBSUCHE_API_KEY`; no key is bundled, see `obtain-key`); blank/whitespace is ignored and the env var is used, else no key is sent |
 | `--timeout <ms>` | per-request timeout in milliseconds (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | retries for transient `429`/`503` responses |
