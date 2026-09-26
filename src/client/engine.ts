@@ -75,7 +75,7 @@ function stripCredentialHeaders(headers: Record<string, string>): Record<string,
  * the C1 range raw. The API key lives in a request header and
  * is never part of this text, so it cannot leak here.
  */
-function sanitizeServerText(text: string): string {
+export function sanitizeServerText(text: string): string {
   let out = "";
   for (const ch of text) {
     const n = ch.codePointAt(0) ?? 0;

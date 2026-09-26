@@ -6,6 +6,7 @@ import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
 import { toEngineOptions, type GlobalOptions } from "./shared.js";
+import { sanitizeServerText } from "../client/engine.js";
 import {
   JobsucheApiError,
   JobsucheError,
@@ -96,8 +97,10 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     if (err instanceof JobsucheParseError) {
       // Include the underlying parser cause / offending detail so the user can
       // see what actually came back instead of an opaque "Failed to parse".
+      // JSON.parse's message quotes the body (server-controlled), so strip
+      // control characters before it reaches the terminal.
       const cause = err.cause instanceof Error ? err.cause.message : err.cause;
-      const causePart = cause ? ` (${cause})` : "";
+      const causePart = cause ? ` (${sanitizeServerText(String(cause))})` : "";
       deps.io.err(`Error: ${err.message}${causePart}`);
       return 1;
     }

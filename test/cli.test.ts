@@ -270,3 +270,16 @@ test("--veroeffentlicht-seit accepts 0..100 and rejects 101 before any request",
   assert.equal(cli.mt.calls.length, 0);
   assert.match(cli.err.join("\n"), /Must be <= 100/);
 });
+
+// Since Node 20 the JSON.parse error quotes the offending body; it reached
+// stderr raw, so a server could send an OSC title-set sequence to the terminal.
+test("a JSON parse error does not pass the body's control characters to stderr", async () => {
+  const ESC = String.fromCharCode(0x1b);
+  const BEL = String.fromCharCode(0x07);
+  const cli = makeCli(() => rawResponse(`${ESC}]0;TITLE${BEL}${ESC}[31m not json`, "application/json"));
+  assert.equal(await run(["search", "--was", "x"], cli.deps), 1);
+  const err = cli.err.join("\n");
+  assert.match(err, /Failed to parse JSON response/);
+  assert.match(err, /TITLE/);
+  assert.equal([...err].filter((c) => c.charCodeAt(0) < 0x20 && c !== "\n").length, 0);
+});
