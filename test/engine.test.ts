@@ -252,3 +252,38 @@ test("base-URL errors redact userinfo", () => {
     return true;
   });
 });
+
+// A redirect loop ended in a bare "HTTP 302 for GET …" once maxRedirects ran out.
+test("a redirect loop names the target and the limit", async () => {
+  const mt = makeMockTransport(() => redirect("/loop"));
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
+  await assert.rejects(
+    () => e.getJson("/loop"),
+    (err: unknown) => {
+      assert.ok(err instanceof JobsucheApiError);
+      assert.equal(err.status, 302);
+      assert.equal(err.location, "https://example.test/loop");
+      assert.equal(
+        err.message,
+        "HTTP 302 for GET https://example.test/loop: redirect to https://example.test/loop not followed (stopped after 5 redirects)",
+      );
+      return true;
+    },
+  );
+  assert.equal(mt.calls.length, 6);
+});
+
+test("300/304/305, a missing and a malformed Location are not followed and say why", async () => {
+  const cases: [number, Record<string, string>, RegExp][] = [
+    [300, { location: "/x" }, /HTTP 300 .*: redirect to https:\/\/example\.test\/x not followed$/],
+    [305, { location: "http://proxy.test/" }, /redirect to http:\/\/proxy\.test\/ not followed$/],
+    [302, {}, /redirect not followed \(no Location header\)$/],
+    [302, { location: "http://[bad" }, /redirect to http:\/\/\[bad not followed$/],
+  ];
+  for (const [status, headers, message] of cases) {
+    const mt = makeMockTransport(() => ({ status, headers, body: Buffer.alloc(0) }));
+    const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
+    await assert.rejects(() => e.getJson("/x"), (err: unknown) => err instanceof JobsucheApiError && message.test(err.message));
+    assert.equal(mt.calls.length, 1);
+  }
+});
