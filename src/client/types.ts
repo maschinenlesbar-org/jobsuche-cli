@@ -10,40 +10,79 @@ export type JsonValue =
   | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
 
-/** A work location as the API serialises it. */
-export interface Arbeitsort {
+/** A postal address inside a work location. */
+export interface Adresse {
+  strasse?: string;
+  hausnummer?: string;
   plz?: string;
   ort?: string;
-  strasse?: string;
   region?: string;
   land?: string;
-  /** Distance in km from the searched location, when a radius search was used. */
-  entfernung?: number;
-  koordinaten?: { lat?: number; lon?: number };
 }
 
-/** One job listing (summary). Full detail is fetched via `details`. */
+/** One work location of a listing (`stellenlokationen[]`). */
+export interface Stellenlokation {
+  adresse?: Adresse;
+  /** Latitude. */
+  breite?: number;
+  /** Longitude. */
+  laenge?: number;
+}
+
+/** A date range (`von`/`bis`, `YYYY-MM-DD`). */
+export interface Zeitraum {
+  von?: string;
+  bis?: string;
+}
+
+/**
+ * One job listing (summary) from the `/pc/v6/jobs` search. It uses the same field
+ * names as the `details` payload (`referenznummer`, `stellenangebotsTitel`,
+ * `firma`, `externeURL`, …). Full detail (description, contact) is fetched via
+ * `details`.
+ */
 export interface Stellenangebot {
-  beruf?: string;
-  titel?: string;
-  /** Reference number; base64 of this is the id for `details`. */
-  refnr: string;
-  arbeitgeber?: string;
-  arbeitsort?: Arbeitsort;
-  aktuelleVeroeffentlichungsdatum?: string;
-  eintrittsdatum?: string;
-  hashId?: string;
-  /** Last-modification timestamp the API stamps on the listing. */
-  modifikationsTimestamp?: string;
+  /** Reference number (refnr); the input to `details`. */
+  referenznummer: string;
+  stellenangebotsTitel?: string;
+  /** Employer name. */
+  firma?: string;
+  /** Normalised occupation. */
+  hauptberuf?: string;
+  alleBerufe?: string[];
+  /** Offer type, e.g. `"ARBEIT"`, `"AUSBILDUNG"`. */
+  stellenangebotsart?: string;
+  /** Work location(s); usually one. */
+  stellenlokationen?: Stellenlokation[];
+  /** Distance in km from the searched location (`wo`), when one was given. */
+  entfernung?: number;
+  /** Current publication period; `von` is the date the listing went (back) online. */
+  veroeffentlichungszeitraum?: Zeitraum;
+  /** Date of the first publication (`YYYY-MM-DD`). */
+  datumErsteVeroeffentlichung?: string;
+  /** Last-modification timestamp. */
+  aenderungsdatum?: string;
+  /** Desired start. */
+  eintrittszeitraum?: Zeitraum;
   /** Present when the listing points at an external (third-party) posting. */
-  externeUrl?: string;
-  /** Allow the extra keys the live API may add without losing type-safety. */
-  [key: string]: JsonValue | Arbeitsort | undefined;
+  externeURL?: string;
+  homeofficemoeglich?: boolean;
+  /** Salary range, when stated. */
+  gehaltsspanneVon?: number;
+  gehaltsspanneBis?: number;
+  /** Fixed salary, when stated. */
+  festgehalt?: number;
+  /** The live API sends more keys (working-time flags, pay type, …). */
+  [key: string]: unknown;
 }
 
-/** Response of the jobs search endpoint. */
+/**
+ * Response of the jobs search endpoint (`/pc/v6/jobs`). `ergebnisliste` is
+ * absent (not `[]`) when nothing matched or when `size` is 0, and `facetten` is
+ * absent when nothing matched.
+ */
 export interface JobSearchResult {
-  stellenangebote: Stellenangebot[];
+  ergebnisliste?: Stellenangebot[];
   maxErgebnisse?: number;
   page?: number;
   size?: number;

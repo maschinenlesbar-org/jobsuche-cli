@@ -5,6 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
+import { toEngineOptions, type GlobalOptions } from "./shared.js";
 import {
   JobsucheApiError,
   JobsucheError,
@@ -66,12 +67,18 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
         );
         // The rest.arbeitsagentur.de gateway answers a wrong or missing key with
         // the same detail-less 403 (text/plain, one-space body) that it uses when
-        // it refuses the caller's network, so the response can't tell them apart.
+        // it refuses the caller's network, and now and then for a valid key too,
+        // so the response can't tell them apart. Say whether a key was sent.
         if (err.status === 403 && !err.detail) {
+          const sentKey = toEngineOptions(program.opts() as GlobalOptions, deps.env ?? process.env).apiKey !== undefined;
           deps.io.err(
-            "Hint: an empty 403 looks the same for a wrong key and for a refused network. " +
-              "Re-check the key against the bundesAPI/jobsuche-api README; if it matches, " +
-              "try from another network.",
+            sentKey
+              ? "Hint: an empty 403 looks the same for a wrong key, a refused network and a " +
+                  "passing refusal the gateway sometimes sends for a valid key. Check the key " +
+                  "against `jobsuche obtain-key`; if it matches, retry once, then try from " +
+                  "another network."
+              : "Hint: no X-API-Key was sent. Pass --api-key or set JOBSUCHE_API_KEY " +
+                  "(`jobsuche obtain-key` prints the published key).",
           );
         }
         return 3;

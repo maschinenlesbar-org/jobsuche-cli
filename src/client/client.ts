@@ -8,7 +8,10 @@
 // at run time via obtainKey() / the CLI's `obtain-key` command.
 //
 //   client.search({ was: "Informatiker", wo: "Berlin", size: 10 })
-//   client.details(stellenangebot.refnr)
+//   client.details(stellenangebot.referenznummer)
+//
+// Search uses /pc/v6/jobs (the upstream's documented search step; /pc/v4/jobs
+// answers an empty 403 since 2026-09), details /pc/v4/jobdetails.
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import { JobsucheError } from "./errors.js";
@@ -66,17 +69,20 @@ export class JobsucheClient {
     });
   }
 
-  /** Search job listings. */
+  /**
+   * Search job listings (`/pc/v6/jobs`). The listings are in `ergebnisliste`,
+   * which is absent when nothing matched (or `size` is 0).
+   */
   search(params: JobSearchParams = {}): Promise<JobSearchResult> {
-    return this.engine.getJson(`${SERVICE}/pc/v4/jobs`, prune({ ...params }));
+    return this.engine.getJson(`${SERVICE}/pc/v6/jobs`, prune({ ...params }));
   }
 
   /**
    * Full details for one job.
    *
    * @param refnr A reference number (`refnr`), e.g. `"10001-1002716922-S"` or a
-   *   purely numeric `"1002716922"`, as returned in a search result's `refnr`
-   *   field. It is base64-encoded into the API's `encryptedJobCode` for you.
+   *   purely numeric `"1002716922"`, as returned in a search result's
+   *   `referenznummer` field. It is base64-encoded into the API's `encryptedJobCode` for you.
    *
    *   As a convenience, an already-base64-encoded `encryptedJobCode` is passed
    *   through unchanged. Detection is exact (not charset sniffing): the input is

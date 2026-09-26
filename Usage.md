@@ -4,7 +4,7 @@ Real, use-case-driven examples for the `jobsuche` CLI — a command-line client
 for the [Bundesagentur für Arbeit Jobsuche API](https://jobsuche.api.bund.dev/)
 (Germany's largest job database). It exposes the API's two read-only endpoints:
 **search** job listings (`Stellenangebote`) by keyword/location/radius, and
-fetch **full job details** by reference number (`refnr`).
+fetch **full job details** by reference number (`referenznummer`, the *refnr*).
 
 Every command prints pretty JSON to stdout (use `--compact` for a single line),
 so the examples pipe to [`jq`](https://jqlang.github.io/jq/) where it helps.
@@ -31,8 +31,9 @@ jobsuche search --was Informatiker --wo Berlin --size 10
 ```
 
 `--was` is the keyword/title, `--wo` the location, `--size` caps the page size.
-The result is a `JobSearchResult` object: `stellenangebote` (the listings),
-plus `maxErgebnisse` (total matches), `page` and `size`.
+The result is a `JobSearchResult` object: `ergebnisliste` (the listings — absent,
+not `[]`, when nothing matched), plus `maxErgebnisse` (total matches), `page`,
+`size`, `woOutput` and `facetten`.
 
 ### 2. Search within a radius of a location
 
@@ -42,13 +43,13 @@ Catch listings in the surrounding area, not just the exact city.
 jobsuche search --was Pflegefachkraft --wo "München" --umkreis 50
 ```
 
-`--umkreis` is the radius in km around `--wo`. Radius results carry a per-listing
-`arbeitsort.entfernung` (distance in km) you can sort on:
+`--umkreis` is the radius in km around `--wo`. Listings found around a `--wo`
+carry `entfernung` (distance in km, a number) you can sort on:
 
 ```bash
 jobsuche search --was Pflegefachkraft --wo "München" --umkreis 50 \
-  | jq '.stellenangebote | sort_by(.arbeitsort.entfernung)
-        | .[] | {titel, ort: .arbeitsort.ort, km: .arbeitsort.entfernung}'
+  | jq '.ergebnisliste | sort_by(.entfernung)
+        | .[] | {titel: .stellenangebotsTitel, ort: .stellenlokationen[0].adresse.ort, km: .entfernung}'
 ```
 
 ### 3. Only recently published listings
@@ -78,20 +79,20 @@ jobsuche search --was Projektmanager --size 25 --page 2
 
 ```bash
 jobsuche search --was Projektmanager --size 25 --page 1 \
-  | jq '{total: .maxErgebnisse, page, size, returned: (.stellenangebote | length)}'
+  | jq '{total: .maxErgebnisse, page, size, returned: (.ergebnisliste // [] | length)}'
 ```
 
 ### 5. Extract just the reference numbers
 
-Get a clean list of `refnr` values to feed into `details` (use case 7).
+Get a clean list of reference numbers to feed into `details` (use case 7).
 
 ```bash
 jobsuche search --was Elektroniker --wo Köln --size 20 \
-  | jq -r '.stellenangebote[].refnr'
+  | jq -r '.ergebnisliste[]?.referenznummer'
 ```
 
-`refnr` (e.g. `10001-1002716922-S`) is the stable id for each listing and the
-input for the `details` command.
+`referenznummer` (the *refnr*, e.g. `10001-1002716922-S`) is the stable id for
+each listing and the input for the `details` command.
 
 ### 6. Filter by offer type (Angebotsart)
 
@@ -116,7 +117,7 @@ Get the complete payload for one job — description, contact, dates, and more.
 jobsuche details 14225-dafcdd47aabe512d-S
 ```
 
-Pass the `refnr` from any search result; the CLI base64-encodes it into the
+Pass the `referenznummer` from any search result; the CLI base64-encodes it into the
 API's `encryptedJobCode` for you. A purely numeric `refnr` (e.g. `1002716922`)
 or an already-encoded code also works. Exit code `4` means the listing was not
 found (`404`).
@@ -135,7 +136,7 @@ title-and-city overview:
 
 ```bash
 jobsuche search --arbeitgeber "Deutsche Bahn AG" --wo Frankfurt --umkreis 30 \
-  | jq -r '.stellenangebote[] | "\(.titel) — \(.arbeitsort.ort)"'
+  | jq -r '.ergebnisliste[]? | "\(.stellenangebotsTitel) — \(.stellenlokationen[0].adresse.ort)"'
 ```
 
 ### 9. Browse an occupational field, including temp-work agencies
@@ -153,11 +154,11 @@ agencies in the results.
 
 ### 10. Search → pick first result → fetch its details (one-liner)
 
-Chain a search straight into a detail lookup without copy-pasting a `refnr`.
+Chain a search straight into a detail lookup without copy-pasting a reference number.
 
 ```bash
 jobsuche details "$(jobsuche search --was Informatiker --wo Berlin --size 1 \
-  | jq -r '.stellenangebote[0].refnr')"
+  | jq -r '.ergebnisliste[0].referenznummer')"
 ```
 
 Useful in scripts. Add `--compact` to either call for single-line JSON when

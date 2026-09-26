@@ -50,10 +50,11 @@ Say which key you used when you report back — it is public, not a credential t
 
 **If a call exits `3` with `HTTP 403`, the cause is ambiguous.** The gateway at
 `rest.arbeitsagentur.de` sends the same empty-body 403 for a wrong or missing key as when
-it refuses the network you are on, so the response can't tell you which. Don't assume
-either: re-check the key against the
-[bundesAPI/jobsuche-api](https://github.com/bundesAPI/jobsuche-api) README first, and if it
-matches, tell the user to try from another network.
+it refuses the network you are on, and now and then for a valid key, so the response can't
+tell you which. If the CLI's hint says no key was sent, pass it. Otherwise re-check the key
+against `jobsuche obtain-key` (it reads the
+[bundesAPI/jobsuche-api](https://github.com/bundesAPI/jobsuche-api) README), retry once, and
+if it still fails, tell the user to try from another network.
 
 Always `--compact`.
 
@@ -63,7 +64,7 @@ Always `--compact`.
 stores it**, so the exact spelling matters (e.g. `"Deutsche Bahn AG"`,
 `"SAP SE"`). If you're unsure of the exact form:
 
-- Run a keyword search and read back the `arbeitgeber` values, **or**
+- Run a keyword search and read back the listings' `firma` values, **or**
 - Run a market scan (see **jobsuche-market-scan**, `--size 0`) and look at the
   `facetten.arbeitgeber.counts` keys — those are the exact registered names with
   posting counts. Pick the right one, then watch it.
@@ -87,37 +88,40 @@ jobsuche --compact search --arbeitgeber "Deutsche Bahn AG" --size 100
   breakdown-only view, a cheap `--size 0` gives `maxErgebnisse` + `facetten`
   (top locations, fields, freshness) without downloading every listing.
 
-Per-listing fields that matter (summary shape): `titel`, `beruf`, `refnr`,
-`arbeitsort.ort` / `.plz`, `arbeitsort.entfernung` (string km, radius only),
-`aktuelleVeroeffentlichungsdatum` (`YYYY-MM-DD`), `eintrittsdatum`, `externeUrl`.
+The listings are in `ergebnisliste`. Per-listing fields that matter:
+`stellenangebotsTitel`, `hauptberuf`, `firma`, `referenznummer` (the refnr),
+`stellenlokationen[0].adresse.ort` / `.plz` (an array — a listing can name several
+places), `entfernung` (km, a number, only with `--wo`),
+`veroeffentlichungszeitraum.von` (current publication date, `YYYY-MM-DD`),
+`eintrittszeitraum.von`, `externeURL`.
 
 > **Traps.**
 > - `--arbeitgeber` is name-matched and can be **fuzzy/partial** — it may pull in
 >   sibling entities or miss a posting filed under a slightly different name.
->   Sanity-check the `arbeitgeber` values in the results and report the matched
+>   Sanity-check the `firma` values in the results and report the matched
 >   spellings.
-> - **No matches ⇒ the `stellenangebote` key is absent** (not `[]`), and no
+> - **No matches ⇒ the `ergebnisliste` key is absent** (not `[]`), and no
 >   `facetten`. Report "no open listings for that employer/scope" — broaden or
 >   re-check the spelling — rather than erroring on a missing key.
-> - `entfernung` is a **string**; `tonumber` it before sorting.
-> - `arbeitsort.strasse` can be the literal `"null"` — render "address not given".
+> - Address fields can be missing — render "address not given".
 
 ## Step 3 — Build the profile
 
 Aggregate the listings into a recruiting snapshot:
 
-- **By location** — count per `arbeitsort.ort` (and/or `plz`); show top cities.
-- **By role/field** — group similar `beruf`/`titel`; surface what they're hiring
-  for most.
-- **By freshness** — bucket `aktuelleVeroeffentlichungsdatum` into today / last 7
+- **By location** — count per `stellenlokationen[0].adresse.ort` (and/or `plz`);
+  show top cities.
+- **By role/field** — group similar `hauptberuf`/`stellenangebotsTitel`; surface
+  what they're hiring for most.
+- **By freshness** — bucket `veroeffentlichungszeitraum.von` into today / last 7
   / last 30 days.
 - **Apprenticeships** — optionally split with a second `--angebotsart 4` run to
   separate Ausbildung from regular vacancies.
 
 ```bash
 jobsuche --compact search --arbeitgeber "Deutsche Bahn AG" --size 100 \
-  | jq '.stellenangebote | group_by(.arbeitsort.ort)
-        | map({ort: .[0].arbeitsort.ort, count: length}) | sort_by(-.count)'
+  | jq '.ergebnisliste // [] | group_by(.stellenlokationen[0].adresse.ort)
+        | map({ort: .[0].stellenlokationen[0].adresse.ort, count: length}) | sort_by(-.count)'
 ```
 
 ## Step 4 — "What's new" mode (monitoring)
@@ -125,10 +129,10 @@ jobsuche --compact search --arbeitgeber "Deutsche Bahn AG" --size 100 \
 When the user wants to *track* an employer over time (re-run weekly, "anything
 new at X?"):
 
-1. Each run, capture the set of `refnr` values (and dates) for that employer/scope
+1. Each run, capture the set of `referenznummer` values (and dates) for that employer/scope
    — write them to a small JSON/text file the user keeps (e.g.
    `~/.jobsuche-watch-<employer>.json`).
-2. On the next run, diff the new `refnr` set against the saved one:
+2. On the next run, diff the new `referenznummer` set against the saved one:
    - **New** = refnrs present now but not before → these are fresh openings.
    - **Gone** = refnrs saved but absent now → likely filled/expired.
 3. Report only the **new** ones (with title/location/date), give a count for the
@@ -157,7 +161,7 @@ Rules:
 - Give the location / role / freshness breakdowns as ranked counts, not raw lists.
 - In watch mode, lead with **what's new**; everything else is a count.
 - Note if results span multiple legal entities and whether you merged them.
-- Offer follow-ups: full detail on any opening (`details <refnr>`, brings salary /
-  description / how-to-apply), or a full job-hunt shortlist
+- Offer follow-ups: full detail on any opening (`details <referenznummer>`, brings
+  the description / contact / how-to-apply), or a full job-hunt shortlist
   (**jobsuche-job-hunt**).
-- Don't claim a hire/fill from a vanished `refnr` — say "no longer listed".
+- Don't claim a hire/fill from a vanished `referenznummer` — say "no longer listed".

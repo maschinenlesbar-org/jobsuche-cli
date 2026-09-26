@@ -18,7 +18,7 @@ den englischen Begriff aus CLI und Bibliothek (sofern es einen gibt).
 > | zeitarbeit | `--zeitarbeit` – temp-work agencies |
 > | angebotsart | `--angebotsart` – offer type code |
 > | Stellenangebot | job listing / offer |
-> | Arbeitsort | work location |
+> | Stellenlokation | work location |
 
 ---
 
@@ -45,8 +45,10 @@ gebauten Checkout); er liest ihn zur Laufzeit aus der Veröffentlichungsquelle.
 
 ## Endpoints
 
-**Suche (`/pc/v4/jobs`).** Liefert eine Seite mit Kurzfassungen der Stellenangebote, die zu
-den Suchparametern passen. CLI: `search`. Bibliothek: `client.search(params)`.
+**Suche (`/pc/v6/jobs`).** Liefert eine Seite mit Kurzfassungen der Stellenangebote, die zu
+den Suchparametern passen. CLI: `search`. Bibliothek: `client.search(params)`. (Das ältere
+`/pc/v4/jobs` antwortet seit 2026-09 auch mit dem richtigen Key mit einem leeren 403; die
+Upstream-Dokumentation nennt `/pc/v6/jobs` als Suchschritt.)
 
 **Details (`/pc/v4/jobdetails/{encryptedJobCode}`).** Liefert den vollständigen Datensatz
 eines einzelnen Stellenangebots, adressiert über seinen `encryptedJobCode`. CLI: `details`.
@@ -57,12 +59,15 @@ Bibliothek: `client.details(refnr)`.
 ## Ressourcen und Kennungen
 
 **Stellenangebot.** Eine einzelne Stellenanzeige. In einem Suchergebnis ist es eine
-Kurzfassung mit `beruf`, `titel`, `refnr`, `arbeitgeber`, `arbeitsort`,
-Veröffentlichungs- und Eintrittsdatum sowie optional `externeUrl`. Die vollständigen Angaben
-werden separat über `details` abgerufen. (`Stellenangebot` in `src/client/types.ts`.)
+Kurzfassung mit `referenznummer`, `stellenangebotsTitel`, `firma`, `hauptberuf`,
+`stellenlokationen`, `entfernung`, Veröffentlichungs- und Eintrittsdatum, oft Gehalts- und
+Homeoffice-Angaben sowie optional `externeURL` – dieselben Feldnamen wie im Datensatz von
+`details`. Die vollständige Beschreibung wird separat über `details` abgerufen.
+(`Stellenangebot` in `src/client/types.ts`.)
 
-**refnr.** Die stabile Kennung (Referenznummer) eines Stellenangebots, die jedes
-Suchergebnis im Feld `refnr` liefert – z. B. `10001-1002716922-S`, die Hex-Form
+**refnr / referenznummer.** Die stabile Kennung (Referenznummer) eines Stellenangebots, die
+jedes Suchergebnis im Feld `referenznummer` liefert (in älteren API-Versionen und in der Hilfe
+dieser CLI `refnr` genannt) – z. B. `10001-1002716922-S`, die Hex-Form
 `14225-dafcdd47aabe512d-S` oder eine rein numerische `1002716922`. Sie besteht aus
 Ziffern, Buchstaben und Bindestrichen. Das ist das Argument, das Sie an `details` übergeben.
 
@@ -71,19 +76,17 @@ Base64-Kodierung der `refnr`. Der Client kodiert die `refnr` für Sie; ein berei
 Base64-kodierter Code wird erkannt (über einen exakten Base64-Roundtrip, nicht anhand des
 Zeichensatzes) und unverändert durchgereicht.
 
-**hashId.** Eine zusätzliche Kennung, die die API einem `Stellenangebot` mitgibt.
+**Stellenlokation.** Ein Eintrag im Array `stellenlokationen` eines Stellenangebots:
+`adresse` (`strasse`, `hausnummer`, `plz` Postleitzahl, `ort` Stadt oder Gemeinde, `region`,
+`land` Staat) sowie `breite`/`laenge` (Breiten- und Längengrad). `entfernung` am
+Stellenangebot ist die Entfernung in km vom gesuchten Ort, vorhanden, wenn `wo` angegeben war.
 
-**Arbeitsort.** Der Ort eines Stellenangebots, wie ihn die API serialisiert:
-`plz` (Postleitzahl), `ort` (Stadt oder Gemeinde), `strasse` (Straße), `region`, `land`
-(Staat), `koordinaten` (`lat`/`lon`) und `entfernung` (Entfernung in km vom gesuchten
-Ort, nur bei Umkreissuchen vorhanden).
+**firma / arbeitgeber.** Die im Stellenangebot genannte einstellende Organisation
+(`firma`); `arbeitgeber` ist der Suchfilter (`--arbeitgeber`) und die Arbeitgeber-Facette.
 
-**Arbeitgeber.** Die im Stellenangebot genannte einstellende Organisation; auch ein
-Suchfilter (`--arbeitgeber`).
-
-**beruf / berufsfeld.** `beruf` ist der Beruf bzw. die Berufsbezeichnung eines
-Stellenangebots; `berufsfeld` ist eine übergeordnete Kategorie, die sich als Suchfilter
-nutzen lässt (`--berufsfeld`).
+**hauptberuf / berufsfeld.** `hauptberuf` ist der Beruf eines Stellenangebots (`alleBerufe`
+nennt alle); `berufsfeld` ist eine übergeordnete Kategorie, die sich als Suchfilter nutzen
+lässt (`--berufsfeld`).
 
 ---
 
@@ -117,12 +120,14 @@ von bundesAPI. Wird unverändert an die API weitergegeben.
 
 ## Ergebnishülle
 
-**JobSearchResult.** Die Antwort der Suche: `stellenangebote` (das Array der
+**JobSearchResult.** Die Antwort der Suche: `ergebnisliste` (das Array der
 Stellenangebote), `maxErgebnisse` (Gesamtzahl der Treffer), `page`, `size`, `facetten`
 (Aggregations-Facetten) und `woOutput` (der Ort, in dem die API tatsächlich gesucht hat).
 (`JobSearchResult` in `src/client/types.ts`.)
 
-**stellenangebote.** Das Array der `Stellenangebot`-Kurzfassungen auf einer Ergebnisseite.
+**ergebnisliste.** Das Array der `Stellenangebot`-Kurzfassungen auf einer Ergebnisseite. Es
+fehlt (statt `[]`), wenn nichts gefunden wurde oder bei `--size 0`; ohne Treffer fehlt auch
+`facetten`.
 
 **maxErgebnisse.** Die Gesamtzahl passender Stellenangebote über alle Seiten.
 

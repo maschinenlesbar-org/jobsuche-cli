@@ -40,8 +40,8 @@ import { JobsucheClient, JobsucheApiError } from "@maschinenlesbar.org/jobsuche-
 const client = new JobsucheClient({ apiKey: "jobboerse-jobsuche" });
 
 const page = await client.search({ was: "Informatiker", wo: "Berlin", size: 10 });
-const first = page.stellenangebote[0];
-const detail = first ? await client.details(first.refnr) : undefined;
+const first = page.ergebnisliste?.[0]; // absent when nothing matched
+const detail = first ? await client.details(first.referenznummer) : undefined;
 
 // Override the key if you have your own:
 const custom = new JobsucheClient({ apiKey: "my-key" });
@@ -69,7 +69,8 @@ new JobsucheClient({
 
 ### Methods
 
-`client.search(params)` and `client.details(refnr)`. `details` takes a
+`client.search(params)` (`/pc/v6/jobs`; the listings are `ergebnisliste`, keyed by
+`referenznummer`) and `client.details(refnr)` (`/pc/v4/jobdetails`). `details` takes a
 reference number (`refnr`, e.g. `"10001-1002716922-S"` or a purely numeric
 `"1002716922"`) and base64-encodes it into the API's `encryptedJobCode` for you.
 An already-encoded `encryptedJobCode` is detected (by exact base64 round-trip,
@@ -113,7 +114,7 @@ key is never forwarded to another host. Same-origin redirects keep the key.
 ```
 src/
   client/
-    types.ts     # Stellenangebot / JobSearchResult + search params
+    types.ts     # Stellenangebot / JobSearchResult (the /pc/v6/jobs shape) + search params
     query.ts     # dependency-free query-string builder
     http.ts      # the Transport interface + default node:http/https transport
     engine.ts    # URL building, retry/backoff, redirects (strips creds cross-origin), default headers (auth), decoding, errors

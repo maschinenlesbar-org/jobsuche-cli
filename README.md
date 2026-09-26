@@ -17,7 +17,7 @@ keyword, location, radius or employer, and fetch the full record for any posting
 - **Just two commands** — `search` and `details`.
 - **Clean JSON output** — pretty-printed by default, `--compact` for one-line/scripting.
 - **Needs one short setup step** — supply the public, freely available API key once (see [Authentication](#authentication) below).
-- **Full-detail lookups** — pass a `refnr` from any search result; the CLI base64-encodes it for the API automatically.
+- **Full-detail lookups** — pass a listing's reference number (`referenznummer`, the *refnr*) from any search result; the CLI base64-encodes it for the API automatically.
 
 > Want to use this as a TypeScript library or understand how it's built?
 > See **[DEVELOPING.md](DEVELOPING.md)**.
@@ -91,15 +91,16 @@ jobsuche search --was Informatiker --wo Berlin --size 10
 ```
 
 `--was` is the keyword/title, `--wo` the location. The result is a JSON object
-with `stellenangebote` (the listings array), `maxErgebnisse` (total matches),
-`page` and `size`. Pull out just the titles with `jq`:
+with `ergebnisliste` (the listings array — absent, not empty, when nothing
+matched), `maxErgebnisse` (total matches), `page`, `size` and `facetten`. Pull
+out just the titles with `jq`:
 
 ```bash
 jobsuche search --was Informatiker --wo Berlin --size 10 \
-  | jq '[.stellenangebote[] | {titel, arbeitgeber, ort: .arbeitsort.ort}]'
+  | jq '[.ergebnisliste[]? | {titel: .stellenangebotsTitel, firma, ort: .stellenlokationen[0].adresse.ort}]'
 ```
 
-Take a listing's `refnr` from those results and fetch its full record:
+Take a listing's `referenznummer` from those results and fetch its full record:
 
 ```bash
 jobsuche details 10001-1002716922-S
@@ -170,14 +171,14 @@ stderr, so piping stdout into `jq` stays clean.
 # How many total matches for a query?
 jobsuche search --was Pflege --wo Berlin | jq '.maxErgebnisse'
 
-# Sort radius results by distance
+# Sort radius results by distance (km, a number)
 jobsuche search --was Pflege --wo "München" --umkreis 50 \
-  | jq '.stellenangebote | sort_by(.arbeitsort.entfernung)
-        | .[] | {titel, ort: .arbeitsort.ort, km: .arbeitsort.entfernung}'
+  | jq '.ergebnisliste | sort_by(.entfernung)
+        | .[] | {titel: .stellenangebotsTitel, ort: .stellenlokationen[0].adresse.ort, km: .entfernung}'
 
-# Chain search → details without copy-pasting a refnr
+# Chain search → details without copy-pasting a reference number
 jobsuche details "$(jobsuche search --was Informatiker --wo Berlin --size 1 \
-  | jq -r '.stellenangebote[0].refnr')"
+  | jq -r '.ergebnisliste[0].referenznummer')"
 ```
 
 Use `--compact` for single-line JSON in pipelines and logs:
@@ -209,14 +210,16 @@ same thing.
   `JOBSUCHE_API_KEY` is set and non-empty, or pass `--api-key` explicitly —
   `jobsuche obtain-key` gives you the current public value (see
   [Obtain key](#obtain-key)). A `403` with an empty body is ambiguous: the gateway
-  sends the same response for a wrong key and for a network it refuses. If the key
-  matches what `obtain-key` returns, try from another network.
+  sends the same response for a wrong key, for a network it refuses, and now and
+  then for a valid key. If the key matches what `obtain-key` returns, retry once,
+  then try from another network. (When no key was sent at all, the hint says so.)
 - **Exit `4` / "not found"** — the listing no longer exists. Listings expire;
-  re-run a fresh `search` to get current `refnr` values.
+  re-run a fresh `search` to get current `referenznummer` values.
 - **Exit `1` / "Network error"** — connectivity, DNS, or a timeout. Try again
   or raise the limit with `--timeout 60000`.
-- **Empty `stellenangebote`** — the search matched nothing; broaden `--was`,
-  widen `--umkreis`, or drop filters.
+- **No `ergebnisliste` in the result** — the search matched nothing (the key is
+  left out rather than sent empty, and so is `facetten`); broaden `--was`, widen
+  `--umkreis`, or drop filters.
 
 ## Global options
 

@@ -52,10 +52,11 @@ Say which key you used when you report back — it is public, not a credential t
 
 **If a call exits `3` with `HTTP 403`, the cause is ambiguous.** The gateway at
 `rest.arbeitsagentur.de` sends the same empty-body 403 for a wrong or missing key as when
-it refuses the network you are on, so the response can't tell you which. Don't assume
-either: re-check the key against the
-[bundesAPI/jobsuche-api](https://github.com/bundesAPI/jobsuche-api) README first, and if it
-matches, tell the user to try from another network.
+it refuses the network you are on, and now and then for a valid key, so the response can't
+tell you which. If the CLI's hint says no key was sent, pass it. Otherwise re-check the key
+against `jobsuche obtain-key` (it reads the
+[bundesAPI/jobsuche-api](https://github.com/bundesAPI/jobsuche-api) README), retry once, and
+if it still fails, tell the user to try from another network.
 
 Always pass `--compact` so output is one line for `jq`.
 
@@ -96,7 +97,7 @@ Choose the search axis to match the question:
 | `homeoffice` | Remote availability: `prozentual` (some %), `nv_true`/`nv_false` (not specified). Compute the remote-friendly share. |
 | `befristung` | Contract type: permanent vs fixed-term (codes — `1`/`2`/`3`). |
 | `arbeitszeit` | Full-time vs part-time mix. |
-| `veroeffentlichtseit` | **Freshness histogram** — cumulative counts at `0/1/7/14/28` days and `alle` (all). How active/churny the market is right now. |
+| `veroeffentlichtseit` | **Freshness histogram** — cumulative counts at `1/7/14/28` days and `alle` (all). How active/churny the market is right now. |
 | `zeitarbeit` | Share that are temp-agency postings. |
 | `quereinstieg` | Openings flagged suitable for career-changers. |
 
@@ -112,7 +113,7 @@ jobsuche --compact search --was Pflege --wo Berlin --umkreis 50 --size 0 \
 > - `--size 0` is intentional and supported: it returns the facets with **no**
 >   listings. Do not page through results to build these counts — the facets
 >   already aggregate the whole set.
-> - When `maxErgebnisse` is `0` the response has **no `stellenangebote` key at
+> - When `maxErgebnisse` is `0` the response has **no `ergebnisliste` key at
 >   all** (not `[]`) and **no `facetten`** — report "no demand found, broaden the
 >   search" rather than letting `jq` error on a missing key.
 > - `veroeffentlichtseit` counts are **cumulative** (`7` includes everything from

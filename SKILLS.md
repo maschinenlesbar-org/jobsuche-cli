@@ -9,8 +9,8 @@ Each skill teaches Claude how to drive the `jobsuche` CLI to answer a specific, 
 question — "who's hiring nurses in Berlin?", "find me data-engineer roles near Munich", "what's
 Deutsche Bahn recruiting right now?" — and to report the answer with evidence rather than
 guesswork. They encode the parts that are easy to get wrong (the facet-only `--size 0` scan,
-the *missing* `stellenangebote` key on no-match, distance being a string, the different field
-names on `details`) so Claude doesn't have to rediscover them each time.
+the *missing* `ergebnisliste` key on no-match, locations being an array, what only `details`
+carries) so Claude doesn't have to rediscover them each time.
 
 ## Skills
 
@@ -97,15 +97,15 @@ encode the non-obvious parts of this API, for example:
 - **`--size 0` returns the facets with zero listings** — the cheap way to describe a whole
   market (total demand, top employers, locations, salary cadence, freshness) without paging
   through thousands of records (see **jobsuche-market-scan**);
-- a **no-match search omits the `stellenangebote` key entirely** (it is *not* `[]`) and also
-  drops `facetten` — naive `jq '.stellenangebote[]'` errors; treat a missing key as "no
+- a **no-match search omits the `ergebnisliste` key entirely** (it is *not* `[]`) and also
+  drops `facetten` — naive `jq '.ergebnisliste[]'` errors; treat a missing key as "no
   results" and broaden;
-- `arbeitsort.entfernung` (radius distance) is a **string** (`"5"`), so sorting it lexically
-  is wrong — `tonumber` before ordering nearest-first (see **jobsuche-job-hunt**);
-- the `details` payload uses **different field names** from the search summary — employer is
-  `firma` (not `arbeitgeber`), title is `stellenangebotsTitel`, the apply link is `externeURL`
-  (summary spells it `externeUrl`), and salary lives in `gehaltsspanneVon`/`gehaltsspanneBis`
-  (often absent — most German postings omit pay);
+- a listing's place is an **array** (`stellenlokationen[].adresse`), and its distance
+  `entfernung` (km) is only there when the search had a `--wo` (see **jobsuche-job-hunt**);
+- search summaries and the `details` payload share field names — employer `firma`, title
+  `stellenangebotsTitel`, id `referenznummer`, apply link `externeURL` — but only `details`
+  carries the description; salary (`gehaltsspanneVon`/`gehaltsspanneBis`, `festgehalt`) is
+  often absent — most German postings omit pay;
 - the default search **excludes temp-work agencies**, yet **recruitment/placement agencies**
   still top the employer facet for many fields — they are not the end employer;
 - `--arbeitgeber` is name-matched and fuzzy; a company often spans several legal entities

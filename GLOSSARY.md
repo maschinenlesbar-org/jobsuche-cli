@@ -18,7 +18,7 @@ field/parameter name the API uses on the wire.
 > | zeitarbeit | `--zeitarbeit` — temp-work agencies |
 > | angebotsart | `--angebotsart` — offer type code |
 > | Stellenangebot | job listing / offer |
-> | Arbeitsort | work location |
+> | Stellenlokation | work location |
 
 ---
 
@@ -45,8 +45,10 @@ checkout), which reads it from the upstream source at run time.
 
 ## Endpoints
 
-**Search (`/pc/v4/jobs`).** Returns a page of job-listing summaries matching the
-search parameters. CLI: `search`. Library: `client.search(params)`.
+**Search (`/pc/v6/jobs`).** Returns a page of job-listing summaries matching the
+search parameters. CLI: `search`. Library: `client.search(params)`. (The older
+`/pc/v4/jobs` answers an empty 403 even with the right key since 2026-09; the
+upstream documents `/pc/v6/jobs` as the search step.)
 
 **Details (`/pc/v4/jobdetails/{encryptedJobCode}`).** Returns the full payload
 for a single listing, addressed by its `encryptedJobCode`. CLI: `details`.
@@ -57,12 +59,15 @@ Library: `client.details(refnr)`.
 ## Resources & identifiers
 
 **Stellenangebot (job listing / offer).** One job posting. In a search result it
-is a summary carrying `beruf`, `titel`, `refnr`, `arbeitgeber`, `arbeitsort`,
-publication/entry dates and an optional `externeUrl`. Full detail is fetched
-separately via `details`. (`Stellenangebot` in `src/client/types.ts`.)
+is a summary carrying `referenznummer`, `stellenangebotsTitel`, `firma`,
+`hauptberuf`, `stellenlokationen`, `entfernung`, publication/entry dates, often
+salary and home-office flags, and an optional `externeURL` — the same field names
+as the `details` payload. The full description is fetched separately via
+`details`. (`Stellenangebot` in `src/client/types.ts`.)
 
-**refnr (reference number).** The stable identifier of a listing, returned in
-each search result's `refnr` field — e.g. `10001-1002716922-S`, the hex form
+**refnr / referenznummer (reference number).** The stable identifier of a
+listing, returned in each search result's `referenznummer` field (called `refnr`
+in older API versions and in this CLI's help) — e.g. `10001-1002716922-S`, the hex form
 `14225-dafcdd47aabe512d-S`, or a purely numeric `1002716922`. It is made of
 digits, letters and hyphens. This is the argument you pass to `details`.
 
@@ -71,19 +76,19 @@ base64 encoding of the `refnr`. The client base64-encodes the `refnr` for you;
 an already-base64-encoded code is detected (by an exact base64 round-trip, not
 charset sniffing) and passed through unchanged.
 
-**hashId.** An additional listing identifier the API stamps on a `Stellenangebot`.
+**Stellenlokation (work location).** One entry of a listing's
+`stellenlokationen` array: `adresse` (`strasse`, `hausnummer`, `plz` postal code,
+`ort` city/town, `region`, `land` country) plus `breite`/`laenge`
+(latitude/longitude). A listing's `entfernung` is the distance in km from the
+searched location, present when `wo` was given.
 
-**Arbeitsort (work location).** The location of a listing as the API serialises
-it: `plz` (postal code), `ort` (city/town), `strasse` (street), `region`, `land`
-(country), `koordinaten` (`lat`/`lon`), and `entfernung` (distance in km from the
-searched location, present only on radius searches).
+**firma / arbeitgeber (employer).** The hiring organisation named on a listing
+(`firma`); `arbeitgeber` is the search filter (`--arbeitgeber`) and the employer
+facet.
 
-**Arbeitgeber (employer).** The hiring organisation named on a listing; also a
-search filter (`--arbeitgeber`).
-
-**beruf / berufsfeld.** `beruf` is the occupation/job title on a listing;
-`berufsfeld` (occupational field) is a broader category usable as a search
-filter (`--berufsfeld`).
+**hauptberuf / berufsfeld.** `hauptberuf` is the occupation on a listing
+(`alleBerufe` lists every one); `berufsfeld` (occupational field) is a broader
+category usable as a search filter (`--berufsfeld`).
 
 ---
 
@@ -118,12 +123,14 @@ codes in the upstream bundesAPI OpenAPI spec. Passed through verbatim to the API
 
 ## Result envelope
 
-**JobSearchResult.** The search response: `stellenangebote` (the array of
+**JobSearchResult.** The search response: `ergebnisliste` (the array of
 listings), `maxErgebnisse` (total number of matches), `page`, `size`, `facetten`
 (aggregation facets), and `woOutput` (the location the API actually searched).
 (`JobSearchResult` in `src/client/types.ts`.)
 
-**stellenangebote.** The array of `Stellenangebot` summaries on a result page.
+**ergebnisliste.** The array of `Stellenangebot` summaries on a result page. It
+is absent (not `[]`) when nothing matched or with `--size 0`; on no match
+`facetten` is absent too.
 
 **maxErgebnisse.** The total count of matching listings across all pages.
 
