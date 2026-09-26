@@ -20,6 +20,7 @@ export {
   JobsucheApiError,
   JobsucheNetworkError,
   JobsucheParseError,
+  redactUrl,
 } from "./errors.js";
 
 export * from "./types.js";

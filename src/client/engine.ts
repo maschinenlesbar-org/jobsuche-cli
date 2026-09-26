@@ -4,7 +4,7 @@
 
 import { nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { JobsucheApiError, JobsucheNetworkError, JobsucheParseError } from "./errors.js";
+import { JobsucheApiError, JobsucheNetworkError, JobsucheParseError, redactUrl } from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://rest.arbeitsagentur.de";
 const DEFAULT_USER_AGENT = "jobsuche-cli";
@@ -102,11 +102,11 @@ export function assertHttpScheme(baseUrl: string): void {
   try {
     url = new URL(baseUrl);
   } catch {
-    throw new JobsucheNetworkError(`Invalid base URL: ${baseUrl}`);
+    throw new JobsucheNetworkError(`Invalid base URL: ${redactUrl(baseUrl)}`);
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new JobsucheNetworkError(
-      `Unsupported protocol "${url.protocol}" in base URL: ${baseUrl}`,
+      `Unsupported protocol "${url.protocol}" in base URL: ${redactUrl(baseUrl)}`,
     );
   }
 }
@@ -157,7 +157,7 @@ export class RequestEngine {
     // fragment would swallow the path and the filters. (Checked here, not in
     // assertHttpScheme, which also guards obtain-key's source URL.)
     if (/[?#]/.test(this.baseUrl)) {
-      throw new JobsucheNetworkError(`Base URL must not contain a query or fragment: ${this.baseUrl}`);
+      throw new JobsucheNetworkError(`Base URL must not contain a query or fragment: ${redactUrl(this.baseUrl)}`);
     }
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;

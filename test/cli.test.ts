@@ -349,3 +349,13 @@ test("a base URL with a path prefix still works", async () => {
   assert.equal(await run(["--base-url", "https://mirror.example/ba/", "search", "--was", "x"], cli.deps), 0);
   assert.equal(new URL(cli.mt.last().url).pathname, `/ba${SERVICE}/pc/v6/jobs`);
 });
+
+// A password in --base-url was printed with every error (CI logs).
+test("a password in --base-url is not echoed in an error, but still sent", async () => {
+  const cli = makeCli(() => jsonResponse({ detail: "nope" }, 404));
+  assert.equal(await run(["--base-url", "http://user:s3cret@127.0.0.1:1/e", "search", "--was", "x"], cli.deps), 4);
+  const err = cli.err.join("\n");
+  assert.doesNotMatch(err, /s3cret|user:/);
+  assert.match(err, /http:\/\/\*\*\*@127\.0\.0\.1:1\/e\/jobboerse/);
+  assert.match(cli.mt.last().url, /user:s3cret@/);
+});

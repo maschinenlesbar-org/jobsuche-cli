@@ -238,3 +238,17 @@ test("the engine rejects a base URL with a query or fragment", () => {
     assert.throws(() => new RequestEngine({ baseUrl }), /must not contain a query or fragment/, baseUrl);
   }
 });
+
+test("base-URL errors redact userinfo", () => {
+  assert.throws(() => new RequestEngine({ baseUrl: "ftp://u:pw@example.test" }), (err: unknown) => {
+    assert.ok(err instanceof JobsucheNetworkError);
+    assert.doesNotMatch(err.message, /pw/);
+    return true;
+  });
+  assert.throws(() => new RequestEngine({ baseUrl: "https://u:pw@example.test/?q" }), (err: unknown) => {
+    assert.ok(err instanceof JobsucheNetworkError);
+    assert.doesNotMatch(err.message, /pw/);
+    assert.match(err.message, /\*\*\*@example\.test/);
+    return true;
+  });
+});
