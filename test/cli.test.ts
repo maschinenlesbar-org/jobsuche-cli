@@ -408,3 +408,16 @@ test("a deeply nested response gives a clear error instead of a stack overflow",
     assert.equal(compact.err.join("\n"), "Error: The response is nested too deeply to print.");
   }
 });
+
+// U+202E and U+2028 were written raw, so a title could spoof the terminal display.
+test("bidi controls and U+2028/U+2029 are escaped in the JSON output", async () => {
+  const served = { stellenangebotsTitel: "a\u202eRTL\u2028b\u2029c\u2066d", firma: "\u200fX" };
+  for (const format of [[], ["--compact"]]) {
+    const cli = makeCli(() => jsonResponse(served));
+    assert.equal(await run([...format, "details", "10001-1002716922-S"], cli.deps), 0);
+    const text = cli.out.join("\n");
+    assert.doesNotMatch(text, /[\u202e\u2028\u2029\u2066\u200f]/);
+    assert.match(text, /a\\u202eRTL\\u2028b\\u2029c\\u2066d/);
+    assert.deepEqual(JSON.parse(text), served);
+  }
+});

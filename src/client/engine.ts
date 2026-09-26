@@ -94,11 +94,29 @@ export function sanitizeServerText(text: string): string {
   let out = "";
   for (const ch of text) {
     const n = ch.codePointAt(0) ?? 0;
-    // Drop C0 (except tab 0x09 / newline 0x0a), DEL and C1; keep everything else.
-    if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
+    // Drop C0 (except the whitespace 0x09-0x0d, folded below), DEL, C1 and the
+    // bidi controls (a U+202E override reorders what the terminal shows).
+    if (n <= 8 || (n >= 0x0e && n <= 0x1f) || (n >= 0x7f && n <= 0x9f) || isBidiControl(n)) continue;
     out += ch;
   }
-  return out;
+  // One line: newlines, tabs and U+2028/2029 become one space, so server text
+  // cannot forge an extra "Error:" line on stderr.
+  return out.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The Unicode bidirectional controls (ALM, LRM, RLM, LRE/RLE/PDF/LRO/RLO,
+ * LRI/RLI/FSI/PDI). Invisible, but they reorder the text around them, so server
+ * text using them can spoof what a terminal shows.
+ */
+export function isBidiControl(code: number): boolean {
+  return (
+    code === 0x061c ||
+    code === 0x200e ||
+    code === 0x200f ||
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2066 && code <= 0x2069)
+  );
 }
 
 /**

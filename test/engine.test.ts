@@ -153,7 +153,7 @@ test("error detail is stripped of terminal control characters", async () => {
       // human-readable message that run.ts prints to stderr...
       assert.ok(!hasControlChars(err.detail ?? ""));
       assert.ok(!hasControlChars(err.message));
-      // ...while the printable characters are preserved (tab/newline kept too).
+      // ...while the printable characters are preserved.
       assert.equal(err.detail, "boom[31mred2J!");
       return true;
     },
@@ -286,4 +286,14 @@ test("300/304/305, a missing and a malformed Location are not followed and say w
     await assert.rejects(() => e.getJson("/x"), (err: unknown) => err instanceof JobsucheApiError && message.test(err.message));
     assert.equal(mt.calls.length, 1);
   }
+});
+
+test("server text on stderr drops bidi controls and stays on one line", async () => {
+  const RLO = String.fromCharCode(0x202e);
+  const mt = makeMockTransport(() => jsonResponse({ detail: `a${RLO}b\nError: forged\u2028c` }, 500));
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport, maxRetries: 0 });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err: unknown) => err instanceof JobsucheApiError && err.detail === "ab Error: forged c",
+  );
 });
