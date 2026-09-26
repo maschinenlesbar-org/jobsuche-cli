@@ -15,7 +15,7 @@ field/parameter name the API uses on the wire.
 > | arbeitgeber | `--arbeitgeber` — employer |
 > | umkreis | `--umkreis` — radius (km) |
 > | veroeffentlichtseit | `--veroeffentlicht-seit` — published since (days) |
-> | zeitarbeit | `--zeitarbeit` — temp-work agencies |
+> | zeitarbeit | `--zeitarbeit` / `--no-zeitarbeit` — only / no temp-work agencies |
 > | angebotsart | `--angebotsart` — offer type code |
 > | Stellenangebot | job listing / offer |
 > | Stellenlokation | work location |
@@ -107,8 +107,10 @@ location back as `woOutput` in the result.
 **veroeffentlichtseit (published since).** Restrict results to listings published
 within the last N days (`--veroeffentlicht-seit`).
 
-**zeitarbeit (temp work).** Boolean flag to include temporary-work / staffing
-agencies (`--zeitarbeit`).
+**zeitarbeit (temp work).** Temporary-work / staffing-agency listings. By default
+(no parameter) they are included with the rest; `zeitarbeit=true`
+(`--zeitarbeit`) returns **only** them, `zeitarbeit=false` (`--no-zeitarbeit`)
+leaves them out. Checked live: the two counts add up to the default's.
 
 **angebotsart (offer type).** A numeric code selecting the kind of offer
 (`--angebotsart`): `1` job vacancy (Arbeit), `2` self-employment

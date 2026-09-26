@@ -124,7 +124,8 @@ details  <refnr>        full details for one listing
 | `--arbeitgeber <text>` | employer name (*Arbeitgeber*) |
 | `--veroeffentlicht-seit <days>` | published within the last N days |
 | `--angebotsart <code>` | offer type code, e.g. `1` regular vacancy, `4` apprenticeship |
-| `--zeitarbeit` | include temp-work / staffing agencies |
+| `--zeitarbeit` | **only** temp-work / staffing-agency listings (by default they are included with the rest) |
+| `--no-zeitarbeit` | leave temp-work / staffing-agency listings out |
 | `--page <n>` | 1-based page index |
 | `--size <n>` | page size |
 

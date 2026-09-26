@@ -139,18 +139,19 @@ jobsuche search --arbeitgeber "Deutsche Bahn AG" --wo Frankfurt --umkreis 30 \
   | jq -r '.ergebnisliste[]? | "\(.stellenangebotsTitel) — \(.stellenlokationen[0].adresse.ort)"'
 ```
 
-### 9. Browse an occupational field, including temp-work agencies
+### 9. Browse an occupational field, with or without temp-work agencies
 
-Cast a wider net across a whole field and don't exclude staffing agencies.
+Cast a wider net across a whole field, then leave out the staffing agencies.
 
 ```bash
 jobsuche search --berufsfeld "Altenpflege" --wo Leipzig \
-  --umkreis 40 --zeitarbeit
+  --umkreis 40 --no-zeitarbeit
 ```
 
 `--berufsfeld` searches a broad occupational category (vs. the more specific
-`--was`); `--zeitarbeit` is a boolean flag that includes temp-work / staffing
-agencies in the results.
+`--was`). Temp-work / staffing-agency (*Zeitarbeit*) listings are **included by
+default**; `--no-zeitarbeit` leaves them out, and `--zeitarbeit` returns **only**
+them.
 
 ### 10. Search → pick first result → fetch its details (one-liner)
 

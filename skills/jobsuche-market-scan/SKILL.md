@@ -78,8 +78,9 @@ Choose the search axis to match the question:
 - A broad field → `--berufsfeld` (e.g. `Altenpflege`) — wider net than `--was`.
 - Add `--wo` + `--umkreis <km>` to scope a region (a radius of 30–50 km captures
   a metro area; omit `--wo` for a nationwide scan).
-- Add `--zeitarbeit` to *include* staffing/temp agencies (excluded by default);
-  for a "real employer" picture, leave it off and say so.
+- Staffing/temp agencies are **included by default**; for a "real employer"
+  picture add `--no-zeitarbeit` and say so. (`--zeitarbeit` returns **only**
+  agency listings.)
 
 ## Step 2 — Read the facets
 
@@ -121,9 +122,10 @@ jobsuche --compact search --was Pflege --wo Berlin --umkreis 50 --size 0 \
 >   want "new in the last day vs week".
 > - Facet employer/location labels are the API's raw strings (e.g.
 >   `"50Hertz Transmission GmbH AD Berlin"`); show them verbatim.
-> - The default search **excludes** temp-work agencies (`zeitarbeit`) — note
->   that, or add `--zeitarbeit`, before claiming an employer ranking is
->   exhaustive. Even so, **recruitment / placement agencies** (e.g.
+> - The default search **includes** temp-work agencies (`zeitarbeit`); with
+>   `--no-zeitarbeit` they are gone — say which you ran before claiming an
+>   employer ranking is exhaustive or "real employers only". Even so,
+>   **recruitment / placement agencies** (e.g.
 >   `… Personalservice`, `… Arbeitsvermittlung`) still rank near the top of
 >   `facetten.arbeitgeber` for many fields — they are not the end employer. Flag
 >   them as agencies rather than presenting them as "the biggest hirer".
@@ -133,7 +135,7 @@ jobsuche --compact search --was Pflege --wo Berlin --umkreis 50 --size 0 \
 Lead with the total, then the rankings — numbers, not raw JSON:
 
 ```
-Pflege within 50 km of Berlin — 9,192 open listings (temp agencies excluded)
+Pflege within 50 km of Berlin — 9,192 open listings (temp agencies excluded with --no-zeitarbeit)
 
 Top hiring employers
    453  Vivantes …

@@ -81,8 +81,8 @@ jobsuche --compact search --arbeitgeber "Deutsche Bahn AG" --size 100
 
 - Add `--wo <city> --umkreis <km>` to scope to a region; omit for nationwide.
 - Add `--veroeffentlicht-seit <days>` for "new this week/month".
-- Add `--zeitarbeit` only if you want their temp-agency postings too (off by
-  default).
+- Temp-agency postings are **included by default**; add `--no-zeitarbeit` to
+  leave them out. (`--zeitarbeit` returns **only** those — not "too".)
 - `maxErgebnisse` is the true total; if it exceeds `--size`, either raise `--size`
   or page with `--page` (1-based) and concatenate before analysing. For a
   breakdown-only view, a cheap `--size 0` gives `maxErgebnisse` + `facetten`
@@ -144,7 +144,7 @@ If no prior snapshot exists, say so and fall back to
 ## Step 5 — Present
 
 ```
-Deutsche Bahn AG — 316 open listings (matched: "Deutsche Bahn AG"; excl. temp agencies)
+Deutsche Bahn AG — 316 open listings (matched: "Deutsche Bahn AG"; temp agencies excluded with --no-zeitarbeit)
 
 Top locations   Frankfurt am Main 41 · Berlin 33 · München 22 · …
 Hiring for      Elektroniker:in 28 · Projektingenieur:in 19 · Lokführer:in 14 · …

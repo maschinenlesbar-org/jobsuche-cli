@@ -242,3 +242,18 @@ test("a starved free-text option is a usage error, not a silent search", async (
   // No request should have been made at all.
   assert.equal(cli.mt.calls.length, 0);
 });
+
+// zeitarbeit=true returns only temp-work listings and the default already
+// includes them (live: 2231 + 6033 = 8264), so --zeitarbeit narrows and
+// --no-zeitarbeit is the way to leave them out.
+for (const [args, expected] of [
+  [[], null],
+  [["--zeitarbeit"], "true"],
+  [["--no-zeitarbeit"], "false"],
+] as const) {
+  test(`search ${args.join(" ") || "(no zeitarbeit flag)"} sends zeitarbeit=${expected}`, async () => {
+    const cli = makeCli(() => jsonResponse({ ergebnisliste: [] }));
+    assert.equal(await run(["search", "--was", "x", ...args], cli.deps), 0);
+    assert.equal(new URL(cli.mt.last().url).searchParams.get("zeitarbeit"), expected);
+  });
+}

@@ -15,7 +15,7 @@ den englischen Begriff aus CLI und Bibliothek (sofern es einen gibt).
 > | arbeitgeber | `--arbeitgeber` – employer |
 > | umkreis | `--umkreis` – radius (km) |
 > | veroeffentlichtseit | `--veroeffentlicht-seit` – published since (days) |
-> | zeitarbeit | `--zeitarbeit` – temp-work agencies |
+> | zeitarbeit | `--zeitarbeit` / `--no-zeitarbeit` – only / no temp-work agencies |
 > | angebotsart | `--angebotsart` – offer type code |
 > | Stellenangebot | job listing / offer |
 > | Stellenlokation | work location |
@@ -105,8 +105,10 @@ aufgelösten Ort im Ergebnis als `woOutput` zurück.
 **veroeffentlichtseit.** Beschränkt die Ergebnisse auf Stellenangebote, die in den letzten
 N Tagen veröffentlicht wurden (`--veroeffentlicht-seit`).
 
-**zeitarbeit.** Boolesches Flag, um Zeitarbeits- bzw. Personaldienstleistungsfirmen
-einzubeziehen (`--zeitarbeit`).
+**zeitarbeit.** Stellenangebote von Zeitarbeits- bzw. Personaldienstleistungsfirmen. Ohne
+Parameter sind sie zusammen mit allen anderen enthalten; `zeitarbeit=true` (`--zeitarbeit`)
+liefert **nur** sie, `zeitarbeit=false` (`--no-zeitarbeit`) lässt sie weg. Live geprüft: Die
+beiden Trefferzahlen ergeben zusammen die ohne Parameter.
 
 **angebotsart.** Ein numerischer Code für die Art des Angebots
 (`--angebotsart`): `1` Arbeit, `2` Selbstständigkeit, `4` Ausbildung bzw. Duales

@@ -106,8 +106,9 @@ encode the non-obvious parts of this API, for example:
   `stellenangebotsTitel`, id `referenznummer`, apply link `externeURL` — but only `details`
   carries the description; salary (`gehaltsspanneVon`/`gehaltsspanneBis`, `festgehalt`) is
   often absent — most German postings omit pay;
-- the default search **excludes temp-work agencies**, yet **recruitment/placement agencies**
-  still top the employer facet for many fields — they are not the end employer;
+- the default search **includes temp-work agencies** (`--no-zeitarbeit` drops them;
+  `--zeitarbeit` keeps **only** them), and **recruitment/placement agencies** still top the
+  employer facet for many fields — they are not the end employer;
 - `--arbeitgeber` is name-matched and fuzzy; a company often spans several legal entities
   (`Deutsche Bahn AG` vs `DB Netz AG` …) — sanity-check the matched names
   (see **jobsuche-employer-watch**).

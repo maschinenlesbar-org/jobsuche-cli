@@ -79,8 +79,9 @@ Map the request to flags:
   "Ausbildung"/apprenticeship/trainee.
 - `--arbeitgeber "<name>"` to restrict to one company (or use
   **jobsuche-employer-watch**).
-- `--zeitarbeit` to *include* temp/staffing agencies (off by default — most job
-  hunters want it off; mention you excluded them).
+- `--no-zeitarbeit` to leave out temp/staffing-agency listings — they are
+  **included by default**; most job hunters want them out, so mention whether
+  you excluded them. (`--zeitarbeit` is the opposite: **only** agency listings.)
 - `--size 50` to get a decent pool to rank in one call; page with `--page` only if
   `maxErgebnisse` >> what you fetched and the user wants more.
 
@@ -173,7 +174,7 @@ The detail payload uses the **same field names** as the summary and adds more. T
 
 ```
 Data-Engineer roles within 30 km of München, last 14 days
-312 matches (temp agencies excluded) — 8 after de-duping re-posts. Top picks:
+312 matches (temp agencies excluded with --no-zeitarbeit) — 8 after de-duping re-posts. Top picks:
 
 1. ⭐ Data Engineer (m/w/d) — BMW AG, München · 0 km · posted 2 days ago
      Permanent · full-time · home office possible · €65k–80k

@@ -106,7 +106,10 @@ export interface JobSearchParams {
   umkreis?: number;
   /** Published within the last N days. */
   veroeffentlichtseit?: number;
-  /** Include temp-work agencies. */
+  /**
+   * Temp-work (Zeitarbeit) listings: omitted = included with the rest, `true` =
+   * only temp-work listings, `false` = none.
+   */
   zeitarbeit?: boolean;
   /** Offer type code(s). */
   angebotsart?: number;
