@@ -80,7 +80,9 @@ export JOBSUCHE_API_KEY="$(jobsuche obtain-key)"
 Because the key is fetched rather than compiled in, a rotated key needs no
 release of this CLI. If the upstream source is unreachable or stops publishing a
 key, `obtain-key` fails loudly with a non-zero exit rather than printing a guess
-— it will never invent a value.
+— it will never invent a value. It uses the same `--timeout` (default 30 s) and
+`--max-response-bytes` (default 100 MiB) as the API commands, so a stalled source
+cannot hang `eval "$(jobsuche obtain-key --export)"`.
 
 ## Quickstart
 

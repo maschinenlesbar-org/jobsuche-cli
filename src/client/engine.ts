@@ -41,7 +41,11 @@ export interface EngineOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
+/** Default per-request timeout in milliseconds (the client's and obtain-key's). */
+export const DEFAULT_TIMEOUT_MS = 30_000;
+
+/** Default response-size cap in bytes (the client's and obtain-key's). */
+export const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
 
 /**
  * Header names that carry credentials and MUST NOT be forwarded across an
@@ -128,7 +132,7 @@ export class RequestEngine {
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
     this.defaultHeaders = options.defaultHeaders ?? {};
-    this.timeoutMs = options.timeoutMs ?? 30_000;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelayMs = options.retryDelayMs ?? 200;
     this.maxRedirects = options.maxRedirects ?? 5;

@@ -11,11 +11,14 @@
 // into the package.
 //
 // The fetch goes through the same `Transport` seam as every other request, so it
-// honours --timeout/--user-agent and is testable in-process without a network.
+// honours --timeout/--max-response-bytes/--user-agent and is testable in-process
+// without a network. Like the API client it has a 30 s timeout and a 100 MiB size
+// cap by default, so a stalled source cannot hang
+// `eval "$(jobsuche obtain-key --export)"`.
 
 import type { Transport } from "./http.js";
 import { nodeHttpTransport } from "./http.js";
-import { assertHttpScheme } from "./engine.js";
+import { DEFAULT_MAX_RESPONSE_BYTES, DEFAULT_TIMEOUT_MS, assertHttpScheme } from "./engine.js";
 import { JobsucheError, JobsucheParseError } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
@@ -37,7 +40,17 @@ export interface ObtainKeyOptions {
   transport?: Transport;
   /** Override the source document (tests, mirrors). */
   sourceUrl?: string;
+  /**
+   * Time limit per request in milliseconds, whole response included. Defaults to
+   * `DEFAULT_TIMEOUT_MS` (30 s), like the API client; 0 disables it.
+   */
   timeoutMs?: number;
+  /**
+   * Cap on the response body in bytes. Defaults to `DEFAULT_MAX_RESPONSE_BYTES`
+   * (100 MiB), like the API client; 0 disables it.
+   */
+  maxResponseBytes?: number;
+  /** User-Agent header; a blank value falls back to the default. */
   userAgent?: string;
 }
 
@@ -59,15 +72,20 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   // Same gate as the engine: a custom transport must never get a file:/ftp: URL.
   assertHttpScheme(sourceUrl);
   const transport = options.transport ?? nodeHttpTransport;
+  // The request gets the client's limits: a source that stalls, or streams
+  // without end, must not hang the command or exhaust memory.
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
 
   const response = await transport({
     method: "GET",
     url: sourceUrl,
     headers: {
       Accept: "text/plain, text/markdown;q=0.9, */*;q=0.8",
-      "User-Agent": options.userAgent ?? "jobsuche-cli",
+      "User-Agent": options.userAgent?.trim() ? options.userAgent : "jobsuche-cli",
     },
-    ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+    ...(timeoutMs > 0 ? { timeoutMs } : {}),
+    ...(maxResponseBytes > 0 ? { maxResponseBytes } : {}),
   });
 
   if (response.status < 200 || response.status >= 300) {

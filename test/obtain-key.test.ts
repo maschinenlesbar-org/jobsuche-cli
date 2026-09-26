@@ -105,3 +105,29 @@ test("obtainKey rejects a non-http(s) source URL before the transport sees it", 
     assert.equal(mt.calls.length, 0);
   }
 });
+
+// obtain-key had no timeout unless --timeout was given and no size cap at all,
+// so a stalled or endless source hung `eval "$(jobsuche obtain-key --export)"`.
+test("obtainKey applies the client's default timeout and size cap", async () => {
+  const mt = makeMockTransport(() => rawResponse(README, "text/plain"));
+  await obtainKey({ transport: mt.transport });
+  assert.equal(mt.last().timeoutMs, 30_000);
+  assert.equal(mt.last().maxResponseBytes, 100 * 1024 * 1024);
+});
+
+test("obtainKey takes explicit limits, and 0 turns one off", async () => {
+  const mt = makeMockTransport(() => rawResponse(README, "text/plain"));
+  await obtainKey({ transport: mt.transport, timeoutMs: 5, maxResponseBytes: 10 });
+  assert.equal(mt.last().timeoutMs, 5);
+  assert.equal(mt.last().maxResponseBytes, 10);
+  await obtainKey({ transport: mt.transport, timeoutMs: 0, maxResponseBytes: 0 });
+  assert.equal("timeoutMs" in mt.last(), false);
+  assert.equal("maxResponseBytes" in mt.last(), false);
+});
+
+test("obtain-key passes --timeout and --max-response-bytes to the request", async () => {
+  const cli = makeCli(() => rawResponse(README, "text/plain"));
+  assert.equal(await run(["--timeout", "1234", "--max-response-bytes", "10", "obtain-key"], cli.deps), 0);
+  assert.equal(cli.mt.last().timeoutMs, 1234);
+  assert.equal(cli.mt.last().maxResponseBytes, 10);
+});
