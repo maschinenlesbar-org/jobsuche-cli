@@ -16,7 +16,7 @@
 // cap by default, so a stalled source cannot hang
 // `eval "$(jobsuche obtain-key --export)"`.
 
-import type { Transport } from "./http.js";
+import type { HttpResponse, Transport } from "./http.js";
 import { nodeHttpTransport } from "./http.js";
 import { DEFAULT_MAX_RESPONSE_BYTES, DEFAULT_TIMEOUT_MS, assertHttpScheme } from "./engine.js";
 import { JobsucheError, JobsucheParseError } from "./errors.js";
@@ -64,6 +64,12 @@ function findKeys(text: string, pattern: RegExp): string[] {
   return keys;
 }
 
+/** Same-origin redirects the key-source request follows (e.g. a renamed repository). */
+export const MAX_KEY_SOURCE_REDIRECTS = 5;
+
+/** The redirect statuses followed, as in the API client. */
+const FOLLOWED_REDIRECTS = new Set([301, 302, 303, 307, 308]);
+
 export interface ObtainKeyOptions {
   /** Injectable transport; defaults to the built-in node:http/https one. */
   transport?: Transport;
@@ -86,7 +92,7 @@ export interface ObtainKeyOptions {
 export interface ObtainedKey {
   /** The public key, ready to put in `API_KEY_ENV_VAR`. */
   key: string;
-  /** Where it was read from, so callers can cite it. */
+  /** Where it was read from (after any redirect), so callers can cite it. */
   sourceUrl: string;
 }
 
@@ -106,20 +112,31 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
 
-  const response = await transport({
-    method: "GET",
-    url: sourceUrl,
-    headers: {
-      Accept: "text/plain, text/markdown;q=0.9, */*;q=0.8",
-      "User-Agent": options.userAgent?.trim() ? options.userAgent : "jobsuche-cli",
-    },
-    ...(timeoutMs > 0 ? { timeoutMs } : {}),
-    ...(maxResponseBytes > 0 ? { maxResponseBytes } : {}),
-  });
+  // raw.githubusercontent.com answers a renamed repository or branch with a
+  // redirect, so follow a few — same origin only: the key is trusted because of
+  // where it is published, and a hop to another host is not followed.
+  let url = sourceUrl;
+  let response: HttpResponse;
+  for (let redirects = 0; ; redirects += 1) {
+    response = await transport({
+      method: "GET",
+      url,
+      headers: {
+        Accept: "text/plain, text/markdown;q=0.9, */*;q=0.8",
+        "User-Agent": options.userAgent?.trim() ? options.userAgent : "jobsuche-cli",
+      },
+      ...(timeoutMs > 0 ? { timeoutMs } : {}),
+      ...(maxResponseBytes > 0 ? { maxResponseBytes } : {}),
+    });
+    if (!FOLLOWED_REDIRECTS.has(response.status) || redirects >= MAX_KEY_SOURCE_REDIRECTS) break;
+    const next = resolveLocation(response.headers["location"], url);
+    if (next === undefined || next.origin !== new URL(url).origin) break;
+    url = next.href;
+  }
 
   if (response.status < 200 || response.status >= 300) {
     throw new JobsucheError(
-      `Could not read the key source ${sourceUrl} (HTTP ${response.status}). ` +
+      `Could not read the key source ${url} (HTTP ${response.status}). ` +
         `Retry, or copy the key from github.com/bundesAPI/jobsuche-api by hand.`,
     );
   }
@@ -134,18 +151,29 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   const conflicting = [...new Set([...clientIds, ...headerKeys])];
   if (conflicting.length > 1) {
     throw new JobsucheError(
-      `The key source ${sourceUrl} states conflicting keys (${conflicting.join(", ")}). ` +
+      `The key source ${url} states conflicting keys (${conflicting.join(", ")}). ` +
         `Check it by hand before relying on this command.`,
     );
   }
   const key = conflicting[0];
   if (!key) {
     throw new JobsucheParseError(
-      `No X-API-Key found at ${sourceUrl}. The upstream document may have changed ` +
+      `No X-API-Key found at ${url}. The upstream document may have changed ` +
         `format or stopped publishing the key — check it by hand before relying on this command.`,
     );
   }
-  return { key, sourceUrl };
+  return { key, sourceUrl: url };
+}
+
+/** Resolve a Location header against the request URL; undefined if missing or malformed. */
+function resolveLocation(location: string | string[] | undefined, base: string): URL | undefined {
+  const value = Array.isArray(location) ? location[0] : location;
+  if (value === undefined || value === "") return undefined;
+  try {
+    return new URL(value, base);
+  } catch {
+    return undefined;
+  }
 }
 
 /**

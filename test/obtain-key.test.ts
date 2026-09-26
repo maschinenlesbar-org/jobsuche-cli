@@ -168,3 +168,30 @@ test("obtain-key passes --timeout and --max-response-bytes to the request", asyn
   assert.equal(cli.mt.last().timeoutMs, 1234);
   assert.equal(cli.mt.last().maxResponseBytes, 10);
 });
+
+function redirectTo(location: string, status = 301): HttpResponse {
+  return { status, headers: { location }, body: Buffer.alloc(0) };
+}
+
+// raw.githubusercontent.com answers a renamed repository with a 301, which
+// obtain-key reported as "Could not read the key source (HTTP 301)".
+test("obtainKey follows a same-origin redirect and cites the final URL", async () => {
+  const moved = "https://raw.githubusercontent.com/bundesAPI/jobsuche/main/README.md";
+  const mt = makeMockTransport((req) => (req.url === KEY_SOURCE_URL ? redirectTo(moved) : rawResponse(README, "text/plain")));
+  const result = await obtainKey({ transport: mt.transport });
+  assert.equal(result.key, "jobboerse-jobsuche");
+  assert.equal(result.sourceUrl, moved);
+  assert.equal(mt.calls.length, 2);
+});
+
+test("obtainKey does not follow a redirect to another host", async () => {
+  const mt = makeMockTransport(() => redirectTo("https://evil.example/README.md", 302));
+  await assert.rejects(() => obtainKey({ transport: mt.transport }), /HTTP 302/);
+  assert.equal(mt.calls.length, 1);
+});
+
+test("obtainKey stops a redirect loop", async () => {
+  const mt = makeMockTransport(() => redirectTo(KEY_SOURCE_URL));
+  await assert.rejects(() => obtainKey({ transport: mt.transport }), /HTTP 301/);
+  assert.equal(mt.calls.length, 6);
+});
