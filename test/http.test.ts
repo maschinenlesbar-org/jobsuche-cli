@@ -100,3 +100,10 @@ test("a slow-drip response is bounded by the wall-clock deadline", async () => {
   );
   for (const t of timers) clearInterval(t);
 });
+
+test("a header Node cannot send is a JobsucheNetworkError, not a raw TypeError", async () => {
+  await assert.rejects(
+    () => nodeHttpTransport({ method: "GET", url: "http://127.0.0.1:1/", headers: { "User-Agent": "a\r\nb" } }),
+    (err: unknown) => err instanceof JobsucheNetworkError && /^Invalid request: /.test(err.message),
+  );
+});

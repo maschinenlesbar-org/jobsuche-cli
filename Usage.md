@@ -187,7 +187,7 @@ These apply to every command and may be given before or after the command name
 | `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`; http(s), a path prefix is fine, no `?query` or `#fragment`) |
 | `--api-key <key>` | the `X-API-Key` to send (env `JOBSUCHE_API_KEY`; no key is bundled, see `obtain-key`); blank/whitespace is ignored and the env var is used, else no key is sent |
 | `--timeout <ms>` | per-request timeout in milliseconds (at most `2147483647`) |
-| `--user-agent <ua>` | `User-Agent` header value |
+| `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters or characters above U+00FF, which a header cannot carry) |
 | `--max-retries <n>` | retries for transient `429`/`503` responses |
 | `--max-response-bytes <n>` | cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | print JSON on a single line instead of pretty-printed |

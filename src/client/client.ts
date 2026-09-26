@@ -60,6 +60,15 @@ export class JobsucheClient {
     const { apiKey, ...engineOptions } = options;
     // Only send X-API-Key when a non-blank key was supplied; never default one.
     const key = apiKey?.trim() ? apiKey : undefined;
+    // A key Node cannot send as a header (CR/LF, other controls, above U+00FF —
+    // e.g. from a mangled JOBSUCHE_API_KEY) fails here with a typed error instead
+    // of an untyped TypeError at request time.
+    if (key !== undefined && /[\u0000-\u0008\u000a-\u001f\u007f\u0100-\uffff]/.test(key)) {
+      throw new JobsucheError(
+        "Invalid apiKey: it contains control characters or characters outside Latin-1 " +
+          "(above U+00FF), which an HTTP header cannot carry.",
+      );
+    }
     this.engine = new RequestEngine({
       ...engineOptions,
       defaultHeaders: {

@@ -236,7 +236,7 @@ These apply to every command and may be given before *or* after it:
 | `--api-key <key>` | Override or supply the `X-API-Key` (env `JOBSUCHE_API_KEY`) |
 | `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`; http(s), a path prefix is fine, no `?query` or `#fragment`) |
 | `--timeout <ms>` | Per-request timeout (default `30000`; at most `2147483647`) |
-| `--user-agent <ua>` | `User-Agent` header value |
+| `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters or characters above U+00FF, which a header cannot carry) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 

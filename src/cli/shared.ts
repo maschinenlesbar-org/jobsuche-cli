@@ -65,6 +65,44 @@ export function parseTextArg(value: string): string {
   return value;
 }
 
+/**
+ * Why a value cannot be sent in an HTTP header — a C0 control other than tab, DEL,
+ * or a character above U+00FF (what Node's header validation refuses) — or
+ * undefined when it can.
+ */
+function headerProblem(value: string): string | undefined {
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    if ((c < 0x20 && c !== 0x09) || c === 0x7f) return "Value contains control characters.";
+    if (c > 0xff) return "Value contains characters outside Latin-1 (above U+00FF).";
+  }
+  return undefined;
+}
+
+/**
+ * commander value-parser for a header value (`--user-agent`): not blank, and
+ * sendable — no control characters (tab is fine), nothing above U+00FF. Without
+ * this, Node's "Invalid character in header content" surfaced as an
+ * "Unexpected error" (exit 1) at request time.
+ */
+export function parseHeaderValue(value: string): string {
+  if (value.trim() === "") throw new InvalidArgumentError("Must not be blank.");
+  const problem = headerProblem(value);
+  if (problem) throw new InvalidArgumentError(problem);
+  return value;
+}
+
+/**
+ * commander value-parser for `--api-key`: a blank value stays allowed (it is
+ * ignored and JOBSUCHE_API_KEY is used, as documented), anything else must be
+ * sendable as a header.
+ */
+export function parseApiKey(value: string): string {
+  const problem = value.trim() === "" ? undefined : headerProblem(value);
+  if (problem) throw new InvalidArgumentError(problem);
+  return value;
+}
+
 /** commander value-parser for a required id: rejects "" and whitespace only. */
 export function parseNonBlank(value: string): string {
   if (value.trim() === "") {

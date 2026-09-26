@@ -78,45 +78,58 @@ export const nodeHttpTransport: Transport = (request) =>
       }
     };
 
-    const req = driver.request(
-      url,
-      {
-        method: request.method,
-        headers: request.headers,
-      },
-      (res) => {
-        const chunks: Buffer[] = [];
-        let received = 0;
-        let aborted = false;
+    // driver.request throws synchronously for a header value Node cannot send (CR/LF,
+    // a character above U+00FF); surface that as a typed error, not a raw TypeError.
+    let req: http.ClientRequest;
+    try {
+      req = driver.request(
+        url,
+        {
+          method: request.method,
+          headers: request.headers,
+        },
+        (res) => {
+          const chunks: Buffer[] = [];
+          let received = 0;
+          let aborted = false;
 
-        res.on("data", (chunk: Buffer) => {
-          if (aborted) return;
-          received += chunk.length;
-          if (maxBytes !== undefined && received > maxBytes) {
-            aborted = true;
-            clearDeadline();
-            res.destroy();
-            reject(new JobsucheNetworkError(`Response exceeded maxResponseBytes (${maxBytes})`));
-            return;
-          }
-          chunks.push(chunk);
-        });
-        res.on("end", () => {
-          if (aborted) return;
-          clearDeadline();
-          resolve({
-            status: res.statusCode ?? 0,
-            headers: res.headers,
-            body: Buffer.concat(chunks),
+          res.on("data", (chunk: Buffer) => {
+            if (aborted) return;
+            received += chunk.length;
+            if (maxBytes !== undefined && received > maxBytes) {
+              aborted = true;
+              clearDeadline();
+              res.destroy();
+              reject(new JobsucheNetworkError(`Response exceeded maxResponseBytes (${maxBytes})`));
+              return;
+            }
+            chunks.push(chunk);
           });
-        });
-        res.on("error", (err) => {
-          if (aborted) return; // we already rejected with the size-cap error
-          clearDeadline();
-          reject(new JobsucheNetworkError(`Response stream error: ${err.message}`, { cause: err }));
-        });
-      },
-    );
+          res.on("end", () => {
+            if (aborted) return;
+            clearDeadline();
+            resolve({
+              status: res.statusCode ?? 0,
+              headers: res.headers,
+              body: Buffer.concat(chunks),
+            });
+          });
+          res.on("error", (err) => {
+            if (aborted) return; // we already rejected with the size-cap error
+            clearDeadline();
+            reject(new JobsucheNetworkError(`Response stream error: ${err.message}`, { cause: err }));
+          });
+        },
+      );
+    } catch (err) {
+      clearDeadline();
+      reject(
+        new JobsucheNetworkError(`Invalid request: ${err instanceof Error ? err.message : String(err)}`, {
+          cause: err,
+        }),
+      );
+      return;
+    }
 
     if (timeoutMs && timeoutMs > 0) {
       const delayMs = Math.min(timeoutMs, MAX_TIMEOUT_MS);

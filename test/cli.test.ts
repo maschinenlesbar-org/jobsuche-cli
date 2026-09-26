@@ -359,3 +359,34 @@ test("a password in --base-url is not echoed in an error, but still sent", async
   assert.match(err, /http:\/\/\*\*\*@127\.0\.0\.1:1\/e\/jobboerse/);
   assert.match(cli.mt.last().url, /user:s3cret@/);
 });
+
+// CR/LF and non-Latin-1 in --api-key / --user-agent failed at request time as
+// "Unexpected error: Invalid character in header content" (exit 1).
+for (const [flag, value, message] of [
+  ["--api-key", "a\nb", /control characters/],
+  ["--api-key", "k\u0100", /outside Latin-1/],
+  ["--user-agent", "ua\r\nX-Injected: 1", /control characters/],
+  ["--user-agent", "ua\u2603", /outside Latin-1/],
+  ["--user-agent", " ", /Must not be blank/],
+] as const) {
+  test(`${flag} ${JSON.stringify(value)} is a usage error before any request`, async () => {
+    const cli = makeCli(() => jsonResponse({ ergebnisliste: [] }));
+    assert.equal(await run([flag, value, "search", "--was", "x"], cli.deps), 2);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), message);
+  });
+}
+
+test("a tab and Latin-1 in --user-agent are sent; a blank --api-key still falls back to the env", async () => {
+  const cli = makeCli(() => jsonResponse({ ergebnisliste: [] }), { JOBSUCHE_API_KEY: "env-key" });
+  assert.equal(await run(["--user-agent", "a\tü", "--api-key", " ", "search", "--was", "x"], cli.deps), 0);
+  assert.equal(cli.mt.last().headers?.["User-Agent"], "a\tü");
+  assert.equal(cli.mt.last().headers?.["X-API-Key"], "env-key");
+});
+
+test("an unsendable JOBSUCHE_API_KEY is a typed error, not an unexpected one", async () => {
+  const cli = makeCli(() => jsonResponse({ ergebnisliste: [] }), { JOBSUCHE_API_KEY: "a\nb" });
+  assert.equal(await run(["search", "--was", "x"], cli.deps), 1);
+  assert.equal(cli.mt.calls.length, 0);
+  assert.match(cli.err.join("\n"), /^Error: Invalid apiKey: it contains control characters/);
+});
