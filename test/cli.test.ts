@@ -316,3 +316,20 @@ for (const ref of ["", "   "]) {
     assert.match(cli.err.join("\n"), /Must not be blank/);
   });
 }
+
+// `jobsuche help` printed help, then "missing command", and exited 2.
+for (const [argv, code] of [
+  [["help"], 0],
+  [["help", "search"], 0],
+  [["search", "--help"], 0],
+  [["--version"], 0],
+  [[], 2],
+  [["help", "nope"], 2],
+] as const) {
+  test(`jobsuche ${argv.join(" ") || "(no arguments)"} exits ${code}`, async () => {
+    const cli = makeCli(() => jsonResponse({}));
+    assert.equal(await run([...argv], cli.deps), code);
+    assert.equal(cli.mt.calls.length, 0);
+    if (code === 0) assert.doesNotMatch(cli.err.join("\n"), /missing command/);
+  });
+}

@@ -41,6 +41,9 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       if (err.code === "commander.helpDisplayed" || err.code === "commander.version") {
         return 0;
       }
+      // The `help` / `help <cmd>` subcommand also throws "commander.help", but with
+      // exitCode 0; only help shown for a missing command carries exitCode 1.
+      if (err.exitCode === 0) return 0;
       // Invoked with no command at all: commander has already printed help.
       // Treat it as a usage error with an explicit diagnostic so scripts get a
       // distinct, documented exit code (2) rather than a bare, message-less 1.
