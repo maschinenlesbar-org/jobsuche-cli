@@ -283,3 +283,26 @@ test("a JSON parse error does not pass the body's control characters to stderr",
   assert.match(err, /TITLE/);
   assert.equal([...err].filter((c) => c.charCodeAt(0) < 0x20 && c !== "\n").length, 0);
 });
+
+// --page 0 reached the API (HTTP 400) and an undocumented --angebotsart code
+// silently returned nothing; both are usage errors now.
+for (const [flag, value, message] of [
+  ["--page", "0", /Must be >= 1/],
+  ["--angebotsart", "3", /Unknown --angebotsart code 3: valid codes are 1, 2, 4, 34/],
+  ["--angebotsart", "0", /Unknown --angebotsart code 0/],
+] as const) {
+  test(`${flag} ${value} is a usage error before any request`, async () => {
+    const cli = makeCli(() => jsonResponse({ ergebnisliste: [] }));
+    assert.equal(await run(["search", flag, value], cli.deps), 2);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), message);
+  });
+}
+
+test("every documented --angebotsart code and --page 1 are accepted", async () => {
+  for (const code of ["1", "2", "4", "34"]) {
+    const cli = makeCli(() => jsonResponse({ ergebnisliste: [] }));
+    assert.equal(await run(["search", "--angebotsart", code, "--page", "1"], cli.deps), 0);
+    assert.equal(new URL(cli.mt.last().url).searchParams.get("angebotsart"), code);
+  }
+});

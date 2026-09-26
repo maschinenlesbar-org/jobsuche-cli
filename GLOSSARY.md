@@ -118,10 +118,11 @@ leaves them out. Checked live: the two counts add up to the default's.
 (`--angebotsart`): `1` job vacancy (Arbeit), `2` self-employment
 (Selbstständigkeit), `4` apprenticeship or dual study (Ausbildung / Duales
 Studium), `34` internship or trainee post (Praktikum / Trainee). These are the
-codes in the upstream bundesAPI OpenAPI spec. Passed through verbatim to the API.
+codes in the upstream bundesAPI OpenAPI spec; the CLI rejects any other code as a
+usage error, since the API answers one with an empty result.
 
-**page / size.** Pagination: `page` is 1-based, `size` is the page size
-(`--page`, `--size`).
+**page / size.** Pagination: `page` is 1-based (the API answers `page=0` with
+HTTP 400, so the CLI rejects it), `size` is the page size (`--page`, `--size`).
 
 ---
 

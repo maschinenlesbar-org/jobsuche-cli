@@ -1,9 +1,27 @@
-import type { Command } from "commander";
+import { InvalidArgumentError, type Command } from "commander";
 import type { CliDeps } from "../io.js";
 import { action, parseBoundedInt, parseIntArg, parseTextArg, renderJson } from "../shared.js";
 
 /** The API's documented upper bound for veroeffentlichtseit (days). */
 const MAX_VEROEFFENTLICHT_SEIT = 100;
+
+/**
+ * The documented angebotsart codes: 1 Arbeit, 2 Selbstständigkeit, 4 Ausbildung /
+ * Duales Studium, 34 Praktikum / Trainee. Any other code returns an empty result
+ * (live: angebotsart=3 → maxErgebnisse 0), which reads as "nothing there".
+ */
+const ANGEBOTSART_CODES = [1, 2, 4, 34];
+
+function parseAngebotsart(value: string): number {
+  const n = parseIntArg(value);
+  if (!ANGEBOTSART_CODES.includes(n)) {
+    throw new InvalidArgumentError(
+      `Unknown --angebotsart code ${n}: valid codes are ${ANGEBOTSART_CODES.join(", ")} ` +
+        "(1 job, 2 self-employment, 4 apprenticeship/dual study, 34 internship/trainee).",
+    );
+  }
+  return n;
+}
 import type { JobSearchParams } from "../../client/types.js";
 
 export function registerJobCommands(program: Command, deps: CliDeps): void {
@@ -28,8 +46,12 @@ export function registerJobCommands(program: Command, deps: CliDeps): void {
     // declared, so neither is set by default.
     .option("--zeitarbeit", "only temp-work agency listings (default: included with the rest)")
     .option("--no-zeitarbeit", "leave out temp-work agency listings")
-    .option("--angebotsart <code>", "offer type code", parseIntArg)
-    .option("--page <n>", "1-based page", parseIntArg)
+    .option(
+      "--angebotsart <code>",
+      "offer type code: 1 job, 2 self-employment, 4 apprenticeship/dual study, 34 internship/trainee",
+      parseAngebotsart,
+    )
+    .option("--page <n>", "1-based page (1 or more)", parseBoundedInt(1, Number.MAX_SAFE_INTEGER))
     .option("--size <n>", "page size", parseIntArg)
     .action(
       action(deps, async ({ client, global, opts }) => {

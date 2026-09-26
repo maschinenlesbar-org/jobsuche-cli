@@ -125,10 +125,10 @@ details  <refnr>        full details for one listing
 | `--berufsfeld <text>` | occupational field (*Berufsfeld*) |
 | `--arbeitgeber <text>` | employer name (*Arbeitgeber*) |
 | `--veroeffentlicht-seit <days>` | published within the last N days (`0`–`100`) |
-| `--angebotsart <code>` | offer type code, e.g. `1` regular vacancy, `4` apprenticeship |
+| `--angebotsart <code>` | offer type code: `1` regular vacancy, `2` self-employment, `4` apprenticeship / dual study, `34` internship / trainee (others are rejected) |
 | `--zeitarbeit` | **only** temp-work / staffing-agency listings (by default they are included with the rest) |
 | `--no-zeitarbeit` | leave temp-work / staffing-agency listings out |
-| `--page <n>` | 1-based page index |
+| `--page <n>` | 1-based page index (`1` or more) |
 | `--size <n>` | page size |
 
 The flag names mirror the API's German field names — the

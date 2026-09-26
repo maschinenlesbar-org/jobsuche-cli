@@ -115,10 +115,11 @@ beiden Trefferzahlen ergeben zusammen die ohne Parameter.
 **angebotsart.** Ein numerischer Code für die Art des Angebots
 (`--angebotsart`): `1` Arbeit, `2` Selbstständigkeit, `4` Ausbildung bzw. Duales
 Studium, `34` Praktikum bzw. Trainee. Das sind die Codes aus der OpenAPI-Spezifikation
-von bundesAPI. Wird unverändert an die API weitergegeben.
+von bundesAPI; jeden anderen Code weist die CLI als Bedienfehler zurück, weil die API darauf
+mit einem leeren Ergebnis antwortet.
 
-**page / size.** Paginierung: `page` beginnt bei 1, `size` ist die Seitengröße
-(`--page`, `--size`).
+**page / size.** Paginierung: `page` beginnt bei 1 (auf `page=0` antwortet die API mit
+HTTP 400, deshalb weist die CLI es zurück), `size` ist die Seitengröße (`--page`, `--size`).
 
 ---
 

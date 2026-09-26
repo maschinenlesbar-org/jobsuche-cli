@@ -116,8 +116,10 @@ jobsuche search --was Mechatroniker --wo Stuttgart --angebotsart 1
 jobsuche search --was Mechatroniker --wo Stuttgart --angebotsart 4
 ```
 
-`--angebotsart <code>` takes the API's numeric offer-type code and is passed
-through verbatim (e.g. `1` regular vacancy, `4` apprenticeship/dual-study).
+`--angebotsart <code>` takes one of the API's documented offer-type codes: `1`
+regular vacancy, `2` self-employment, `4` apprenticeship/dual-study, `34`
+internship/trainee. Any other code is a usage error (the API would answer it with
+an empty result).
 
 ### 7. Fetch full details for a listing
 
