@@ -1,6 +1,6 @@
 {
   "name": "@maschinenlesbar.org/jobsuche-cli",
-  "version": "0.0.8",
+  "version": "0.1.0",
   "description": "TypeScript API client and CLI for the Bundesagentur für Arbeit Jobsuche API",
   "type": "module",
   "bin": {
