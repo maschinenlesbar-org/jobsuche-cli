@@ -306,3 +306,13 @@ test("every documented --angebotsart code and --page 1 are accepted", async () =
     assert.equal(new URL(cli.mt.last().url).searchParams.get("angebotsart"), code);
   }
 });
+
+// A blank reference exited 1 from the client's check; it is a usage error.
+for (const ref of ["", "   "]) {
+  test(`details ${JSON.stringify(ref)} is a usage error (exit 2) before any request`, async () => {
+    const cli = makeCli(() => jsonResponse({}));
+    assert.equal(await run(["details", ref], cli.deps), 2);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), /Must not be blank/);
+  });
+}

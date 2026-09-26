@@ -65,6 +65,14 @@ export function parseTextArg(value: string): string {
   return value;
 }
 
+/** commander value-parser for a required id: rejects "" and whitespace only. */
+export function parseNonBlank(value: string): string {
+  if (value.trim() === "") {
+    throw new InvalidArgumentError("Must not be blank.");
+  }
+  return value;
+}
+
 /**
  * commander value-parser for `--base-url`. Rejects a malformed URL or an
  * unsupported protocol up front (as a usage error) instead of letting it fail

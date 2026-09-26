@@ -1,6 +1,6 @@
 import { InvalidArgumentError, type Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, parseBoundedInt, parseIntArg, parseTextArg, renderJson } from "../shared.js";
+import { action, parseBoundedInt, parseIntArg, parseNonBlank, parseTextArg, renderJson } from "../shared.js";
 
 /** The API's documented upper bound for veroeffentlichtseit (days). */
 const MAX_VEROEFFENTLICHT_SEIT = 100;
@@ -72,8 +72,11 @@ export function registerJobCommands(program: Command, deps: CliDeps): void {
     );
 
   program
-    .command("details <refnrOrCode>")
+    .command("details")
     .description("Full job details by reference number (refnr) or encoded code")
+    // A blank reference (often an unset shell variable) is a usage error here,
+    // before the client's own check would make it a runtime error (exit 1).
+    .argument("<refnrOrCode>", "reference number (referenznummer) or encoded code", parseNonBlank)
     .action(
       action(deps, async ({ client, global }, [ref]) => {
         renderJson(deps, global, await client.details(ref!));
