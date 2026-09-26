@@ -32,8 +32,37 @@ export const API_KEY_ENV_VAR = "JOBSUCHE_API_KEY";
 export const KEY_SOURCE_URL =
   "https://raw.githubusercontent.com/bundesAPI/jobsuche-api/main/README.md";
 
-/** `X-API-Key: <value>` as documented in the source's curl examples. */
-const KEY_PATTERN = /X-API-Key:\s*([^\s"'`]+)/i;
+/**
+ * Between a label and its value, on one line: Markdown emphasis, quotes and blanks
+ * around a required `:` or `=` — so `**clientId:** <key>`, `"client_id": "<key>"`,
+ * `client_id=<key>` and the curl examples' `X-API-Key: <key>` all match, while
+ * prose ("die clientId als Header-Parameter 'X-API-Key'") does not.
+ */
+const SEPARATOR = String.raw`[ \t"'\x60*]*[:=][ \t"'\x60*]*`;
+/** The value: up to the next blank, quote, backtick or emphasis. */
+const VALUE = String.raw`([^\s"'\x60*]+)`;
+
+/** The documented value: the BA `clientId` (also spelt `client_id`). */
+const CLIENT_ID_PATTERN = new RegExp(String.raw`client_?id${SEPARATOR}${VALUE}`, "gi");
+/** Fallback: the value sent as an `X-API-Key` header in the curl examples. */
+const X_API_KEY_PATTERN = new RegExp(String.raw`X-API-Key${SEPARATOR}${VALUE}`, "gi");
+
+/**
+ * What a key looks like: letters, digits, `.`, `_` and `-`. A placeholder such as
+ * `<your-key>` or `$KEY`, or a value carrying control characters, is not a key —
+ * it is skipped rather than printed (and never reaches the terminal raw).
+ */
+const KEY_SHAPE = /^[A-Za-z0-9._-]+$/;
+
+/** Distinct key-shaped values the pattern finds, in document order. */
+function findKeys(text: string, pattern: RegExp): string[] {
+  const keys: string[] = [];
+  for (const match of text.matchAll(pattern)) {
+    const key = match[1];
+    if (key !== undefined && KEY_SHAPE.test(key) && !keys.includes(key)) keys.push(key);
+  }
+  return keys;
+}
 
 export interface ObtainKeyOptions {
   /** Injectable transport; defaults to the built-in node:http/https one. */
@@ -95,7 +124,21 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
     );
   }
 
-  const key = KEY_PATTERN.exec(response.body.toString("utf8"))?.[1]?.trim();
+  const text = response.body.toString("utf8");
+  // The `clientId` is the documented value and wins; an `X-API-Key` example is
+  // the fallback. When the document states more than one distinct key — two
+  // clientIds, or an X-API-Key that contradicts the clientId — it is ambiguous,
+  // and guessing would be worse than failing.
+  const clientIds = findKeys(text, CLIENT_ID_PATTERN);
+  const headerKeys = findKeys(text, X_API_KEY_PATTERN);
+  const conflicting = [...new Set([...clientIds, ...headerKeys])];
+  if (conflicting.length > 1) {
+    throw new JobsucheError(
+      `The key source ${sourceUrl} states conflicting keys (${conflicting.join(", ")}). ` +
+        `Check it by hand before relying on this command.`,
+    );
+  }
+  const key = conflicting[0];
   if (!key) {
     throw new JobsucheParseError(
       `No X-API-Key found at ${sourceUrl}. The upstream document may have changed ` +

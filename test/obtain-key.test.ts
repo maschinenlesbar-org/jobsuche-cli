@@ -8,7 +8,7 @@ import { run } from "../src/cli/run.js";
 import { JobsucheClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { API_KEY_ENV_VAR, KEY_SOURCE_URL, obtainKey } from "../src/client/obtain-key.js";
+import { API_KEY_ENV_VAR, KEY_SOURCE_URL, obtainKey, shellQuoteSingle } from "../src/client/obtain-key.js";
 import { JobsucheError, JobsucheNetworkError, JobsucheParseError } from "../src/client/errors.js";
 import { makeMockTransport, rawResponse } from "./helpers.js";
 
@@ -76,12 +76,49 @@ test("a quote in the source truncates the value rather than escaping into the sh
   assert.equal(cli.out[0], `export ${API_KEY_ENV_VAR}='a'`);
 });
 
-test("a quote-free shell payload is still inert inside single quotes", async () => {
+test("a quote-free shell payload is not taken for a key", async () => {
   const cli = makeCli(() => rawResponse("X-API-Key: a$(id)b", "text/plain"));
   const code = await run(["obtain-key", "--export"], cli.deps);
-  assert.equal(code, 0);
+  assert.notEqual(code, 0);
+  assert.deepEqual(cli.out, []);
+});
+
+test("shellQuoteSingle keeps a payload inert inside single quotes", () => {
   // Single-quoted, so `eval` treats $(id) as literal text, not a substitution.
-  assert.equal(cli.out[0], `export ${API_KEY_ENV_VAR}='a$(id)b'`);
+  assert.equal(shellQuoteSingle("a$(id)b"), "'a$(id)b'");
+  assert.equal(shellQuoteSingle("a'b"), `'a'\\''b'`);
+});
+
+// The pattern took the first non-blank token after "X-API-Key:", so control
+// characters reached the terminal and a placeholder example was printed as the key.
+test("obtainKey skips placeholders and control characters", async () => {
+  const ESC = String.fromCharCode(0x1b);
+  const BEL = String.fromCharCode(0x07);
+  for (const bad of [`X-API-Key: ${ESC}]0;PWN${BEL}abc`, "X-API-Key: <key>", "curl -H X-API-Key: $KEY"]) {
+    const mt = makeMockTransport(() => rawResponse(bad, "text/plain"));
+    await assert.rejects(() => obtainKey({ transport: mt.transport }), JobsucheParseError, bad);
+    const withReal = makeMockTransport(() => rawResponse(`${bad}\n${README}`, "text/plain"));
+    assert.equal((await obtainKey({ transport: withReal.transport })).key, "jobboerse-jobsuche", bad);
+  }
+});
+
+test("obtainKey reads the README's clientId line and ignores prose", async () => {
+  const doc = [
+    "Die Authentifizierung funktioniert über die clientId:",
+    "",
+    "**clientId:** jobboerse-jobsuche",
+    "",
+    "Bei folgenden GET-requests ist die clientId als Header-Parameter 'X-API-Key' zu übergeben.",
+    'Falls client_id nicht funktioniert kann man stattdessen "X-API-KEY: jobboerse-jobsuche" verwenden',
+    README,
+  ].join("\n");
+  const mt = makeMockTransport(() => rawResponse(doc, "text/plain"));
+  assert.equal((await obtainKey({ transport: mt.transport })).key, "jobboerse-jobsuche");
+});
+
+test("obtainKey refuses a source that states two different keys", async () => {
+  const mt = makeMockTransport(() => rawResponse(`**clientId:** one-key\n${README}`, "text/plain"));
+  await assert.rejects(() => obtainKey({ transport: mt.transport }), /conflicting keys \(one-key, jobboerse-jobsuche\)/);
 });
 
 test("obtain-key needs no configured key and sends none", async () => {
