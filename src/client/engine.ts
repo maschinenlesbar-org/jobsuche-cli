@@ -111,6 +111,30 @@ export function assertHttpScheme(baseUrl: string): void {
   }
 }
 
+/**
+ * The rest.arbeitsagentur.de gateway reports errors as
+ * `{"timestamp", "logref", "messages": [{"code", "path", "detail"}]}` — e.g. a 400
+ * `page: Wert ungültig (EINGABEN_UNVOLLSTAENDIG_ODER_FEHLERHAFT)` or a 404
+ * `STELLENANGEBOT_NICHT_GEFUNDEN`. Render each entry as `path: detail (code)`,
+ * leaving out what is missing, joined with "; "; undefined when nothing usable.
+ */
+export function describeMessages(messages: unknown): string | undefined {
+  if (!Array.isArray(messages)) return undefined;
+  const parts: string[] = [];
+  for (const m of messages) {
+    if (m === null || typeof m !== "object") continue;
+    const { code, path, detail } = m as { code?: unknown; path?: unknown; detail?: unknown };
+    const text = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+    const where = text(path);
+    const what = text(detail);
+    const id = text(code);
+    const head = what ? (where ? `${where}: ${what}` : what) : "";
+    const part = head ? (id ? `${head} (${id})` : head) : id;
+    if (part) parts.push(part);
+  }
+  return parts.length > 0 ? parts.join("; ") : undefined;
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -242,9 +266,10 @@ export class RequestEngine {
     const text = body.toString("utf8");
     let detail: string | undefined;
     try {
-      const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown };
+      const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown; messages?: unknown };
       if (parsed && typeof parsed.detail === "string") detail = parsed.detail;
       else if (parsed && typeof parsed.message === "string") detail = parsed.message;
+      else if (parsed) detail = describeMessages(parsed.messages);
     } catch {
       // Non-JSON error body; leave detail undefined.
     }

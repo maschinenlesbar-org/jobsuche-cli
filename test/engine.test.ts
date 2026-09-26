@@ -195,3 +195,40 @@ test("the engine rejects a non-http(s) base URL before any request, even with a 
     assert.equal(mt.calls.length, 0);
   }
 });
+
+// The gateway's error body is {"messages": [{code, path, detail}]}; it used to be
+// ignored, so every 400 and 404 came without a reason.
+test("the gateway's messages[] become the error detail", async () => {
+  const cases: [number, unknown, string][] = [
+    [
+      400,
+      {
+        timestamp: "2026-09-26T07:51:33.813567259Z",
+        logref: "7242a133",
+        messages: [{ code: "EINGABEN_UNVOLLSTAENDIG_ODER_FEHLERHAFT", path: "page", detail: "Wert ungültig" }],
+      },
+      "page: Wert ungültig (EINGABEN_UNVOLLSTAENDIG_ODER_FEHLERHAFT)",
+    ],
+    [404, { timestamp: "t", messages: [{ code: "STELLENANGEBOT_NICHT_GEFUNDEN" }] }, "STELLENANGEBOT_NICHT_GEFUNDEN"],
+    [400, { messages: [{ detail: "a" }, null, "x", { path: "p" }, { path: "q", detail: "b" }] }, "a; q: b"],
+  ];
+  for (const [status, body, detail] of cases) {
+    const mt = makeMockTransport(() => jsonResponse(body, status));
+    const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport, maxRetries: 0 });
+    await assert.rejects(
+      () => e.getJson("/x"),
+      (err: unknown) => {
+        assert.ok(err instanceof JobsucheApiError);
+        assert.equal(err.detail, detail);
+        assert.match(err.message, new RegExp(`: ${detail.replace(/[()]/g, "\\$&")}$`));
+        return true;
+      },
+    );
+  }
+});
+
+test("messages[] text is stripped of control characters", async () => {
+  const mt = makeMockTransport(() => jsonResponse({ messages: [{ code: `C${ESC}[2J`, detail: `d${BEL}` }] }, 400));
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
+  await assert.rejects(() => e.getJson("/x"), (err: unknown) => err instanceof JobsucheApiError && err.detail === "d (C[2J)");
+});

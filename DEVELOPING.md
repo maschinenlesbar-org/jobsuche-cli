@@ -188,7 +188,8 @@ tests with a mocked client and captured output — no subprocess.
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `JobsucheApiError`
 (non-2xx, carries `status`/`detail`/`url`/`body`, with an `isRetryable` getter
-for 429/503), `JobsucheNetworkError` (transport failure/timeout),
+for 429/503; `detail` comes from the body's `detail`/`message`, or from the
+gateway's `messages: [{code, path, detail}]` as `path: detail (code)`), `JobsucheNetworkError` (transport failure/timeout),
 `JobsucheParseError` (bad JSON), all extending `JobsucheError`.
 
 **refnr / encryptedJobCode.** `details` accepts a `refnr` (e.g.
