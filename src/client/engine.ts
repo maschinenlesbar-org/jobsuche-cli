@@ -153,6 +153,12 @@ export class RequestEngine {
   constructor(options: EngineOptions = {}) {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     assertHttpScheme(this.baseUrl);
+    // buildUrl appends the path as a string: a query would precede it and a
+    // fragment would swallow the path and the filters. (Checked here, not in
+    // assertHttpScheme, which also guards obtain-key's source URL.)
+    if (/[?#]/.test(this.baseUrl)) {
+      throw new JobsucheNetworkError(`Base URL must not contain a query or fragment: ${this.baseUrl}`);
+    }
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
     this.defaultHeaders = options.defaultHeaders ?? {};

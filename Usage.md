@@ -184,7 +184,7 @@ These apply to every command and may be given before or after the command name
 
 | Option | Description |
 | --- | --- |
-| `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`) |
+| `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`; http(s), a path prefix is fine, no `?query` or `#fragment`) |
 | `--api-key <key>` | the `X-API-Key` to send (env `JOBSUCHE_API_KEY`; no key is bundled, see `obtain-key`); blank/whitespace is ignored and the env var is used, else no key is sent |
 | `--timeout <ms>` | per-request timeout in milliseconds (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |

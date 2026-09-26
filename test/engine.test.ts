@@ -232,3 +232,9 @@ test("messages[] text is stripped of control characters", async () => {
   const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
   await assert.rejects(() => e.getJson("/x"), (err: unknown) => err instanceof JobsucheApiError && err.detail === "d (C[2J)");
 });
+
+test("the engine rejects a base URL with a query or fragment", () => {
+  for (const baseUrl of ["https://example.test/?x=1", "https://example.test/a#f"]) {
+    assert.throws(() => new RequestEngine({ baseUrl }), /must not contain a query or fragment/, baseUrl);
+  }
+});

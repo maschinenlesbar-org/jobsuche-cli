@@ -88,6 +88,11 @@ export function parseBaseUrl(value: string): string {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new InvalidArgumentError(`Unsupported protocol "${url.protocol}" (use http: or https:).`);
   }
+  // The API path is appended to the base URL as a string, so a query would end up
+  // in front of it and a fragment would swallow the path and every filter.
+  if (/[?#]/.test(value)) {
+    throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
+  }
   return value;
 }
 

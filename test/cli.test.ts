@@ -333,3 +333,19 @@ for (const [argv, code] of [
     if (code === 0) assert.doesNotMatch(cli.err.join("\n"), /missing command/);
   });
 }
+
+// With "#frag" every filter ended up in the fragment and an unfiltered search ran.
+for (const baseUrl of ["http://127.0.0.1:1/echo?x=1", "http://127.0.0.1:1/echo#frag", "http://127.0.0.1:1/?"]) {
+  test(`--base-url ${baseUrl} is a usage error`, async () => {
+    const cli = makeCli(() => jsonResponse({}));
+    assert.equal(await run(["--base-url", baseUrl, "search", "--was", "x"], cli.deps), 2);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), /cannot have a query \(\?\) or fragment \(#\)/);
+  });
+}
+
+test("a base URL with a path prefix still works", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["--base-url", "https://mirror.example/ba/", "search", "--was", "x"], cli.deps), 0);
+  assert.equal(new URL(cli.mt.last().url).pathname, `/ba${SERVICE}/pc/v6/jobs`);
+});
