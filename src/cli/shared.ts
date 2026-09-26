@@ -5,6 +5,7 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { JobsucheClientOptions } from "../client/client.js";
+import { JobsucheError } from "../client/errors.js";
 
 /**
  * commander value-parser: a non-negative decimal integer.
@@ -196,10 +197,27 @@ export function escapeControlChars(json: string): string {
   return from === 0 ? json : result + json.slice(from);
 }
 
+/**
+ * JSON.stringify, but a value nested too deeply for its recursion (V8 throws
+ * RangeError "Maximum call stack size exceeded") becomes a JobsucheError with a
+ * message the user can act on. JSON.parse is iterative, so such a body parses.
+ */
+export function stringifyJson(value: unknown, compact: boolean): string {
+  try {
+    return compact ? JSON.stringify(value) : JSON.stringify(value, null, 2);
+  } catch (err) {
+    if (!(err instanceof RangeError)) throw err;
+    throw new JobsucheError(
+      compact
+        ? "The response is nested too deeply to print."
+        : "The response is nested too deeply to pretty-print; try --compact.",
+    );
+  }
+}
+
 /** Render a JSON value to stdout, pretty by default, compact with --compact. */
 export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown): void {
-  const text = escapeControlChars(global.compact ? JSON.stringify(value) : JSON.stringify(value, null, 2));
-  deps.io.out(text);
+  deps.io.out(escapeControlChars(stringifyJson(value, global.compact === true)));
 }
 
 export interface ActionContext {

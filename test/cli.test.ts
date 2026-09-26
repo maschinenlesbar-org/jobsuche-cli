@@ -390,3 +390,21 @@ test("an unsendable JOBSUCHE_API_KEY is a typed error, not an unexpected one", a
   assert.equal(cli.mt.calls.length, 0);
   assert.match(cli.err.join("\n"), /^Error: Invalid apiKey: it contains control characters/);
 });
+
+// A 100 000-deep body parsed fine but overflowed JSON.stringify:
+// "Unexpected error: Maximum call stack size exceeded".
+test("a deeply nested response gives a clear error instead of a stack overflow", async () => {
+  const depth = 200_000;
+  const body = "[".repeat(depth) + "]".repeat(depth);
+  const pretty = makeCli(() => rawResponse(body, "application/json"));
+  assert.equal(await run(["search", "--was", "x"], pretty.deps), 1);
+  assert.equal(pretty.err.join("\n"), "Error: The response is nested too deeply to pretty-print; try --compact.");
+
+  const compact = makeCli(() => rawResponse(body, "application/json"));
+  const code = await run(["--compact", "search", "--was", "x"], compact.deps);
+  // Compact output may still fit the stack; if not, the message is the compact one.
+  if (code !== 0) {
+    assert.equal(code, 1);
+    assert.equal(compact.err.join("\n"), "Error: The response is nested too deeply to print.");
+  }
+});
