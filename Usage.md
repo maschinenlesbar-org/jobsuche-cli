@@ -61,7 +61,7 @@ jobsuche search --was Data --wo Hamburg --veroeffentlicht-seit 7
 ```
 
 `--veroeffentlicht-seit <days>` filters to listings published within the last N
-days. Combine with `--umkreis` for a tight, fresh local search.
+days (`0`–`100`; the API ignores a larger value, so the CLI rejects it). Combine with `--umkreis` for a tight, fresh local search.
 
 ### 4. Page through a large result set
 

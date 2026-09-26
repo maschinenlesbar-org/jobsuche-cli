@@ -105,7 +105,9 @@ location back as `woOutput` in the result.
 **umkreis.** Search radius in kilometres around `wo` (`--umkreis`).
 
 **veroeffentlichtseit (published since).** Restrict results to listings published
-within the last N days (`--veroeffentlicht-seit`).
+within the last N days (`--veroeffentlicht-seit`), `0` to `100`. The API silently
+ignores a larger value (the unfiltered set comes back), so the CLI rejects it as a
+usage error.
 
 **zeitarbeit (temp work).** Temporary-work / staffing-agency listings. By default
 (no parameter) they are included with the rest; `zeitarbeit=true`

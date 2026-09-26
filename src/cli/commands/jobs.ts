@@ -1,6 +1,9 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, parseIntArg, parseTextArg, renderJson } from "../shared.js";
+import { action, parseBoundedInt, parseIntArg, parseTextArg, renderJson } from "../shared.js";
+
+/** The API's documented upper bound for veroeffentlichtseit (days). */
+const MAX_VEROEFFENTLICHT_SEIT = 100;
 import type { JobSearchParams } from "../../client/types.js";
 
 export function registerJobCommands(program: Command, deps: CliDeps): void {
@@ -12,7 +15,13 @@ export function registerJobCommands(program: Command, deps: CliDeps): void {
     .option("--berufsfeld <text>", "occupational field", parseTextArg)
     .option("--arbeitgeber <text>", "employer name", parseTextArg)
     .option("--umkreis <km>", "radius in km around the location", parseIntArg)
-    .option("--veroeffentlicht-seit <days>", "published within the last N days", parseIntArg)
+    // The API accepts 0..100 days and silently ignores a larger value (the whole
+    // unfiltered set comes back), so reject it here.
+    .option(
+      "--veroeffentlicht-seit <days>",
+      "published within the last N days (0-100)",
+      parseBoundedInt(0, MAX_VEROEFFENTLICHT_SEIT),
+    )
     // The API's zeitarbeit parameter is a three-way switch: absent = temp-work
     // (Zeitarbeit) listings mixed in with the rest, true = only those, false =
     // none (checked live 2026-09-26: true + false = absent). Both flags are

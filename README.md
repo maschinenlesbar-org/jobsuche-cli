@@ -122,7 +122,7 @@ details  <refnr>        full details for one listing
 | `--umkreis <km>` | radius in km around `--wo` (*Umkreis*) |
 | `--berufsfeld <text>` | occupational field (*Berufsfeld*) |
 | `--arbeitgeber <text>` | employer name (*Arbeitgeber*) |
-| `--veroeffentlicht-seit <days>` | published within the last N days |
+| `--veroeffentlicht-seit <days>` | published within the last N days (`0`–`100`) |
 | `--angebotsart <code>` | offer type code, e.g. `1` regular vacancy, `4` apprenticeship |
 | `--zeitarbeit` | **only** temp-work / staffing-agency listings (by default they are included with the rest) |
 | `--no-zeitarbeit` | leave temp-work / staffing-agency listings out |

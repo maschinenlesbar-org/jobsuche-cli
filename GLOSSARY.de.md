@@ -103,7 +103,9 @@ aufgelösten Ort im Ergebnis als `woOutput` zurück.
 **umkreis.** Suchradius in Kilometern um `wo` (`--umkreis`).
 
 **veroeffentlichtseit.** Beschränkt die Ergebnisse auf Stellenangebote, die in den letzten
-N Tagen veröffentlicht wurden (`--veroeffentlicht-seit`).
+N Tagen veröffentlicht wurden (`--veroeffentlicht-seit`), `0` bis `100`. Einen größeren Wert
+ignoriert die API stillschweigend (es kommt die ungefilterte Menge zurück), deshalb weist die
+CLI ihn als Bedienfehler zurück.
 
 **zeitarbeit.** Stellenangebote von Zeitarbeits- bzw. Personaldienstleistungsfirmen. Ohne
 Parameter sind sie zusammen mit allen anderen enthalten; `zeitarbeit=true` (`--zeitarbeit`)

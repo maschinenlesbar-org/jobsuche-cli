@@ -257,3 +257,16 @@ for (const [args, expected] of [
     assert.equal(new URL(cli.mt.last().url).searchParams.get("zeitarbeit"), expected);
   });
 }
+
+// The API ignores veroeffentlichtseit above 100 and returns the unfiltered set.
+test("--veroeffentlicht-seit accepts 0..100 and rejects 101 before any request", async () => {
+  for (const days of ["0", "100"]) {
+    const cli = makeCli(() => jsonResponse({ ergebnisliste: [] }));
+    assert.equal(await run(["search", "--veroeffentlicht-seit", days], cli.deps), 0);
+    assert.equal(new URL(cli.mt.last().url).searchParams.get("veroeffentlichtseit"), days);
+  }
+  const cli = makeCli(() => jsonResponse({ ergebnisliste: [] }));
+  assert.equal(await run(["search", "--veroeffentlicht-seit", "101"], cli.deps), 2);
+  assert.equal(cli.mt.calls.length, 0);
+  assert.match(cli.err.join("\n"), /Must be <= 100/);
+});
