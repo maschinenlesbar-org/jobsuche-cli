@@ -18,7 +18,14 @@
 
 import type { HttpResponse, Transport } from "./http.js";
 import { nodeHttpTransport } from "./http.js";
-import { DEFAULT_MAX_RESPONSE_BYTES, DEFAULT_TIMEOUT_MS, assertHttpScheme, intOption } from "./engine.js";
+import {
+  DEFAULT_MAX_RESPONSE_BYTES,
+  DEFAULT_TIMEOUT_MS,
+  DEFAULT_USER_AGENT,
+  assertHttpScheme,
+  intOption,
+} from "./engine.js";
+import { assertValid, headerValueProblem } from "./validate.js";
 import { JobsucheError, JobsucheParseError } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
@@ -86,7 +93,10 @@ export interface ObtainKeyOptions {
    * `DEFAULT_MAX_RESPONSE_BYTES` (100 MiB), like the API client; 0 disables it.
    */
   maxResponseBytes?: number;
-  /** User-Agent header; a blank value falls back to the default. */
+  /**
+   * User-Agent header; defaults to `DEFAULT_USER_AGENT`. Must be a valid header
+   * value (headerValueProblem), as for the API client: a blank one is rejected.
+   */
   userAgent?: string;
 }
 
@@ -119,6 +129,10 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
     Number.MAX_SAFE_INTEGER,
     DEFAULT_MAX_RESPONSE_BYTES,
   );
+  const userAgent =
+    options.userAgent === undefined
+      ? DEFAULT_USER_AGENT
+      : assertValid("userAgent", options.userAgent, headerValueProblem);
 
   // raw.githubusercontent.com answers a renamed repository or branch with a
   // redirect, so follow a few — same origin only: the key is trusted because of
@@ -131,7 +145,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
       url,
       headers: {
         Accept: "text/plain, text/markdown;q=0.9, */*;q=0.8",
-        "User-Agent": options.userAgent?.trim() ? options.userAgent : "jobsuche-cli",
+        "User-Agent": userAgent,
       },
       ...(timeoutMs > 0 ? { timeoutMs } : {}),
       ...(maxResponseBytes > 0 ? { maxResponseBytes } : {}),

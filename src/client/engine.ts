@@ -4,11 +4,12 @@
 
 import { nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { assertValid, intRangeProblem } from "./validate.js";
+import { assertValid, headerNameProblem, headerValueProblem, intRangeProblem } from "./validate.js";
 import { JobsucheApiError, JobsucheNetworkError, JobsucheParseError, redactUrl } from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://rest.arbeitsagentur.de";
-const DEFAULT_USER_AGENT = "jobsuche-cli";
+/** The User-Agent sent when none is given (by the engine and by obtainKey). */
+export const DEFAULT_USER_AGENT = "jobsuche-cli";
 
 /** Most retries `maxRetries` may ask for. */
 export const MAX_RETRIES = 10;
@@ -27,9 +28,15 @@ export interface EngineOptions {
   baseUrl?: string;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
   transport?: Transport;
-  /** Value of the User-Agent header. */
+  /**
+   * Value of the User-Agent header; defaults to `DEFAULT_USER_AGENT`. Must be a
+   * valid header value (headerValueProblem): a blank one is rejected, not replaced.
+   */
   userAgent?: string;
-  /** Extra headers sent on every request (e.g. an API key). */
+  /**
+   * Extra headers sent on every request (e.g. an API key). Names must be HTTP
+   * tokens and values valid header values (headerNameProblem, headerValueProblem).
+   */
   defaultHeaders?: Record<string, string>;
   /**
    * Per-request timeout in milliseconds, a non-negative integer (0 disables;
@@ -215,8 +222,18 @@ export class RequestEngine {
       throw new JobsucheNetworkError(`Base URL must not contain a query or fragment: ${redactUrl(this.baseUrl)}`);
     }
     this.transport = options.transport ?? nodeHttpTransport;
-    this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
+    // Header values are checked here, not only by the CLI: a CR/LF would reach a
+    // custom transport as an injected header, and the default transport would fail
+    // late. Only `undefined` selects the default User-Agent.
+    this.userAgent =
+      options.userAgent === undefined
+        ? DEFAULT_USER_AGENT
+        : assertValid("userAgent", options.userAgent, headerValueProblem);
     this.defaultHeaders = options.defaultHeaders ?? {};
+    for (const [name, value] of Object.entries(this.defaultHeaders)) {
+      assertValid("header name", name, headerNameProblem);
+      assertValid(`header ${name}`, value, headerValueProblem);
+    }
     // Range-checked, not only by the CLI. A timeout above MAX_TIMEOUT_MS stays
     // allowed: the transport caps the timer at MAX_TIMEOUT_MS (documented).
     const unbounded = Number.MAX_SAFE_INTEGER;

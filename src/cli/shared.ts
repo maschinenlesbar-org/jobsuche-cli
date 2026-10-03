@@ -7,7 +7,7 @@ import type { CliDeps } from "./io.js";
 import type { JobsucheClientOptions } from "../client/client.js";
 import { JobsucheError } from "../client/errors.js";
 import { isBidiControl } from "../client/engine.js";
-import { intRangeProblem, nonBlankProblem } from "../client/validate.js";
+import { headerValueProblem, intRangeProblem, nonBlankProblem } from "../client/validate.js";
 
 /**
  * commander value-parser: a non-negative decimal integer.
@@ -72,29 +72,13 @@ export function parseTextArg(value: string): string {
 }
 
 /**
- * Why a value cannot be sent in an HTTP header — a C0 control other than tab, DEL,
- * or a character above U+00FF (what Node's header validation refuses) — or
- * undefined when it can.
- */
-function headerProblem(value: string): string | undefined {
-  for (let i = 0; i < value.length; i++) {
-    const c = value.charCodeAt(i);
-    if ((c < 0x20 && c !== 0x09) || c === 0x7f) return "Value contains control characters.";
-    if (c > 0xff) return "Value contains characters outside Latin-1 (above U+00FF).";
-  }
-  return undefined;
-}
-
-/**
- * commander value-parser for a header value (`--user-agent`): not blank, and
- * sendable — no control characters (tab is fine), nothing above U+00FF. Without
- * this, Node's "Invalid character in header content" surfaced as an
- * "Unexpected error" (exit 1) at request time.
+ * commander value-parser for a header value (`--user-agent`): the library's
+ * headerValueProblem — not blank, and sendable (no control characters but tab,
+ * nothing above U+00FF). The client rejects the same values.
  */
 export function parseHeaderValue(value: string): string {
-  if (value.trim() === "") throw new InvalidArgumentError("Must not be blank.");
-  const problem = headerProblem(value);
-  if (problem) throw new InvalidArgumentError(problem);
+  const problem = headerValueProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
 }
 
@@ -104,7 +88,7 @@ export function parseHeaderValue(value: string): string {
  * sendable as a header.
  */
 export function parseApiKey(value: string): string {
-  const problem = value.trim() === "" ? undefined : headerProblem(value);
+  const problem = value.trim() === "" ? undefined : headerValueProblem(value);
   if (problem) throw new InvalidArgumentError(problem);
   return value;
 }

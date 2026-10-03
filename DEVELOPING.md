@@ -98,6 +98,13 @@ run them up front.
   `--angebotsart` and `--page` parsers use the same constants and rules.
 - **Engine options out of range** (constructor, and `obtainKey()`): see *Engine
   option ranges* below.
+- **Header values that cannot be sent** (constructor, and `obtainKey()`).
+  `userAgent` and every `defaultHeaders` value must be non-blank, free of C0
+  control characters (tab allowed) and DEL, and within Latin-1
+  (`headerValueProblem`); header names must be HTTP tokens (`headerNameProblem`).
+  Only `undefined` selects `DEFAULT_USER_AGENT`, in the client and in
+  `obtainKey()` alike; a blank `userAgent` is rejected rather than replaced. The
+  CLI's `--user-agent` parser calls the same rule.
 
 ## Authentication internals
 

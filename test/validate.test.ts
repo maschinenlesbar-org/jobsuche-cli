@@ -270,3 +270,68 @@ test("intOption returns the fallback for undefined and checks any given value", 
   assert.equal(lib.intOption("maxRetries", 3, 10, 2), 3);
   assert.throws(() => lib.intOption("maxRetries", -1, 10, 2), /Invalid maxRetries: Expected a non-negative integer\./);
 });
+
+// ---- Finding #5 (PAT-5): User-Agent and other header values -------------------
+
+const uaCases: Array<[string, string]> = [
+  ["", "Invalid userAgent: Must not be blank."],
+  ["   ", "Invalid userAgent: Must not be blank."],
+  ["a\r\nX: y", "Invalid userAgent: Value contains control characters."],
+  ["a\u0000b", "Invalid userAgent: Value contains control characters."],
+  ["a\u007fb", "Invalid userAgent: Value contains control characters."],
+  ["x€", "Invalid userAgent: Value contains characters outside Latin-1 (above U+00FF)."],
+];
+
+for (const [ua, message] of uaCases) {
+  test(`parity: --user-agent ${JSON.stringify(ua)} is rejected by CLI and library alike`, async () => {
+    const r = await parity([`--user-agent=${ua}`, "search", "--was", "Dev"], (transport) =>
+      new lib.JobsucheClient({ transport, userAgent: ua }).search({ was: "Dev" }),
+    );
+    assertBothReject(r, message);
+  });
+
+  test(`parity: obtain-key --user-agent ${JSON.stringify(ua)} is rejected by CLI and obtainKey() alike`, async () => {
+    const r = await parity([`--user-agent=${ua}`, "obtain-key"], (transport) => lib.obtainKey({ transport, userAgent: ua }), {
+      responder: keySource,
+    });
+    assertBothReject(r, message);
+  });
+}
+
+test("parity: a padded, tabbed or Latin-1 User-Agent is sent as given on both sides", async () => {
+  for (const ua of [" pad ", "a\tb", "café"]) {
+    const r = await parity([`--user-agent=${ua}`, "search", "--was", "Dev"], (transport) =>
+      new lib.JobsucheClient({ transport, userAgent: ua }).search({ was: "Dev" }),
+    );
+    assert.equal(r.cli.code, 0, r.cli.err);
+    assert.equal(r.lib.ok, true);
+    assert.equal(r.cli.requests[0]?.headers?.["User-Agent"], ua);
+    assert.deepEqual(r.lib.requests, r.cli.requests);
+  }
+});
+
+test("obtainKey() sends DEFAULT_USER_AGENT when no userAgent is given", async () => {
+  const sent: string[] = [];
+  await lib.obtainKey({
+    transport: async (req) => {
+      sent.push(req.headers?.["User-Agent"] ?? "");
+      return keySource();
+    },
+  });
+  assert.deepEqual(sent, [lib.DEFAULT_USER_AGENT]);
+});
+
+test("the engine checks defaultHeaders names and values", () => {
+  assert.throws(() => new lib.RequestEngine({ defaultHeaders: { "X-A": "a\nb" } }), /^JobsucheValidationError: Invalid header X-A: Value contains control characters\.$/);
+  assert.throws(() => new lib.RequestEngine({ defaultHeaders: { "Bad Name": "v" } }), /Invalid header name/);
+  assert.doesNotThrow(() => new lib.RequestEngine({ defaultHeaders: { "X-A": "v" } }));
+});
+
+test("headerValueProblem accepts tab and Latin-1 and names what a header cannot carry", () => {
+  assert.equal(lib.headerValueProblem("a\tbÿ"), undefined);
+  assert.equal(lib.headerValueProblem(" "), "Must not be blank.");
+  assert.equal(lib.headerValueProblem("a\nb"), "Value contains control characters.");
+  assert.equal(lib.headerValueProblem("Ā"), "Value contains characters outside Latin-1 (above U+00FF).");
+  assert.equal(lib.headerNameProblem("X-API-Key"), undefined);
+  assert.match(lib.headerNameProblem("a b") ?? "", /HTTP header name/);
+});
