@@ -1,28 +1,23 @@
 import { InvalidArgumentError, type Command } from "commander";
 import type { CliDeps } from "../io.js";
 import { action, parseBoundedInt, parseIntArg, parseNonBlank, parseTextArg, renderJson } from "../shared.js";
-
-/** The API's documented upper bound for veroeffentlichtseit (days). */
-const MAX_VEROEFFENTLICHT_SEIT = 100;
-
-/**
- * The documented angebotsart codes: 1 Arbeit, 2 Selbstständigkeit, 4 Ausbildung /
- * Duales Studium, 34 Praktikum / Trainee. Any other code returns an empty result
- * (live: angebotsart=3 → maxErgebnisse 0), which reads as "nothing there".
- */
-const ANGEBOTSART_CODES = [1, 2, 4, 34];
-
-function parseAngebotsart(value: string): number {
-  const n = parseIntArg(value);
-  if (!ANGEBOTSART_CODES.includes(n)) {
-    throw new InvalidArgumentError(
-      `Unknown --angebotsart code ${n}: valid codes are ${ANGEBOTSART_CODES.join(", ")} ` +
-        "(1 job, 2 self-employment, 4 apprenticeship/dual study, 34 internship/trainee).",
-    );
-  }
-  return n;
-}
 import type { JobSearchParams } from "../../client/types.js";
+import {
+  MAX_VEROEFFENTLICHT_SEIT,
+  angebotsartProblem,
+  type Angebotsart,
+} from "../../client/validate.js";
+
+/** --angebotsart: an integer that is one of the library's ANGEBOTSART_CODES. */
+function parseAngebotsart(value: string): Angebotsart {
+  const n = parseIntArg(value);
+  const reason = angebotsartProblem(n);
+  if (reason !== undefined) {
+    // The library's reason, worded with the flag name.
+    throw new InvalidArgumentError(reason.replace(/^Unknown code/, "Unknown --angebotsart code"));
+  }
+  return n as Angebotsart;
+}
 
 export function registerJobCommands(program: Command, deps: CliDeps): void {
   program
@@ -34,10 +29,10 @@ export function registerJobCommands(program: Command, deps: CliDeps): void {
     .option("--arbeitgeber <text>", "employer name", parseTextArg)
     .option("--umkreis <km>", "radius in km around the location", parseIntArg)
     // The API accepts 0..100 days and silently ignores a larger value (the whole
-    // unfiltered set comes back), so reject it here.
+    // unfiltered set comes back), so the library rejects it, and so does this parser.
     .option(
       "--veroeffentlicht-seit <days>",
-      "published within the last N days (0-100)",
+      `published within the last N days (0-${MAX_VEROEFFENTLICHT_SEIT})`,
       parseBoundedInt(0, MAX_VEROEFFENTLICHT_SEIT),
     )
     // The API's zeitarbeit parameter is a three-way switch: absent = temp-work
@@ -63,7 +58,7 @@ export function registerJobCommands(program: Command, deps: CliDeps): void {
           umkreis: opts["umkreis"] as number | undefined,
           veroeffentlichtseit: opts["veroeffentlichtSeit"] as number | undefined,
           zeitarbeit: opts["zeitarbeit"] as boolean | undefined,
-          angebotsart: opts["angebotsart"] as number | undefined,
+          angebotsart: opts["angebotsart"] as Angebotsart | undefined,
           page: opts["page"] as number | undefined,
           size: opts["size"] as number | undefined,
         };

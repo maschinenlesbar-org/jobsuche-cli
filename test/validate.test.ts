@@ -120,3 +120,77 @@ test("search() rejects a blank filter asynchronously, without throwing synchrono
   assert.ok(p instanceof Promise);
   return assert.rejects(p, JobsucheValidationError);
 });
+
+// ---- Finding #1 (PAT-11, PAT-12, PAT-24): numeric search parameters ----------
+
+const numericCases: Array<[string[], Record<string, number>, string]> = [
+  [["--veroeffentlicht-seit=101"], { veroeffentlichtseit: 101 }, "Invalid veroeffentlichtseit: Must be <= 100."],
+  [["--veroeffentlicht-seit=365"], { veroeffentlichtseit: 365 }, "Invalid veroeffentlichtseit: Must be <= 100."],
+  [["--veroeffentlicht-seit=1.5"], { veroeffentlichtseit: 1.5 }, "Invalid veroeffentlichtseit: Expected a non-negative integer."],
+  [["--angebotsart=3"], { angebotsart: 3 }, "Invalid angebotsart: Unknown code 3: valid codes are 1, 2, 4, 34 (1 job, 2 self-employment, 4 apprenticeship/dual study, 34 internship/trainee)."],
+  [["--angebotsart=0"], { angebotsart: 0 }, "Invalid angebotsart: Unknown code 0: valid codes are 1, 2, 4, 34 (1 job, 2 self-employment, 4 apprenticeship/dual study, 34 internship/trainee)."],
+  [["--page=0"], { page: 0 }, "Invalid page: Must be >= 1."],
+  [["--page=NaN"], { page: NaN }, "Invalid page: Expected a non-negative integer."],
+  [["--umkreis=-5"], { umkreis: -5 }, "Invalid umkreis: Expected a non-negative integer."],
+  [["--umkreis=Infinity"], { umkreis: Infinity }, "Invalid umkreis: Expected a non-negative integer."],
+  [["--size=1.5"], { size: 1.5 }, "Invalid size: Expected a non-negative integer."],
+  [["--size=-1"], { size: -1 }, "Invalid size: Expected a non-negative integer."],
+];
+
+for (const [flags, params, message] of numericCases) {
+  test(`parity: search ${flags.join(" ")} is rejected by CLI and library alike`, async () => {
+    const r = await parity(["search", "--was", "Dev", ...flags], (transport) =>
+      new lib.JobsucheClient({ transport }).search({ was: "Dev", ...params } as lib.JobSearchParams),
+    );
+    assertBothReject(r, message);
+  });
+}
+
+test("parity: the boundary values 100, 34 and page 1 send the same request on both sides", async () => {
+  const r = await parity(
+    ["search", "--was", "Dev", "--veroeffentlicht-seit=100", "--angebotsart=34", "--page=1", "--umkreis=0", "--size=0"],
+    (transport) =>
+      new lib.JobsucheClient({ transport }).search({
+        was: "Dev",
+        umkreis: 0,
+        veroeffentlichtseit: 100,
+        angebotsart: 34,
+        page: 1,
+        size: 0,
+      }),
+  );
+  assert.equal(r.cli.code, 0, r.cli.err);
+  assert.equal(r.lib.ok, true);
+  assert.equal(r.cli.requests.length, 1);
+  assert.deepEqual(r.lib.requests, r.cli.requests);
+});
+
+test("the CLI keeps its --angebotsart wording over the library rule", async () => {
+  const r = await parity(["search", "--angebotsart=3"], () => undefined);
+  assert.match(r.cli.err, /Unknown --angebotsart code 3: valid codes are 1, 2, 4, 34/);
+});
+
+test("the search bounds and codes are exported library constants", () => {
+  assert.equal(lib.MAX_VEROEFFENTLICHT_SEIT, 100);
+  assert.deepEqual(lib.ANGEBOTSART_CODES, [1, 2, 4, 34]);
+});
+
+test("intRangeProblem accepts safe integers in range and names what is wrong otherwise", () => {
+  const p = lib.intRangeProblem(1, 100);
+  assert.equal(p(1), undefined);
+  assert.equal(p(100), undefined);
+  assert.equal(p(0), "Must be >= 1.");
+  assert.equal(p(101), "Must be <= 100.");
+  assert.equal(p(1.5), "Expected a non-negative integer.");
+  assert.equal(p(NaN), "Expected a non-negative integer.");
+  const nonNegative = lib.intRangeProblem(0, Number.MAX_SAFE_INTEGER);
+  assert.equal(nonNegative(0), undefined);
+  assert.equal(nonNegative(-1), "Expected a non-negative integer.");
+  assert.equal(nonNegative(Infinity), "Expected a non-negative integer.");
+  assert.equal(nonNegative(2 ** 53), "Expected a non-negative integer.");
+});
+
+test("angebotsartProblem accepts exactly the documented codes", () => {
+  for (const code of [1, 2, 4, 34]) assert.equal(lib.angebotsartProblem(code), undefined);
+  for (const code of [0, 3, 5, 1.5, NaN]) assert.match(lib.angebotsartProblem(code) ?? "", /^Unknown code /);
+});

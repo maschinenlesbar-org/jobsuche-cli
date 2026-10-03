@@ -7,7 +7,7 @@ import type { CliDeps } from "./io.js";
 import type { JobsucheClientOptions } from "../client/client.js";
 import { JobsucheError } from "../client/errors.js";
 import { isBidiControl } from "../client/engine.js";
-import { nonBlankProblem } from "../client/validate.js";
+import { intRangeProblem, nonBlankProblem } from "../client/validate.js";
 
 /**
  * commander value-parser: a non-negative decimal integer.
@@ -29,12 +29,16 @@ export function parseIntArg(value: string): number {
   return n;
 }
 
-/** Build a commander value-parser for a non-negative integer constrained to [min, max]. */
+/**
+ * Build a commander value-parser for a non-negative integer constrained to
+ * [min, max] (the library's intRangeProblem).
+ */
 export function parseBoundedInt(min: number, max: number): (value: string) => number {
+  const problem = intRangeProblem(min, max);
   return (value: string) => {
     const n = parseIntArg(value);
-    if (n < min) throw new InvalidArgumentError(`Must be >= ${min}.`);
-    if (n > max) throw new InvalidArgumentError(`Must be <= ${max}.`);
+    const reason = problem(n);
+    if (reason !== undefined) throw new InvalidArgumentError(reason);
     return n;
   };
 }

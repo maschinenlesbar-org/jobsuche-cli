@@ -15,13 +15,17 @@ export { obtainKey, API_KEY_ENV_VAR, KEY_SOURCE_URL, MAX_KEY_SOURCE_REDIRECTS } 
 export type { ObtainKeyOptions, ObtainedKey } from "./obtain-key.js";
 export { buildQueryString } from "./query.js";
 export {
+  ANGEBOTSART_CODES,
+  angebotsartProblem,
   assertValid,
+  intRangeProblem,
   isBlank,
+  MAX_VEROEFFENTLICHT_SEIT,
   nonBlankProblem,
   TEXT_FILTERS,
   validateSearchParams,
 } from "./validate.js";
-export type { Problem } from "./validate.js";
+export type { Angebotsart, Problem } from "./validate.js";
 export type { QueryParams, QueryValue } from "./query.js";
 export {
   JobsucheError,

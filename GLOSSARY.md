@@ -106,9 +106,10 @@ location back as `woOutput` in the result.
 **umkreis.** Search radius in kilometres around `wo` (`--umkreis`).
 
 **veroeffentlichtseit (published since).** Restrict results to listings published
-within the last N days (`--veroeffentlicht-seit`), `0` to `100`. The API silently
-ignores a larger value (the unfiltered set comes back), so the CLI rejects it as a
-usage error.
+within the last N days (`--veroeffentlicht-seit`), `0` to `100`
+(`MAX_VEROEFFENTLICHT_SEIT`). The API silently ignores a larger value (the unfiltered
+set comes back), so the CLI rejects it as a usage error and the library client with a
+`JobsucheValidationError`.
 
 **zeitarbeit (temp work).** Temporary-work / staffing-agency listings. By default
 (no parameter) they are included with the rest; `zeitarbeit=true`
@@ -119,11 +120,13 @@ leaves them out. Checked live: the two counts add up to the default's.
 (`--angebotsart`): `1` job vacancy (Arbeit), `2` self-employment
 (Selbstständigkeit), `4` apprenticeship or dual study (Ausbildung / Duales
 Studium), `34` internship or trainee post (Praktikum / Trainee). These are the
-codes in the upstream bundesAPI OpenAPI spec; the CLI rejects any other code as a
-usage error, since the API answers one with an empty result.
+codes in the upstream bundesAPI OpenAPI spec (`ANGEBOTSART_CODES`); the CLI rejects
+any other code as a usage error and the library client with a
+`JobsucheValidationError`, since the API answers one with an empty result.
 
 **page / size.** Pagination: `page` is 1-based (the API answers `page=0` with
-HTTP 400, so the CLI rejects it), `size` is the page size (`--page`, `--size`).
+HTTP 400, so the CLI and the library client reject it), `size` is the page size
+(`--page`, `--size`), a non-negative integer.
 
 ---
 

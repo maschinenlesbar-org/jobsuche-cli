@@ -88,6 +88,14 @@ run them up front.
   `arbeitgeber` that is empty or only whitespace (`validateSearchParams`,
   `nonBlankProblem`): dropping it would silently widen the search or run it
   unfiltered. Leave a filter out (`undefined`) to not filter by it.
+- **Numeric search parameters out of range.** `veroeffentlichtseit` must be an
+  integer `0`..`MAX_VEROEFFENTLICHT_SEIT` (100; the API ignores a larger value and
+  returns the unfiltered set), `angebotsart` one of `ANGEBOTSART_CODES` (1, 2, 4, 34;
+  any other code gets a false empty result), `page` an integer `>= 1` (the API
+  answers `page=0` with HTTP 400), and `umkreis` and `size` non-negative integers.
+  `NaN`, `Infinity` and fractions are rejected too (`validateSearchParams`,
+  `intRangeProblem`, `angebotsartProblem`). The CLI's `--veroeffentlicht-seit`,
+  `--angebotsart` and `--page` parsers use the same constants and rules.
 
 ## Authentication internals
 

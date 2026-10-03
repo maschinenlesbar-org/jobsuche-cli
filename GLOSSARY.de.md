@@ -105,9 +105,10 @@ aufgelösten Ort im Ergebnis als `woOutput` zurück.
 **umkreis.** Suchradius in Kilometern um `wo` (`--umkreis`).
 
 **veroeffentlichtseit.** Beschränkt die Ergebnisse auf Stellenangebote, die in den letzten
-N Tagen veröffentlicht wurden (`--veroeffentlicht-seit`), `0` bis `100`. Einen größeren Wert
-ignoriert die API stillschweigend (es kommt die ungefilterte Menge zurück), deshalb weist die
-CLI ihn als Bedienfehler zurück.
+N Tagen veröffentlicht wurden (`--veroeffentlicht-seit`), `0` bis `100`
+(`MAX_VEROEFFENTLICHT_SEIT`). Einen größeren Wert ignoriert die API stillschweigend (es kommt
+die ungefilterte Menge zurück), deshalb weist die CLI ihn als Bedienfehler zurück und der
+Bibliotheks-Client mit einem `JobsucheValidationError`.
 
 **zeitarbeit.** Stellenangebote von Zeitarbeits- bzw. Personaldienstleistungsfirmen. Ohne
 Parameter sind sie zusammen mit allen anderen enthalten; `zeitarbeit=true` (`--zeitarbeit`)
@@ -117,11 +118,13 @@ beiden Trefferzahlen ergeben zusammen die ohne Parameter.
 **angebotsart.** Ein numerischer Code für die Art des Angebots
 (`--angebotsart`): `1` Arbeit, `2` Selbstständigkeit, `4` Ausbildung bzw. Duales
 Studium, `34` Praktikum bzw. Trainee. Das sind die Codes aus der OpenAPI-Spezifikation
-von bundesAPI; jeden anderen Code weist die CLI als Bedienfehler zurück, weil die API darauf
-mit einem leeren Ergebnis antwortet.
+von bundesAPI (`ANGEBOTSART_CODES`); jeden anderen Code weist die CLI als Bedienfehler zurück
+und der Bibliotheks-Client mit einem `JobsucheValidationError`, weil die API darauf mit einem
+leeren Ergebnis antwortet.
 
 **page / size.** Paginierung: `page` beginnt bei 1 (auf `page=0` antwortet die API mit
-HTTP 400, deshalb weist die CLI es zurück), `size` ist die Seitengröße (`--page`, `--size`).
+HTTP 400, deshalb weisen CLI und Bibliotheks-Client es zurück), `size` ist die Seitengröße
+(`--page`, `--size`), eine nicht-negative ganze Zahl.
 
 ---
 

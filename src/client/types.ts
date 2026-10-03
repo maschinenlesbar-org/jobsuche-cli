@@ -1,6 +1,8 @@
 // Domain types for the Bundesagentur für Arbeit Jobsuche API
 // (rest.arbeitsagentur.de/jobboerse/jobsuche-service).
 
+import type { Angebotsart } from "./validate.js";
+
 export type JsonValue =
   | string
   | number
@@ -108,19 +110,25 @@ export interface JobSearchParams {
   berufsfeld?: string;
   /** Employer name; not blank. */
   arbeitgeber?: string;
-  /** Radius in km around `wo`. */
+  /** Radius in km around `wo`; a non-negative integer. */
   umkreis?: number;
-  /** Published within the last N days. */
+  /**
+   * Published within the last N days: an integer 0..`MAX_VEROEFFENTLICHT_SEIT`
+   * (100). The API would silently ignore a larger value.
+   */
   veroeffentlichtseit?: number;
   /**
    * Temp-work (Zeitarbeit) listings: omitted = included with the rest, `true` =
    * only temp-work listings, `false` = none.
    */
   zeitarbeit?: boolean;
-  /** Offer type code(s). */
-  angebotsart?: number;
-  /** 1-based page. */
+  /**
+   * Offer type code, one of `ANGEBOTSART_CODES`: 1 job, 2 self-employment,
+   * 4 apprenticeship/dual study, 34 internship/trainee.
+   */
+  angebotsart?: Angebotsart;
+  /** 1-based page; an integer >= 1 (the API answers 0 with HTTP 400). */
   page?: number;
-  /** Page size. */
+  /** Page size; a non-negative integer. */
   size?: number;
 }
