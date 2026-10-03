@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RequestEngine } from "../src/client/engine.js";
-import { JobsucheApiError, JobsucheNetworkError, JobsucheParseError } from "../src/client/errors.js";
+import {
+  JobsucheApiError,
+  JobsucheNetworkError,
+  JobsucheParseError,
+  JobsucheValidationError,
+} from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 test("buildUrl normalises the path and appends the query", () => {
@@ -179,7 +184,7 @@ test("a non-JSON content type is stripped of control chars in the parse error", 
   );
 });
 
-test("the engine rejects a non-http(s) base URL before any request, even with a custom transport", () => {
+test("the engine rejects a non-http(s) base URL as a validation error before any request, even with a custom transport", () => {
   for (const baseUrl of ["file:///etc/passwd", "ftp://example.org", "not a url"]) {
     const mt = makeMockTransport(() => jsonResponse({}));
     assert.throws(
@@ -189,7 +194,7 @@ test("the engine rejects a non-http(s) base URL before any request, even with a 
           transport: mt.transport,
           defaultHeaders: { "X-API-Key": "test-key" },
         }),
-      JobsucheNetworkError,
+      (err: unknown) => err instanceof JobsucheValidationError && !(err instanceof JobsucheNetworkError),
       baseUrl,
     );
     assert.equal(mt.calls.length, 0);
@@ -235,22 +240,22 @@ test("messages[] text is stripped of control characters", async () => {
 
 test("the engine rejects a base URL with a query or fragment", () => {
   for (const baseUrl of ["https://example.test/?x=1", "https://example.test/a#f"]) {
-    assert.throws(() => new RequestEngine({ baseUrl }), /must not contain a query or fragment/, baseUrl);
+    assert.throws(
+      () => new RequestEngine({ baseUrl }),
+      /^JobsucheValidationError: Invalid baseUrl: A base URL cannot have a query \(\?\) or fragment \(#\)\.$/,
+      baseUrl,
+    );
   }
 });
 
-test("base-URL errors redact userinfo", () => {
-  assert.throws(() => new RequestEngine({ baseUrl: "ftp://u:pw@example.test" }), (err: unknown) => {
-    assert.ok(err instanceof JobsucheNetworkError);
-    assert.doesNotMatch(err.message, /pw/);
-    return true;
-  });
-  assert.throws(() => new RequestEngine({ baseUrl: "https://u:pw@example.test/?q" }), (err: unknown) => {
-    assert.ok(err instanceof JobsucheNetworkError);
-    assert.doesNotMatch(err.message, /pw/);
-    assert.match(err.message, /\*\*\*@example\.test/);
-    return true;
-  });
+test("base-URL errors never echo userinfo", () => {
+  for (const baseUrl of ["ftp://u:pw@example.test", "https://u:pw@example.test/?q", "https://u:pw@exa mple.test"]) {
+    assert.throws(() => new RequestEngine({ baseUrl }), (err: unknown) => {
+      assert.ok(err instanceof JobsucheValidationError);
+      assert.doesNotMatch(err.message, /pw/);
+      return true;
+    });
+  }
 });
 
 // A redirect loop ended in a bare "HTTP 302 for GET …" once maxRedirects ran out.

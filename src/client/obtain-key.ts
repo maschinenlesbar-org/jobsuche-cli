@@ -22,10 +22,9 @@ import {
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_USER_AGENT,
-  assertHttpScheme,
   intOption,
 } from "./engine.js";
-import { assertValid, headerValueProblem } from "./validate.js";
+import { assertValid, headerValueProblem, httpUrlProblem } from "./validate.js";
 import { JobsucheError, JobsucheParseError } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
@@ -80,7 +79,10 @@ const FOLLOWED_REDIRECTS = new Set([301, 302, 303, 307, 308]);
 export interface ObtainKeyOptions {
   /** Injectable transport; defaults to the built-in node:http/https one. */
   transport?: Transport;
-  /** Override the source document (tests, mirrors). */
+  /**
+   * Override the source document (tests, mirrors): an absolute http(s) URL
+   * (httpUrlProblem), else a JobsucheValidationError.
+   */
   sourceUrl?: string;
   /**
    * Time limit per request in milliseconds, whole response included, a
@@ -115,8 +117,9 @@ export interface ObtainedKey {
  */
 export async function obtainKey(options: ObtainKeyOptions = {}): Promise<ObtainedKey> {
   const sourceUrl = options.sourceUrl ?? KEY_SOURCE_URL;
-  // Same gate as the engine: a custom transport must never get a file:/ftp: URL.
-  assertHttpScheme(sourceUrl);
+  // Same rule as the engine's base URL (a query is fine here): a custom transport
+  // must never get a file:/ftp: URL.
+  assertValid("sourceUrl", sourceUrl, httpUrlProblem);
   const transport = options.transport ?? nodeHttpTransport;
   // The request gets the client's limits: a source that stalls, or streams
   // without end, must not hang the command or exhaust memory.

@@ -5,7 +5,7 @@
 // value-parsers call the same function and turn the reason into a usage error, so
 // the rule exists exactly once.
 
-import { JobsucheValidationError } from "./errors.js";
+import { JobsucheValidationError, redactUrl } from "./errors.js";
 import type { JobSearchParams } from "./types.js";
 
 /** Why `value` is invalid, or `undefined` if it is valid. */
@@ -108,6 +108,43 @@ export const headerValueProblem: Problem = (value) => {
     if (c > 0xff) return "Value contains characters outside Latin-1 (above U+00FF).";
   }
   return undefined;
+};
+
+/**
+ * An absolute http(s) URL, checked on the RAW value: new URL() silently trims
+ * surrounding whitespace and drops tab/CR/LF, but the engine appends request
+ * paths to the raw string, so a padded value would request `/%20/...` or reach a
+ * custom transport unparsed. Userinfo is allowed; it is redacted from the reasons.
+ */
+export const httpUrlProblem: Problem = (value) => {
+  if (typeof value !== "string") return "Expected an absolute http(s) URL.";
+  if (value !== value.trim()) return "A base URL cannot have surrounding whitespace.";
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    if (c <= 0x20 || c === 0x7f) return "A base URL cannot contain whitespace or control characters.";
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return `Invalid URL: "${redactUrl(value)}".`;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return `Unsupported protocol "${url.protocol}" (use http: or https:).`;
+  }
+  return undefined;
+};
+
+/**
+ * A base URL (`baseUrl`, `--base-url`): an http(s) URL (httpUrlProblem) without a
+ * query or fragment. Request paths are appended to the base URL as a string, so a
+ * query would end up in front of them and a fragment would swallow the path and
+ * every filter.
+ */
+export const baseUrlProblem: Problem = (value) => {
+  const problem = httpUrlProblem(value);
+  if (problem !== undefined) return problem;
+  return /[?#]/.test(value) ? "A base URL cannot have a query (?) or fragment (#)." : undefined;
 };
 
 /** An HTTP header name: an RFC 9110 token. */

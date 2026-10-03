@@ -7,7 +7,7 @@ import type { CliDeps } from "./io.js";
 import type { JobsucheClientOptions } from "../client/client.js";
 import { JobsucheError } from "../client/errors.js";
 import { isBidiControl } from "../client/engine.js";
-import { headerValueProblem, intRangeProblem, nonBlankProblem } from "../client/validate.js";
+import { baseUrlProblem, headerValueProblem, intRangeProblem, nonBlankProblem } from "../client/validate.js";
 
 /**
  * commander value-parser: a non-negative decimal integer.
@@ -103,25 +103,14 @@ export function parseNonBlank(value: string): string {
 }
 
 /**
- * commander value-parser for `--base-url`. Rejects a malformed URL or an
- * unsupported protocol up front (as a usage error) instead of letting it fail
- * late inside the transport with a generic runtime error.
+ * commander value-parser for `--base-url`: the library's baseUrlProblem (an
+ * absolute http(s) URL, no surrounding whitespace, control characters, query or
+ * fragment), so a bad value is a usage error at parse time. The client applies
+ * the same rule.
  */
 export function parseBaseUrl(value: string): string {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new InvalidArgumentError(`Invalid URL: "${value}".`);
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new InvalidArgumentError(`Unsupported protocol "${url.protocol}" (use http: or https:).`);
-  }
-  // The API path is appended to the base URL as a string, so a query would end up
-  // in front of it and a fragment would swallow the path and every filter.
-  if (/[?#]/.test(value)) {
-    throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
-  }
+  const problem = baseUrlProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
 }
 

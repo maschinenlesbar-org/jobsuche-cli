@@ -367,3 +367,58 @@ test("a blank API key is no key on every path", async () => {
   assert.equal(r.cli.requests[0]?.headers?.["X-API-Key"], undefined);
   assert.deepEqual(r.lib.requests, r.cli.requests);
 });
+
+// ---- Finding #6 (PAT-2, PAT-1): one base-URL rule, a validation error ---------
+
+const baseUrlCases: Array<[string, string]> = [
+  ["ftp://x.example", 'Invalid baseUrl: Unsupported protocol "ftp:" (use http: or https:).'],
+  ["", 'Invalid baseUrl: Invalid URL: "".'],
+  ["   ", "Invalid baseUrl: A base URL cannot have surrounding whitespace."],
+  ["not a url", "Invalid baseUrl: A base URL cannot contain whitespace or control characters."],
+  ["notaurl", 'Invalid baseUrl: Invalid URL: "notaurl".'],
+  ["https://x.example/?q=1", "Invalid baseUrl: A base URL cannot have a query (?) or fragment (#)."],
+  ["https://x.example/#f", "Invalid baseUrl: A base URL cannot have a query (?) or fragment (#)."],
+  ["https://x.example/ ", "Invalid baseUrl: A base URL cannot have surrounding whitespace."],
+  [" https://x.example", "Invalid baseUrl: A base URL cannot have surrounding whitespace."],
+  ["https://x.example/p\tq", "Invalid baseUrl: A base URL cannot contain whitespace or control characters."],
+];
+
+for (const [baseUrl, message] of baseUrlCases) {
+  test(`parity: base URL ${JSON.stringify(baseUrl)} is rejected by CLI and library alike`, async () => {
+    const r = await parity([`--base-url=${baseUrl}`, "search", "--was", "x"], (transport) =>
+      new lib.JobsucheClient({ baseUrl, transport, apiKey: "test-key" }).search({ was: "x" }),
+    );
+    assertBothReject(r, message);
+    assert.ok(!(r.lib.error instanceof lib.JobsucheNetworkError));
+    // The CLI's parser reports the library's reason.
+    assert.ok(r.cli.err.includes(message.replace(/^Invalid baseUrl: /, "")), r.cli.err);
+  });
+}
+
+test("parity: a base URL with a path prefix and trailing slashes sends the same request on both sides", async () => {
+  const baseUrl = "https://x.example/api//";
+  const r = await parity([`--base-url=${baseUrl}`, "search", "--was", "x"], (transport) =>
+    new lib.JobsucheClient({ baseUrl, transport }).search({ was: "x" }),
+  );
+  assert.equal(r.cli.code, 0, r.cli.err);
+  assert.equal(r.cli.requests[0]?.url, "https://x.example/api/jobboerse/jobsuche-service/pc/v6/jobs?was=x");
+  assert.deepEqual(r.lib.requests, r.cli.requests);
+});
+
+test("validateBaseUrl strips trailing slashes and redacts userinfo from its reasons", () => {
+  assert.equal(lib.validateBaseUrl("https://x.example/api//"), "https://x.example/api");
+  assert.equal(lib.baseUrlProblem("https://u:pw@x.example/p"), undefined);
+  assert.throws(
+    () => lib.validateBaseUrl("ftp://u:pw@x.example"),
+    (err) => err instanceof JobsucheValidationError && !/pw/.test((err as Error).message),
+  );
+});
+
+test("obtainKey() rejects a non-http(s) sourceUrl as a validation error, before any request", async () => {
+  let calls = 0;
+  await assert.rejects(
+    () => lib.obtainKey({ sourceUrl: "ftp://x.example/k", transport: async () => (calls++, keySource()) }),
+    /^JobsucheValidationError: Invalid sourceUrl: Unsupported protocol "ftp:" \(use http: or https:\)\.$/,
+  );
+  assert.equal(calls, 0);
+});

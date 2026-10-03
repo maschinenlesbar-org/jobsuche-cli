@@ -11,6 +11,7 @@ export {
   intOption,
   MAX_REDIRECTS,
   MAX_RETRIES,
+  validateBaseUrl,
 } from "./engine.js";
 export type { EngineOptions, RawResponse } from "./engine.js";
 export { MAX_TIMEOUT_MS, nodeHttpTransport } from "./http.js";
@@ -22,8 +23,10 @@ export {
   ANGEBOTSART_CODES,
   angebotsartProblem,
   assertValid,
+  baseUrlProblem,
   headerNameProblem,
   headerValueProblem,
+  httpUrlProblem,
   intRangeProblem,
   isBlank,
   MAX_VEROEFFENTLICHT_SEIT,

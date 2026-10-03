@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JobsucheClient } from "../src/client/client.js";
-import { JobsucheApiError, JobsucheError, JobsucheNetworkError } from "../src/client/errors.js";
+import { JobsucheApiError, JobsucheError, JobsucheValidationError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 import { V6_NO_MATCH, V6_SEARCH } from "./fixtures.js";
 
@@ -82,7 +82,7 @@ test("the client rejects a non-http(s) base URL, so a custom transport never see
     const mt = constantJson({ ergebnisliste: [] });
     assert.throws(
       () => new JobsucheClient({ baseUrl, transport: mt.transport, apiKey: "test-key" }),
-      JobsucheNetworkError,
+      JobsucheValidationError,
       baseUrl,
     );
     assert.equal(mt.calls.length, 0);

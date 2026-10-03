@@ -9,7 +9,11 @@ import { JobsucheClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { API_KEY_ENV_VAR, KEY_SOURCE_URL, obtainKey, shellQuoteSingle } from "../src/client/obtain-key.js";
-import { JobsucheError, JobsucheNetworkError, JobsucheParseError } from "../src/client/errors.js";
+import {
+  JobsucheError,
+  JobsucheParseError,
+  JobsucheValidationError,
+} from "../src/client/errors.js";
 import { makeMockTransport, rawResponse } from "./helpers.js";
 
 const README = [
@@ -138,7 +142,7 @@ test("a failing obtain-key exits non-zero rather than printing a guess", async (
 test("obtainKey rejects a non-http(s) source URL before the transport sees it", async () => {
   for (const sourceUrl of ["file:///etc/passwd", "ftp://example.org"]) {
     const mt = makeMockTransport(() => rawResponse(README, "text/plain"));
-    await assert.rejects(() => obtainKey({ transport: mt.transport, sourceUrl }), JobsucheNetworkError);
+    await assert.rejects(() => obtainKey({ transport: mt.transport, sourceUrl }), JobsucheValidationError);
     assert.equal(mt.calls.length, 0);
   }
 });

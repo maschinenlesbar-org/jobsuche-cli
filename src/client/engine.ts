@@ -4,8 +4,14 @@
 
 import { nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { assertValid, headerNameProblem, headerValueProblem, intRangeProblem } from "./validate.js";
-import { JobsucheApiError, JobsucheNetworkError, JobsucheParseError, redactUrl } from "./errors.js";
+import {
+  assertValid,
+  baseUrlProblem,
+  headerNameProblem,
+  headerValueProblem,
+  intRangeProblem,
+} from "./validate.js";
+import { JobsucheApiError, JobsucheParseError, redactUrl } from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://rest.arbeitsagentur.de";
 /** The User-Agent sent when none is given (by the engine and by obtainKey). */
@@ -24,7 +30,11 @@ export interface RawResponse {
 }
 
 export interface EngineOptions {
-  /** Base URL of the API. Defaults to https://rest.arbeitsagentur.de */
+  /**
+   * Base URL of the API, an absolute http(s) URL without surrounding whitespace,
+   * control characters, query or fragment (baseUrlProblem). Defaults to
+   * https://rest.arbeitsagentur.de
+   */
   baseUrl?: string;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
   transport?: Transport;
@@ -142,24 +152,14 @@ export function isBidiControl(code: number): boolean {
 }
 
 /**
- * Reject a base URL whose scheme is not http(s). The default transport already
- * gates this per hop, but the engine is exported as a library and may be handed a
- * custom transport that does no such check, so gate the configured base URL here
- * too (a `file:`/`ftp:` base URL fails fast with a typed error). obtain-key.ts
- * applies the same check to its configurable source URL.
+ * Check a base URL (baseUrlProblem) and return it with trailing slashes stripped,
+ * or throw a JobsucheValidationError (`Invalid baseUrl: <reason>`) — a
+ * configuration error, not a network one. The default transport still gates the
+ * scheme on every hop (redirects included); this gate covers a library
+ * consumer's custom transport, which does no such check.
  */
-export function assertHttpScheme(baseUrl: string): void {
-  let url: URL;
-  try {
-    url = new URL(baseUrl);
-  } catch {
-    throw new JobsucheNetworkError(`Invalid base URL: ${redactUrl(baseUrl)}`);
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new JobsucheNetworkError(
-      `Unsupported protocol "${url.protocol}" in base URL: ${redactUrl(baseUrl)}`,
-    );
-  }
+export function validateBaseUrl(raw: string): string {
+  return assertValid("baseUrl", raw, baseUrlProblem).replace(/\/+$/, "");
 }
 
 /**
@@ -213,14 +213,9 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
-    assertHttpScheme(this.baseUrl);
-    // buildUrl appends the path as a string: a query would precede it and a
-    // fragment would swallow the path and the filters. (Checked here, not in
-    // assertHttpScheme, which also guards obtain-key's source URL.)
-    if (/[?#]/.test(this.baseUrl)) {
-      throw new JobsucheNetworkError(`Base URL must not contain a query or fragment: ${redactUrl(this.baseUrl)}`);
-    }
+    // Checked on the raw value, before the trailing-slash strip; only `undefined`
+    // selects the default.
+    this.baseUrl = options.baseUrl === undefined ? DEFAULT_BASE_URL : validateBaseUrl(options.baseUrl);
     this.transport = options.transport ?? nodeHttpTransport;
     // Header values are checked here, not only by the CLI: a CR/LF would reach a
     // custom transport as an injected header, and the default transport would fail

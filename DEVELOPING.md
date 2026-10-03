@@ -98,6 +98,16 @@ run them up front.
   `--angebotsart` and `--page` parsers use the same constants and rules.
 - **Engine options out of range** (constructor, and `obtainKey()`): see *Engine
   option ranges* below.
+- **A malformed base URL** (constructor). `baseUrl` must be an absolute http(s)
+  URL, checked on the raw value: no surrounding or inner whitespace or control
+  characters (`new URL()` would silently trim them, while the engine appends paths
+  to the raw string), no query and no fragment (`baseUrlProblem`,
+  `validateBaseUrl`). Only `undefined` selects `DEFAULT_BASE_URL`. `obtainKey()`
+  checks its `sourceUrl` with the same rule, a query allowed (`httpUrlProblem`).
+  A path prefix and userinfo are fine; userinfo is never echoed in a message. The
+  CLI's `--base-url` parser calls the same rule. This is a configuration error, not
+  a `JobsucheNetworkError`: the default transport keeps that class for its per-hop
+  scheme check, which also covers redirect targets.
 - **An API key that cannot be sent** (constructor). `apiKey` is trimmed first; a
   blank key means "no key", and a key with an inner control character or a
   character above U+00FF is rejected (`headerValueProblem`).
@@ -251,7 +261,8 @@ functions, and `run.ts` maps a `JobsucheValidationError` to exit `2`
 for 429/503; `detail` comes from the body's `detail`/`message`, or from the
 gateway's `messages: [{code, path, detail}]` as `path: detail (code)`), `JobsucheNetworkError` (transport failure/timeout),
 `JobsucheParseError` (bad JSON), `JobsucheValidationError` (an input rejected
-before any request), all extending `JobsucheError`.
+before any request, including a bad base URL or client option), all extending
+`JobsucheError`.
 
 **refnr / encryptedJobCode.** `details` accepts a `refnr` (e.g.
 `"10001-1002716922-S"` or purely numeric `"1002716922"`) and base64-encodes it
