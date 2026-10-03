@@ -15,6 +15,7 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import { JobsucheError } from "./errors.js";
+import { validateSearchParams } from "./validate.js";
 import type { QueryParams } from "./query.js";
 import type { JobSearchResult, JobDetails, JobSearchParams } from "./types.js";
 
@@ -38,16 +39,14 @@ export interface JobsucheClientOptions extends EngineOptions {
 }
 
 /**
- * Drop values that should not be sent so only the parameters the caller
- * meaningfully set survive: `undefined`/`null` and empty / whitespace-only
- * strings (an empty `--was ""` is treated as "not provided", not as `was=`,
- * which the live API rejects with HTTP 400).
+ * Drop the parameters the caller did not set (`undefined`/`null`), so only the
+ * ones meaningfully set are sent. A blank string never gets here:
+ * validateSearchParams rejects it first.
  */
 function prune(params: Record<string, unknown>): QueryParams {
   const out: QueryParams = {};
   for (const [k, v] of Object.entries(params)) {
     if (v === undefined || v === null) continue;
-    if (typeof v === "string" && v.trim().length === 0) continue;
     out[k] = v as QueryParams[string];
   }
   return out;
@@ -81,8 +80,13 @@ export class JobsucheClient {
   /**
    * Search job listings (`/pc/v6/jobs`). The listings are in `ergebnisliste`,
    * which is absent when nothing matched (or `size` is 0).
+   *
+   * Rejects with a JobsucheValidationError, before any request, when the
+   * parameters break a rule of validateSearchParams (e.g. a blank `was`, which
+   * would otherwise run the search unfiltered).
    */
-  search(params: JobSearchParams = {}): Promise<JobSearchResult> {
+  async search(params: JobSearchParams = {}): Promise<JobSearchResult> {
+    validateSearchParams(params);
     return this.engine.getJson(`${SERVICE}/pc/v6/jobs`, prune({ ...params }));
   }
 

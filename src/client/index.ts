@@ -14,7 +14,13 @@ export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { obtainKey, API_KEY_ENV_VAR, KEY_SOURCE_URL, MAX_KEY_SOURCE_REDIRECTS } from "./obtain-key.js";
 export type { ObtainKeyOptions, ObtainedKey } from "./obtain-key.js";
 export { buildQueryString } from "./query.js";
-export { assertValid } from "./validate.js";
+export {
+  assertValid,
+  isBlank,
+  nonBlankProblem,
+  TEXT_FILTERS,
+  validateSearchParams,
+} from "./validate.js";
 export type { Problem } from "./validate.js";
 export type { QueryParams, QueryValue } from "./query.js";
 export {

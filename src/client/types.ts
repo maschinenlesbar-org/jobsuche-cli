@@ -94,13 +94,19 @@ export interface JobSearchResult {
 /** Full single-job payload — kept as a faithful raw object. */
 export type JobDetails = JsonObject;
 
-/** Parameters for the jobs search endpoint. */
+/**
+ * Parameters for the jobs search endpoint. `search()` checks them before any
+ * request (validateSearchParams); leave a parameter out (`undefined`) to not
+ * filter by it.
+ */
 export interface JobSearchParams {
-  /** "was" — job title / keyword. */
+  /** "was" — job title / keyword; not blank. */
   was?: string;
-  /** "wo" — location. */
+  /** "wo" — location; not blank. */
   wo?: string;
+  /** Occupational field; not blank. */
   berufsfeld?: string;
+  /** Employer name; not blank. */
   arbeitgeber?: string;
   /** Radius in km around `wo`. */
   umkreis?: number;

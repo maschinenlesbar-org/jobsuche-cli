@@ -84,6 +84,11 @@ The client checks its input before any request and rejects with a
 rules (exit `2`). The checks are exported from the package root, so a caller can
 run them up front.
 
+- **Blank search filters.** `search()` rejects a `was`, `wo`, `berufsfeld` or
+  `arbeitgeber` that is empty or only whitespace (`validateSearchParams`,
+  `nonBlankProblem`): dropping it would silently widen the search or run it
+  unfiltered. Leave a filter out (`undefined`) to not filter by it.
+
 ## Authentication internals
 
 The API requires a static, publicly-documented `X-API-Key` (`jobboerse-jobsuche`)

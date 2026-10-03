@@ -68,3 +68,55 @@ test("parity() drives the same input through the CLI and the library on one tran
   assert.equal(cli.requests.length, 1);
   assert.deepEqual(l.requests, cli.requests);
 });
+
+// ---- Finding #2 (PAT-9): blank free-text filters -----------------------------
+
+/** Both sides reject the input and neither sends a request. */
+function assertBothReject(
+  r: Awaited<ReturnType<typeof parity>>,
+  libMessage: string,
+): void {
+  assert.equal(r.cli.code, 2, r.cli.err);
+  assert.deepEqual(r.cli.requests, []);
+  assert.equal(r.lib.ok, false);
+  assert.ok(r.lib.error instanceof JobsucheValidationError, String(r.lib.error));
+  assert.equal((r.lib.error as Error).message, libMessage);
+  assert.deepEqual(r.lib.requests, []);
+}
+
+for (const field of ["was", "wo", "berufsfeld", "arbeitgeber"] as const) {
+  for (const blank of ["", "  ", "\t"]) {
+    test(`parity: a blank ${field} (${JSON.stringify(blank)}) is rejected by CLI and library alike`, async () => {
+      const r = await parity(
+        field === "was" ? ["search", `--was=${blank}`] : ["search", "--was", "Dev", `--${field}=${blank}`],
+        (transport) =>
+          new lib.JobsucheClient({ transport }).search({
+            ...(field === "was" ? {} : { was: "Dev" }),
+            [field]: blank,
+          }),
+      );
+      assertBothReject(r, `Invalid ${field}: Must not be blank.`);
+    });
+  }
+}
+
+test("validateSearchParams rejects a blank string filter and accepts undefined", () => {
+  assert.throws(
+    () => lib.validateSearchParams({ wo: " " }),
+    (err) => err instanceof JobsucheValidationError && err.message === "Invalid wo: Must not be blank.",
+  );
+  assert.doesNotThrow(() => lib.validateSearchParams({ was: "Dev", wo: undefined }));
+});
+
+test("nonBlankProblem names a blank value and accepts any other", () => {
+  assert.equal(lib.nonBlankProblem(""), "Must not be blank.");
+  assert.equal(lib.nonBlankProblem(" \t "), "Must not be blank.");
+  assert.equal(lib.nonBlankProblem(" Dev "), undefined);
+});
+
+test("search() rejects a blank filter asynchronously, without throwing synchronously", () => {
+  const client = new lib.JobsucheClient({ transport: async () => ({ status: 200, headers: {}, body: Buffer.from("{}") }) });
+  const p = client.search({ was: "" });
+  assert.ok(p instanceof Promise);
+  return assert.rejects(p, JobsucheValidationError);
+});

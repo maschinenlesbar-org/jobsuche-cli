@@ -7,6 +7,7 @@ import type { CliDeps } from "./io.js";
 import type { JobsucheClientOptions } from "../client/client.js";
 import { JobsucheError } from "../client/errors.js";
 import { isBidiControl } from "../client/engine.js";
+import { nonBlankProblem } from "../client/validate.js";
 
 /**
  * commander value-parser: a non-negative decimal integer.
@@ -52,12 +53,11 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
  * searched with a leading dash, so nothing legitimate is lost.
  *
  * A blank value ("" or whitespace, often an unset shell variable) is rejected
- * too: the client drops it, so the search would silently run unfiltered.
+ * too, by the library's nonBlankProblem (the client rejects it the same way).
  */
 export function parseTextArg(value: string): string {
-  if (value.trim() === "") {
-    throw new InvalidArgumentError("Must not be blank.");
-  }
+  const blank = nonBlankProblem(value);
+  if (blank !== undefined) throw new InvalidArgumentError(blank);
   if (/^--?[^\s]/.test(value)) {
     throw new InvalidArgumentError(
       `looks like a missing value — "${value}" is the next option, consumed because ` +
@@ -105,11 +105,10 @@ export function parseApiKey(value: string): string {
   return value;
 }
 
-/** commander value-parser for a required id: rejects "" and whitespace only. */
+/** commander value-parser for a required id: rejects "" and whitespace only (nonBlankProblem). */
 export function parseNonBlank(value: string): string {
-  if (value.trim() === "") {
-    throw new InvalidArgumentError("Must not be blank.");
-  }
+  const blank = nonBlankProblem(value);
+  if (blank !== undefined) throw new InvalidArgumentError(blank);
   return value;
 }
 

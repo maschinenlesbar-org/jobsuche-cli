@@ -94,10 +94,11 @@ category usable as a search filter (`--berufsfeld`).
 
 ## Search parameters
 
-**was.** Free-text job title or keyword (`--was`). The CLI rejects an
-empty/whitespace value as a usage error (as it does for `--wo`, `--berufsfeld` and
-`--arbeitgeber`); the library client omits one rather than sending it (the live API
-rejects an empty `was=` with HTTP 400).
+**was.** Free-text job title or keyword (`--was`). An empty/whitespace value is
+rejected before any request, as it is for `wo`, `berufsfeld` and `arbeitgeber`: the
+CLI makes it a usage error, the library client a `JobsucheValidationError`. Dropping
+it would silently run the search unfiltered, and sending it gets HTTP 400 from the
+live API (an empty `was=`). Leave a filter out to search without it.
 
 **wo.** The location to search in or around (`--wo`). The API echoes the resolved
 location back as `woOutput` in the result.
