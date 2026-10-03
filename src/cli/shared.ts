@@ -85,10 +85,12 @@ export function parseHeaderValue(value: string): string {
 /**
  * commander value-parser for `--api-key`: a blank value stays allowed (it is
  * ignored and JOBSUCHE_API_KEY is used, as documented), anything else must be
- * sendable as a header.
+ * sendable as a header once trimmed — the client trims the key, so a trailing
+ * newline is accepted here as it is from the env var.
  */
 export function parseApiKey(value: string): string {
-  const problem = value.trim() === "" ? undefined : headerValueProblem(value);
+  const key = value.trim();
+  const problem = key === "" ? undefined : headerValueProblem(key);
   if (problem) throw new InvalidArgumentError(problem);
   return value;
 }
@@ -137,12 +139,13 @@ export interface GlobalOptions {
  * Translate resolved global CLI options into client options.
  *
  * `env` (defaulting to `process.env`) supplies the `JOBSUCHE_API_KEY` fallback.
- * Precedence: an explicit, non-empty `--api-key` (in `global.apiKey`) wins;
- * otherwise a non-empty (trimmed) `JOBSUCHE_API_KEY` seeds the key; otherwise
- * no key is set and the `X-API-Key` header is omitted (the API then answers
- * 401/403). No key is bundled — obtain the public one via
- * the `obtain-key` command. A blank/whitespace `--api-key` is ignored (mirrors
- * the env path) rather than forwarded as an empty header.
+ * Precedence: a non-blank `--api-key` (in `global.apiKey`) wins; otherwise a
+ * non-blank `JOBSUCHE_API_KEY` seeds the key; otherwise no key is set and the
+ * `X-API-Key` header is omitted (the API then answers 401/403). No key is
+ * bundled — obtain the public one via the `obtain-key` command. A blank/whitespace
+ * `--api-key` is ignored (mirrors the env path) rather than forwarded. Only the
+ * precedence is resolved here: the key is passed as given, and the client trims
+ * and checks it.
  */
 export function toEngineOptions(
   global: GlobalOptions,
@@ -155,12 +158,12 @@ export function toEngineOptions(
   if (global.maxRetries !== undefined) options.maxRetries = global.maxRetries;
   if (global.maxResponseBytes !== undefined) options.maxResponseBytes = global.maxResponseBytes;
 
-  const flagKey = global.apiKey?.trim();
-  if (flagKey) {
+  const flagKey = global.apiKey;
+  const envKey = env["JOBSUCHE_API_KEY"];
+  if (flagKey?.trim()) {
     options.apiKey = flagKey;
-  } else {
-    const envKey = env["JOBSUCHE_API_KEY"]?.trim();
-    if (envKey) options.apiKey = envKey;
+  } else if (envKey?.trim()) {
+    options.apiKey = envKey;
   }
   return options;
 }

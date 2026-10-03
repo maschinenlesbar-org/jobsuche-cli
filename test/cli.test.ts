@@ -384,11 +384,11 @@ test("a tab and Latin-1 in --user-agent are sent; a blank --api-key still falls 
   assert.equal(cli.mt.last().headers?.["X-API-Key"], "env-key");
 });
 
-test("an unsendable JOBSUCHE_API_KEY is a typed error, not an unexpected one", async () => {
+test("an unsendable JOBSUCHE_API_KEY is a usage error, as from --api-key", async () => {
   const cli = makeCli(() => jsonResponse({ ergebnisliste: [] }), { JOBSUCHE_API_KEY: "a\nb" });
-  assert.equal(await run(["search", "--was", "x"], cli.deps), 1);
+  assert.equal(await run(["search", "--was", "x"], cli.deps), 2);
   assert.equal(cli.mt.calls.length, 0);
-  assert.match(cli.err.join("\n"), /^Error: Invalid apiKey: it contains control characters/);
+  assert.match(cli.err.join("\n"), /^Error: Invalid apiKey: Value contains control characters\./);
 });
 
 // A 100 000-deep body parsed fine but overflowed JSON.stringify:

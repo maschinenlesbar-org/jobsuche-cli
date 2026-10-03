@@ -335,3 +335,35 @@ test("headerValueProblem accepts tab and Latin-1 and names what a header cannot 
   assert.equal(lib.headerNameProblem("X-API-Key"), undefined);
   assert.match(lib.headerNameProblem("a b") ?? "", /HTTP header name/);
 });
+
+// ---- Finding #3 (PAT-6): the API key is trimmed by the library ----------------
+
+for (const key of [" test-key ", "test-key\n", "test-key\r\n", "\ntest-key", "\ttest-key\t"]) {
+  test(`parity: API key ${JSON.stringify(key)} sends the same trimmed X-API-Key from flag, env and library`, async () => {
+    const lib1 = (transport: lib.Transport) => new lib.JobsucheClient({ transport, apiKey: key }).search({ was: "Dev" });
+    const viaFlag = await parity(["--api-key", key, "search", "--was", "Dev"], lib1);
+    const viaEnv = await parity(["search", "--was", "Dev"], lib1, { env: { JOBSUCHE_API_KEY: key } });
+    for (const r of [viaFlag, viaEnv]) {
+      assert.equal(r.cli.code, 0, r.cli.err);
+      assert.equal(r.lib.ok, true);
+      assert.equal(r.cli.requests[0]?.headers?.["X-API-Key"], "test-key");
+      assert.deepEqual(r.lib.requests, r.cli.requests);
+    }
+  });
+}
+
+test("parity: an API key with an inner newline is rejected from flag, env and library alike", async () => {
+  const libCall = (transport: lib.Transport) => new lib.JobsucheClient({ transport, apiKey: "a\nb" }).search({ was: "Dev" });
+  const viaFlag = await parity(["--api-key", "a\nb", "search", "--was", "Dev"], libCall);
+  const viaEnv = await parity(["search", "--was", "Dev"], libCall, { env: { JOBSUCHE_API_KEY: "a\nb" } });
+  for (const r of [viaFlag, viaEnv]) assertBothReject(r, "Invalid apiKey: Value contains control characters.");
+  assert.equal(viaEnv.cli.err, "Error: Invalid apiKey: Value contains control characters.");
+});
+
+test("a blank API key is no key on every path", async () => {
+  const libCall = (transport: lib.Transport) => new lib.JobsucheClient({ transport, apiKey: "   " }).search({ was: "Dev" });
+  const r = await parity(["--api-key", "   ", "search", "--was", "Dev"], libCall, { env: { JOBSUCHE_API_KEY: "  " } });
+  assert.equal(r.cli.code, 0, r.cli.err);
+  assert.equal(r.cli.requests[0]?.headers?.["X-API-Key"], undefined);
+  assert.deepEqual(r.lib.requests, r.cli.requests);
+});

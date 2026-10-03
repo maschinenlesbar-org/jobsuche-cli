@@ -37,7 +37,8 @@ two open, read-only endpoints (search + details).
 (`jobboerse-jobsuche`) on every request. It is not a secret, but it is **not
 bundled** with the client — supply it via `--api-key`, the `JOBSUCHE_API_KEY` env
 var, or the `apiKey` client option, else the header is omitted and the API
-answers 401/403. For CI / live testing the public key can be fetched out-of-band
+answers 401/403. Surrounding whitespace is trimmed and a blank key counts as none,
+on every path. For CI / live testing the public key can be fetched out-of-band
 with the CLI's own `obtain-key` command (`npm run obtain-key` in a built
 checkout), which reads it from the upstream source at run time.
 

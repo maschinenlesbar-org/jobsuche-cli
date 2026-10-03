@@ -98,6 +98,9 @@ run them up front.
   `--angebotsart` and `--page` parsers use the same constants and rules.
 - **Engine options out of range** (constructor, and `obtainKey()`): see *Engine
   option ranges* below.
+- **An API key that cannot be sent** (constructor). `apiKey` is trimmed first; a
+  blank key means "no key", and a key with an inner control character or a
+  character above U+00FF is rejected (`headerValueProblem`).
 - **Header values that cannot be sent** (constructor, and `obtainKey()`).
   `userAgent` and every `defaultHeaders` value must be non-blank, free of C0
   control characters (tab allowed) and DEL, and within Latin-1
@@ -112,7 +115,12 @@ The API requires a static, publicly-documented `X-API-Key` (`jobboerse-jobsuche`
 on every request. The key is **not bundled** — pass it via `apiKey` (library),
 `--api-key` (CLI), or the `JOBSUCHE_API_KEY` env var. Precedence is
 **`--api-key` > env var**; a blank/whitespace key is treated as absent (header
-omitted), and the API then answers `401`/`403`.
+omitted), and the API then answers `401`/`403`. The `JobsucheClient` constructor
+owns the key's normalisation: it trims the key (a key read from a file keeps its
+trailing newline), checks the trimmed key with `headerValueProblem` and sends it,
+so `apiKey`, `--api-key` and `JOBSUCHE_API_KEY` give the same `X-API-Key` header or
+the same `JobsucheValidationError` (CLI exit `2`). The CLI only resolves the
+precedence.
 
 Prefer the `JOBSUCHE_API_KEY` env var over `--api-key`: a value passed on the
 command line is visible to other local users through the process table (`ps`) and

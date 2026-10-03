@@ -44,7 +44,9 @@ or per-call via `--api-key`. With no key the header is omitted and the API
 answers `401`/`403` (exit code `3`).
 
 Precedence is `--api-key` > `JOBSUCHE_API_KEY` env var. A blank/whitespace key
-is ignored (no header sent). You do not have to go and find the key yourself —
+is ignored (no header sent), and surrounding whitespace such as a trailing newline
+is trimmed, the same from the flag, the env var and the library. A key with an
+inner control character is a usage error (exit `2`). You do not have to go and find the key yourself —
 see **[Obtain key](#obtain-key)**.
 
 ## Obtain key

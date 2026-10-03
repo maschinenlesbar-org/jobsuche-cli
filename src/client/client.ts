@@ -15,7 +15,7 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import { JobsucheError } from "./errors.js";
-import { validateSearchParams } from "./validate.js";
+import { assertValid, headerValueProblem, validateSearchParams } from "./validate.js";
 import type { QueryParams } from "./query.js";
 import type { JobSearchResult, JobDetails, JobSearchParams } from "./types.js";
 
@@ -33,7 +33,10 @@ const REFNR_PATTERN = /^[A-Za-z0-9-]+$/;
 export interface JobsucheClientOptions extends EngineOptions {
   /**
    * The `X-API-Key` to send. No key is bundled; when omitted (or blank) the
-   * header is not sent. Obtain the public key with obtainKey() (see obtain-key.ts).
+   * header is not sent. Surrounding whitespace (e.g. the trailing newline of a key
+   * read from a file) is trimmed; a key with an inner control character or a
+   * character above U+00FF is rejected (JobsucheValidationError). Obtain the
+   * public key with obtainKey() (see obtain-key.ts).
    */
   apiKey?: string;
 }
@@ -57,17 +60,13 @@ export class JobsucheClient {
 
   constructor(options: JobsucheClientOptions = {}) {
     const { apiKey, ...engineOptions } = options;
-    // Only send X-API-Key when a non-blank key was supplied; never default one.
-    const key = apiKey?.trim() ? apiKey : undefined;
-    // A key Node cannot send as a header (CR/LF, other controls, above U+00FF —
-    // e.g. from a mangled JOBSUCHE_API_KEY) fails here with a typed error instead
-    // of an untyped TypeError at request time.
-    if (key !== undefined && /[\u0000-\u0008\u000a-\u001f\u007f\u0100-\uffff]/.test(key)) {
-      throw new JobsucheError(
-        "Invalid apiKey: it contains control characters or characters outside Latin-1 " +
-          "(above U+00FF), which an HTTP header cannot carry.",
-      );
-    }
+    // Normalised once, here: the key is trimmed, a blank one means "no key" (the
+    // header is omitted; none is ever defaulted), and the trimmed key is what is
+    // checked and sent.
+    const key = apiKey?.trim() || undefined;
+    // A key Node cannot send as a header (an inner CR/LF, other controls, above
+    // U+00FF) fails here with a typed error instead of at request time.
+    if (key !== undefined) assertValid("apiKey", key, headerValueProblem);
     this.engine = new RequestEngine({
       ...engineOptions,
       defaultHeaders: {

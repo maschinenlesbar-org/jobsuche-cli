@@ -37,7 +37,8 @@ offenen, rein lesenden Endpoints um (Suche + Details).
 dokumentierten API-Key (`jobboerse-jobsuche`). Er ist nicht geheim, wird aber **nicht mit
 dem Client ausgeliefert** – übergeben Sie ihn per `--api-key`, über die Umgebungsvariable
 `JOBSUCHE_API_KEY` oder die Client-Option `apiKey`; andernfalls fehlt der Header und die API
-antwortet mit 401/403. Für CI und Live-Tests lässt sich der öffentliche Key separat (nie
+antwortet mit 401/403. Umgebende Leerzeichen werden auf jedem Weg entfernt, ein leerer Key
+gilt als nicht angegeben. Für CI und Live-Tests lässt sich der öffentliche Key separat (nie
 mit dem CLI-Befehl `obtain-key` abrufen (`npm run obtain-key` in einem
 gebauten Checkout); er liest ihn zur Laufzeit aus der Veröffentlichungsquelle.
 
