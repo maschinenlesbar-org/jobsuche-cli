@@ -96,6 +96,8 @@ run them up front.
   `NaN`, `Infinity` and fractions are rejected too (`validateSearchParams`,
   `intRangeProblem`, `angebotsartProblem`). The CLI's `--veroeffentlicht-seit`,
   `--angebotsart` and `--page` parsers use the same constants and rules.
+- **Engine options out of range** (constructor, and `obtainKey()`): see *Engine
+  option ranges* below.
 
 ## Authentication internals
 
@@ -189,11 +191,23 @@ retried automatically with backoff, up to `--max-retries`. `JobsucheApiError`
 exposes `isRetryable` (true for `429`/`503`). **Divergence from the portfolio
 default:** this repo uses linear backoff only (`retryDelayMs * attempt`) and does
 **not** honour a `Retry-After` header — the retry count is bounded by
-`--max-retries` (default 2), so there is no runaway, but the client is not as
-polite to the server's stated cool-off as the shared convention would be.
+`maxRetries` / `--max-retries` (default 2, at most `MAX_RETRIES`, 10), so there is
+no runaway, but the client is not as polite to the server's stated cool-off as the
+shared convention would be.
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;
 default 100 MiB), guarding against unbounded responses.
+
+**Engine option ranges.** The `RequestEngine` constructor (and so
+`new JobsucheClient(...)`) throws a `JobsucheValidationError` for a numeric option
+that is not an integer in its range: `maxRetries` `0`..`MAX_RETRIES` (10),
+`maxRedirects` `0`..`MAX_REDIRECTS` (10), and `timeoutMs`, `retryDelayMs` and
+`maxResponseBytes` any non-negative integer (`intOption`, `intRangeProblem`); a
+`timeoutMs` above `MAX_TIMEOUT_MS` stays allowed and is capped by the transport.
+`obtainKey()` applies the same rule to its `timeoutMs` and `maxResponseBytes`. A
+`NaN`, negative or fractional value would otherwise silently disable the timeout or
+the size cap, and `Infinity` would retry without end. The CLI's `--max-retries`
+parser uses the same constant and rule.
 
 **RawResponse.** The engine's raw-response shape (`data`/`contentType`/`status`)
 — exported for completeness; the job endpoints return decoded JSON.

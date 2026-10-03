@@ -237,7 +237,7 @@ These apply to every command and may be given before *or* after it:
 | `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`; http(s), a path prefix is fine, no `?query` or `#fragment`) |
 | `--timeout <ms>` | Per-request timeout (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters or characters above U+00FF, which a header cannot carry) |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, at most `10`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
 ### Advanced — pointing at a proxy or staging host

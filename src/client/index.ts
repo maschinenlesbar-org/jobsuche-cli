@@ -7,6 +7,9 @@ export {
   DEFAULT_BASE_URL,
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
+  intOption,
+  MAX_REDIRECTS,
+  MAX_RETRIES,
 } from "./engine.js";
 export type { EngineOptions, RawResponse } from "./engine.js";
 export { MAX_TIMEOUT_MS, nodeHttpTransport } from "./http.js";

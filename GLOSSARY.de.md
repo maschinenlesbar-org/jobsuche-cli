@@ -157,7 +157,7 @@ Nutzer erst beantragen müssen.
 
 **Rate-Limiting / vorübergehende Fehler.** Die API kann **429** (zu viele Anfragen) oder
 **503** zurückgeben; der Client wiederholt diese Anfragen automatisch mit linearem Backoff
-(`--max-retries`, Standard `2`).
+(`--max-retries`, Standard `2`, höchstens `10`).
 
 **Entfernen von Zugangsdaten bei Weiterleitungen.** Header mit Zugangsdaten (`X-API-Key`,
 `Authorization`, `Cookie`) werden verworfen, wenn die API auf einen anderen Origin

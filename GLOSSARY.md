@@ -158,7 +158,7 @@ are implemented. The static `X-API-Key` is not a credential a user must obtain.
 
 **Rate limiting / transient errors.** The API may return **429** (too many
 requests) or **503**; the client retries these automatically with linear backoff
-(`--max-retries`, default `2`).
+(`--max-retries`, default `2`, at most `10`).
 
 **Credential stripping on redirect.** Credential headers (`X-API-Key`,
 `Authorization`, `Cookie`) are dropped if the API redirects to a different origin,

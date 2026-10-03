@@ -18,7 +18,7 @@
 
 import type { HttpResponse, Transport } from "./http.js";
 import { nodeHttpTransport } from "./http.js";
-import { DEFAULT_MAX_RESPONSE_BYTES, DEFAULT_TIMEOUT_MS, assertHttpScheme } from "./engine.js";
+import { DEFAULT_MAX_RESPONSE_BYTES, DEFAULT_TIMEOUT_MS, assertHttpScheme, intOption } from "./engine.js";
 import { JobsucheError, JobsucheParseError } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
@@ -76,13 +76,14 @@ export interface ObtainKeyOptions {
   /** Override the source document (tests, mirrors). */
   sourceUrl?: string;
   /**
-   * Time limit per request in milliseconds, whole response included. Defaults to
-   * `DEFAULT_TIMEOUT_MS` (30 s), like the API client; 0 disables it.
+   * Time limit per request in milliseconds, whole response included, a
+   * non-negative integer. Defaults to `DEFAULT_TIMEOUT_MS` (30 s), like the API
+   * client; 0 disables it.
    */
   timeoutMs?: number;
   /**
-   * Cap on the response body in bytes. Defaults to `DEFAULT_MAX_RESPONSE_BYTES`
-   * (100 MiB), like the API client; 0 disables it.
+   * Cap on the response body in bytes, a non-negative integer. Defaults to
+   * `DEFAULT_MAX_RESPONSE_BYTES` (100 MiB), like the API client; 0 disables it.
    */
   maxResponseBytes?: number;
   /** User-Agent header; a blank value falls back to the default. */
@@ -109,8 +110,15 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   const transport = options.transport ?? nodeHttpTransport;
   // The request gets the client's limits: a source that stalls, or streams
   // without end, must not hang the command or exhaust memory.
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+  // Range-checked like the engine's options (intOption): a negative or NaN value
+  // must not silently mean "no limit".
+  const timeoutMs = intOption("timeoutMs", options.timeoutMs, Number.MAX_SAFE_INTEGER, DEFAULT_TIMEOUT_MS);
+  const maxResponseBytes = intOption(
+    "maxResponseBytes",
+    options.maxResponseBytes,
+    Number.MAX_SAFE_INTEGER,
+    DEFAULT_MAX_RESPONSE_BYTES,
+  );
 
   // raw.githubusercontent.com answers a renamed repository or branch with a
   // redirect, so follow a few — same origin only: the key is trusted because of

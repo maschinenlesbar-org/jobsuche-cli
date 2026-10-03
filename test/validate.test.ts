@@ -5,6 +5,7 @@ import { JobsucheError, JobsucheValidationError } from "../src/client/errors.js"
 import * as lib from "../src/index.js";
 import { run } from "../src/cli/run.js";
 import type { JobsucheClient } from "../src/client/client.js";
+import type { HttpResponse } from "../src/client/http.js";
 import { parity } from "./helpers.js";
 
 const notBlank: Problem = (v) => (v.trim() === "" ? "Must not be blank." : undefined);
@@ -193,4 +194,79 @@ test("intRangeProblem accepts safe integers in range and names what is wrong oth
 test("angebotsartProblem accepts exactly the documented codes", () => {
   for (const code of [1, 2, 4, 34]) assert.equal(lib.angebotsartProblem(code), undefined);
   for (const code of [0, 3, 5, 1.5, NaN]) assert.match(lib.angebotsartProblem(code) ?? "", /^Unknown code /);
+});
+
+// ---- Finding #4 (PAT-8): engine numeric limits --------------------------------
+
+const engineCases: Array<[string[], Record<string, number>, string]> = [
+  [["--timeout=-1"], { timeoutMs: -1 }, "Invalid timeoutMs: Expected a non-negative integer."],
+  [["--timeout=NaN"], { timeoutMs: NaN }, "Invalid timeoutMs: Expected a non-negative integer."],
+  [["--timeout=1.5"], { timeoutMs: 1.5 }, "Invalid timeoutMs: Expected a non-negative integer."],
+  [["--max-response-bytes=-1"], { maxResponseBytes: -1 }, "Invalid maxResponseBytes: Expected a non-negative integer."],
+  [["--max-retries=Infinity"], { maxRetries: Infinity }, "Invalid maxRetries: Expected a non-negative integer."],
+  [["--max-retries=1.5"], { maxRetries: 1.5 }, "Invalid maxRetries: Expected a non-negative integer."],
+  [["--max-retries=11"], { maxRetries: 11 }, "Invalid maxRetries: Must be <= 10."],
+];
+
+for (const [flags, options, message] of engineCases) {
+  test(`parity: ${flags.join(" ")} is rejected by CLI and library alike`, async () => {
+    const r = await parity([...flags, "search", "--was", "Dev"], (transport) =>
+      new lib.JobsucheClient({ transport, ...options }).search({ was: "Dev" }),
+    );
+    assertBothReject(r, message);
+  });
+}
+
+const KEY_DOC = "**clientId:** jobboerse-jobsuche";
+const keySource = (): HttpResponse => ({
+  status: 200,
+  headers: { "content-type": "text/plain" },
+  body: Buffer.from(KEY_DOC),
+});
+
+for (const [flags, options, message] of [
+  [["--timeout=-1"], { timeoutMs: -1 }, "Invalid timeoutMs: Expected a non-negative integer."],
+  [["--max-response-bytes=-1"], { maxResponseBytes: -1 }, "Invalid maxResponseBytes: Expected a non-negative integer."],
+] as Array<[string[], Record<string, number>, string]>) {
+  test(`parity: obtain-key ${flags.join(" ")} is rejected by CLI and obtainKey() alike`, async () => {
+    const r = await parity([...flags, "obtain-key"], (transport) => lib.obtainKey({ transport, ...options }), {
+      responder: keySource,
+    });
+    assertBothReject(r, message);
+  });
+}
+
+test("parity: --max-retries 10 and --timeout 0 are accepted on both sides", async () => {
+  const r = await parity(["--max-retries=10", "--timeout=0", "search", "--was", "Dev"], (transport) =>
+    new lib.JobsucheClient({ transport, maxRetries: 10, timeoutMs: 0 }).search({ was: "Dev" }),
+  );
+  assert.equal(r.cli.code, 0, r.cli.err);
+  assert.equal(r.lib.ok, true);
+  assert.deepEqual(r.lib.requests, r.cli.requests);
+});
+
+test("the engine range-checks maxRedirects and retryDelayMs, and accepts the bounds", () => {
+  assert.equal(lib.MAX_RETRIES, 10);
+  assert.equal(lib.MAX_REDIRECTS, 10);
+  assert.throws(() => new lib.RequestEngine({ maxRedirects: 11 }), /^JobsucheValidationError: Invalid maxRedirects: Must be <= 10\.$/);
+  assert.throws(() => new lib.RequestEngine({ maxRedirects: NaN }), JobsucheValidationError);
+  assert.throws(() => new lib.RequestEngine({ retryDelayMs: -1 }), /Invalid retryDelayMs/);
+  assert.doesNotThrow(
+    () =>
+      new lib.RequestEngine({
+        timeoutMs: lib.MAX_TIMEOUT_MS,
+        maxRetries: 0,
+        maxRedirects: 10,
+        retryDelayMs: 0,
+        maxResponseBytes: 0,
+      }),
+  );
+  // Above MAX_TIMEOUT_MS the transport caps the timer (documented), so it stays allowed.
+  assert.doesNotThrow(() => new lib.RequestEngine({ timeoutMs: lib.MAX_TIMEOUT_MS + 1 }));
+});
+
+test("intOption returns the fallback for undefined and checks any given value", () => {
+  assert.equal(lib.intOption("maxRetries", undefined, 10, 2), 2);
+  assert.equal(lib.intOption("maxRetries", 3, 10, 2), 3);
+  assert.throws(() => lib.intOption("maxRetries", -1, 10, 2), /Invalid maxRetries: Expected a non-negative integer\./);
 });

@@ -9,6 +9,7 @@ import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { JobsucheClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
+import { MAX_RETRIES } from "../client/engine.js";
 import { parseApiKey, parseBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg } from "./shared.js";
 import { registerJobCommands } from "./commands/jobs.js";
 import { registerObtainKeyCommands } from "./commands/obtain-key.js";
@@ -60,7 +61,11 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     )
     .option("--timeout <ms>", "per-request timeout in milliseconds", parseBoundedInt(0, MAX_TIMEOUT_MS))
     .option("--user-agent <ua>", "User-Agent header value", parseHeaderValue)
-    .option("--max-retries <n>", "retries for transient 429/503 responses", parseIntArg)
+    .option(
+      "--max-retries <n>",
+      `retries for transient 429/503 responses (0-${MAX_RETRIES})`,
+      parseBoundedInt(0, MAX_RETRIES),
+    )
     .option(
       "--max-response-bytes <n>",
       "cap response body size in bytes (0 = unlimited; default 100 MiB)",
