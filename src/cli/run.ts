@@ -12,6 +12,7 @@ import {
   JobsucheError,
   JobsucheNetworkError,
   JobsucheParseError,
+  JobsucheValidationError,
 } from "../client/errors.js";
 
 /**
@@ -54,6 +55,12 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // Genuine parse / usage errors (unknown option, bad value, missing
       // argument, ...) get a dedicated exit code (2) so a wrapper script can
       // tell a bad invocation from a runtime/network failure (which exit 1).
+      return 2;
+    }
+    if (err instanceof JobsucheValidationError) {
+      // An input the library rejected before any request (a search parameter or a
+      // client option): the same usage-error exit code as a rejected flag value.
+      deps.io.err(`Error: ${err.message}`);
       return 2;
     }
     if (err instanceof JobsucheApiError) {

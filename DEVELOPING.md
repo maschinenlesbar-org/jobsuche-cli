@@ -77,6 +77,13 @@ An already-encoded `encryptedJobCode` is detected (by exact base64 round-trip,
 not charset sniffing) and passed through unchanged. An empty/whitespace `refnr`
 is rejected before any request.
 
+### What the library rejects
+
+The client checks its input before any request and rejects with a
+`JobsucheValidationError` (`Invalid <name>: <reason>`); the CLI applies the same
+rules (exit `2`). The checks are exported from the package root, so a caller can
+run them up front.
+
 ## Authentication internals
 
 The API requires a static, publicly-documented `X-API-Key` (`jobboerse-jobsuche`)
@@ -116,9 +123,10 @@ src/
   client/
     types.ts     # Stellenangebot / JobSearchResult (the /pc/v6/jobs shape) + search params
     query.ts     # dependency-free query-string builder
+    validate.ts  # input rules (Problem functions) + assertValid, shared by library and CLI
     http.ts      # the Transport interface + default node:http/https transport
     engine.ts    # URL building, retry/backoff, redirects (strips creds cross-origin), default headers (auth), decoding, errors
-    errors.ts    # JobsucheError / JobsucheApiError / JobsucheNetworkError / JobsucheParseError
+    errors.ts    # JobsucheError / JobsucheApiError / JobsucheNetworkError / JobsucheParseError / JobsucheValidationError
     client.ts    # JobsucheClient — search + details over the engine (injects X-API-Key)
   cli/
     io.ts        # injectable I/O seam (stdout/stderr) + injectable env
@@ -186,11 +194,22 @@ as `true`/`false`, dates as ISO-8601, and encodes spaces as `%20` (not `+`).
 and an injectable `env` (for `JOBSUCHE_API_KEY`). Lets the whole CLI run in
 tests with a mocked client and captured output — no subprocess.
 
+**Input validation.** [`validate.ts`](src/client/validate.ts) — the library owns
+every rule about what a request may contain. A rule is a pure, exported
+`…Problem(value)` function that returns the reason a value is invalid (or
+`undefined`); `assertValid(name, value, problem)` turns a reason into a
+`JobsucheValidationError` with the message `Invalid <name>: <reason>`. Client
+methods check their input before any request, and a method that returns a promise
+rejects rather than throwing synchronously. The CLI's value-parsers call the same
+functions, and `run.ts` maps a `JobsucheValidationError` to exit `2`
+(`Error: <message>`), so CLI and library accept and reject the same inputs.
+
 **Error types.** [`errors.ts`](src/client/errors.ts): `JobsucheApiError`
 (non-2xx, carries `status`/`detail`/`url`/`body`, with an `isRetryable` getter
 for 429/503; `detail` comes from the body's `detail`/`message`, or from the
 gateway's `messages: [{code, path, detail}]` as `path: detail (code)`), `JobsucheNetworkError` (transport failure/timeout),
-`JobsucheParseError` (bad JSON), all extending `JobsucheError`.
+`JobsucheParseError` (bad JSON), `JobsucheValidationError` (an input rejected
+before any request), all extending `JobsucheError`.
 
 **refnr / encryptedJobCode.** `details` accepts a `refnr` (e.g.
 `"10001-1002716922-S"` or purely numeric `"1002716922"`) and base64-encodes it
@@ -208,6 +227,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry, and redirect handling (incl. credential-header stripping on cross-origin redirects) — mocked transport.
 - **`client.test.ts`** — the X-API-Key header, search params and the refnr base64 encoding (incl. hyphenless numeric refnrs and empty-refnr rejection) — mocked transport.
 - **`cli.test.ts`** — command parsing, `--api-key` / `JOBSUCHE_API_KEY` precedence, 401/403 and other exit codes — mocked client.
+- **`validate.test.ts`** — `assertValid`, the exit-2 mapping of `JobsucheValidationError`, and the CLI ↔ library parity tests. `parity()` in `test/helpers.ts` runs one input through `run()` and through the library on one recording mock transport; a parity test asserts both reject without a request, or both send the identical request.
 
 ## Continuous integration
 

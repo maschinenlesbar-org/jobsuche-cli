@@ -84,6 +84,14 @@ export class JobsucheApiError extends JobsucheError {
   }
 }
 
+/**
+ * An input the library rejects before sending any request: a search parameter,
+ * a client option or another value that breaks a documented rule. The message
+ * reads `Invalid <name>: <reason>`. The CLI maps it to its usage-error exit code
+ * (2).
+ */
+export class JobsucheValidationError extends JobsucheError {}
+
 /** A transport-level failure (DNS, connection reset, timeout, ...). */
 export class JobsucheNetworkError extends JobsucheError {}
 
