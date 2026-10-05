@@ -223,6 +223,10 @@ same thing.
   sends the same response for a wrong key, for a network it refuses, and now and
   then for a valid key. If the key matches what `obtain-key` returns, retry once,
   then try from another network. (When no key was sent at all, the hint says so.)
+- **Exit `3` / "… use an https base URL"** — `--base-url` starts with `http://`;
+  the gateway redirects to `https://`, and the key is not sent across that change
+  of scheme, so the request arrived without it. The key is fine: use the `https://`
+  URL the message names.
 - **Exit `4` / "not found"** — the listing no longer exists. Listings expire;
   re-run a fresh `search` to get current `referenznummer` values.
 - **Exit `1` / "Network error"** — connectivity, DNS, or a timeout. Try again
