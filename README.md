@@ -96,7 +96,9 @@ jobsuche search --was Informatiker --wo Berlin --size 10
 
 `--was` is the keyword/title, `--wo` the location. The result is a JSON object
 with `ergebnisliste` (the listings array — absent, not empty, when nothing
-matched), `maxErgebnisse` (total matches), `page`, `size` and `facetten`. Pull
+matched), `maxErgebnisse` (total matches), `page`, `size` and `facetten`. A `200`
+answer without that shape — `null`, `{}`, or a proxy's `{"message": "quota
+exceeded"}` — is an error (exit `1`), never printed as "nothing found". Pull
 out just the titles with `jq`:
 
 ```bash

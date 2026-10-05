@@ -39,8 +39,11 @@ export {
   httpUrlProblem,
   intRangeProblem,
   isBlank,
+  isPlainObject,
+  jobDetailsProblem,
   MAX_VEROEFFENTLICHT_SEIT,
   nonBlankProblem,
+  searchResultProblem,
   TEXT_FILTERS,
   validateSearchParams,
 } from "./validate.js";

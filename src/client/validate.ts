@@ -186,3 +186,73 @@ export function validateSearchParams(params: JobSearchParams): JobSearchParams {
   }
   return params;
 }
+
+/** True for a non-null object that is not an array (a JSON object). */
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The text an error envelope carries (`message`, `error`, `detail`, or the gateway's
+ * `messages[].detail`), cut to 200 characters, for a parse error to quote; undefined
+ * when there is none. Server text: control characters are stripped by the caller.
+ */
+function envelopeText(value: Record<string, unknown>): string | undefined {
+  for (const key of ["message", "error", "detail"]) {
+    const v = value[key];
+    if (typeof v === "string" && v.trim() !== "") return v.trim().slice(0, 200);
+  }
+  const messages = value["messages"];
+  if (Array.isArray(messages)) {
+    const texts = messages
+      .map((m) => (isPlainObject(m) && typeof m["detail"] === "string" ? m["detail"] : undefined))
+      .filter((t): t is string => t !== undefined && t.trim() !== "");
+    if (texts.length > 0) return texts.join("; ").slice(0, 200);
+  }
+  return undefined;
+}
+
+/**
+ * Why a 2xx body is not a `/pc/v6/jobs` search result, or undefined. The documented
+ * shape: a JSON object with `maxErgebnisse` (a non-negative integer, present even
+ * when nothing matched), `ergebnisliste` absent or an array of listings that each
+ * have a string `referenznummer`, and `page`/`size` numbers and `woOutput`/
+ * `facetten` objects when present. `null`, `{}`, an array or an error envelope
+ * (`{"message": "quota exceeded"}` from a proxy) is not "nothing found".
+ */
+export const searchResultProblem: Problem<unknown> = (value) => {
+  if (!isPlainObject(value)) return `expected a JSON object, got ${value === null ? "null" : Array.isArray(value) ? "an array" : typeof value}`;
+  const said = envelopeText(value);
+  const max = value["maxErgebnisse"];
+  if (typeof max !== "number" || !Number.isSafeInteger(max) || max < 0) {
+    return `no maxErgebnisse count${said !== undefined ? `; the server said: ${said}` : ""}`;
+  }
+  const list = value["ergebnisliste"];
+  if (list !== undefined) {
+    if (!Array.isArray(list)) return "ergebnisliste is not an array";
+    if (!list.every((item) => isPlainObject(item) && typeof item["referenznummer"] === "string")) {
+      return "a listing in ergebnisliste has no referenznummer";
+    }
+  }
+  for (const key of ["page", "size"]) {
+    if (value[key] !== undefined && typeof value[key] !== "number") return `${key} is not a number`;
+  }
+  for (const key of ["woOutput", "facetten"]) {
+    if (value[key] !== undefined && !isPlainObject(value[key])) return `${key} is not an object`;
+  }
+  return undefined;
+};
+
+/**
+ * Why a 2xx body is not a `/pc/v4/jobdetails` record, or undefined: it must be a JSON
+ * object with a string `referenznummer` (every live record has one). `{}`, `null` or
+ * an error envelope is not a listing.
+ */
+export const jobDetailsProblem: Problem<unknown> = (value) => {
+  if (!isPlainObject(value)) return `expected a JSON object, got ${value === null ? "null" : Array.isArray(value) ? "an array" : typeof value}`;
+  if (typeof value["referenznummer"] !== "string") {
+    const said = envelopeText(value);
+    return `no referenznummer${said !== undefined ? `; the server said: ${said}` : ""}`;
+  }
+  return undefined;
+};

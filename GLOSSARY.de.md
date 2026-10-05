@@ -140,7 +140,11 @@ Stellenangebote), `maxErgebnisse` (Gesamtzahl der Treffer), `page`, `size`, `fac
 fehlt (statt `[]`), wenn nichts gefunden wurde oder bei `--size 0`; ohne Treffer fehlt auch
 `facetten`.
 
-**maxErgebnisse.** Die Gesamtzahl passender Stellenangebote über alle Seiten.
+**maxErgebnisse.** Die Gesamtzahl passender Stellenangebote über alle Seiten. Jede
+Suchantwort enthält sie, auch als `0`; ein `200`-Body ohne sie (`null`, `{}`, eine
+Fehlerhülle eines Proxys) wird als Parse-Fehler abgelehnt, Exit-Code `1`, statt als
+„nichts gefunden“ gelesen zu werden. Eine `details`-Antwort muss ihre `referenznummer`
+enthalten.
 
 **facetten.** Aggregierte Zählungen, die die API zusätzlich zu den Ergebnissen liefert
 (z. B. nach Ort oder Arbeitgeber), unverändert als Objekt durchgereicht.

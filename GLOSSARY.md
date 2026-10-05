@@ -142,7 +142,10 @@ listings), `maxErgebnisse` (total number of matches), `page`, `size`, `facetten`
 is absent (not `[]`) when nothing matched or with `--size 0`; on no match
 `facetten` is absent too.
 
-**maxErgebnisse.** The total count of matching listings across all pages.
+**maxErgebnisse.** The total count of matching listings across all pages. Every
+search answer has it, `0` included; a `200` body without it (`null`, `{}`, an
+error envelope from a proxy) is rejected as a parse error, exit `1`, rather than
+read as "nothing matched". A `details` answer must carry its `referenznummer`.
 
 **facetten (facets).** Aggregated counts the API returns alongside results (e.g.
 by location or employer), surfaced as a raw object.

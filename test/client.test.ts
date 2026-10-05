@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JobsucheClient } from "../src/client/client.js";
-import { JobsucheApiError, JobsucheError, JobsucheValidationError } from "../src/client/errors.js";
-import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
+import { JobsucheApiError, JobsucheError, JobsucheParseError, JobsucheValidationError } from "../src/client/errors.js";
+import { makeMockTransport, jsonResponse, constantJson, okResponse } from "./helpers.js";
 import { V6_NO_MATCH, V6_SEARCH } from "./fixtures.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>, apiKey?: string): JobsucheClient {
@@ -12,7 +12,7 @@ function clientWith(mt: ReturnType<typeof makeMockTransport>, apiKey?: string): 
 const SERVICE = "/jobboerse/jobsuche-service";
 
 test("search forwards the supplied X-API-Key and params", async () => {
-  const mt = constantJson({ ergebnisliste: [] });
+  const mt = constantJson({ maxErgebnisse: 0, ergebnisliste: [] });
   await clientWith(mt, "test-key").search({ was: "Informatiker", wo: "Berlin", size: 10 });
   const req = mt.last();
   assert.equal(req.headers?.["X-API-Key"], "test-key");
@@ -24,19 +24,19 @@ test("search forwards the supplied X-API-Key and params", async () => {
 });
 
 test("no X-API-Key header is sent when no key is supplied (no bundled default)", async () => {
-  const mt = constantJson({ ergebnisliste: [] });
+  const mt = constantJson({ maxErgebnisse: 0, ergebnisliste: [] });
   await clientWith(mt).search();
   assert.equal(mt.last().headers?.["X-API-Key"], undefined);
 });
 
 test("a custom apiKey sets the header", async () => {
-  const mt = constantJson({ ergebnisliste: [] });
+  const mt = constantJson({ maxErgebnisse: 0, ergebnisliste: [] });
   await clientWith(mt, "my-key").search();
   assert.equal(mt.last().headers?.["X-API-Key"], "my-key");
 });
 
 test("details base64-encodes a refnr", async () => {
-  const mt = constantJson({});
+  const mt = makeMockTransport(okResponse);
   await clientWith(mt).details("10001-1002716922-S");
   assert.equal(
     new URL(mt.last().url).pathname,
@@ -45,7 +45,7 @@ test("details base64-encodes a refnr", async () => {
 });
 
 test("details passes an already-encoded code through unchanged", async () => {
-  const mt = constantJson({});
+  const mt = makeMockTransport(okResponse);
   await clientWith(mt).details("MTAwMDEtMTAwMjcxNjkyMi1T");
   assert.equal(
     new URL(mt.last().url).pathname,
@@ -54,7 +54,7 @@ test("details passes an already-encoded code through unchanged", async () => {
 });
 
 test("details base64-encodes a hyphenless numeric refnr (no false-positive passthrough)", async () => {
-  const mt = constantJson({});
+  const mt = makeMockTransport(okResponse);
   await clientWith(mt).details("1002716922");
   // "1002716922" is a refnr, NOT base64; it must be encoded to "MTAwMjcxNjkyMg==".
   assert.equal(
@@ -64,7 +64,7 @@ test("details base64-encodes a hyphenless numeric refnr (no false-positive passt
 });
 
 test("details rejects an empty / whitespace refnr before requesting", async () => {
-  const mt = constantJson({});
+  const mt = makeMockTransport(okResponse);
   await assert.rejects(() => clientWith(mt).details("   "), JobsucheError);
   assert.equal(mt.calls.length, 0);
 });
@@ -79,7 +79,7 @@ test("a 404 raises JobsucheApiError with status 404", async () => {
 
 test("the client rejects a non-http(s) base URL, so a custom transport never sees it with the key", () => {
   for (const baseUrl of ["file:///etc/passwd", "ftp://example.org"]) {
-    const mt = constantJson({ ergebnisliste: [] });
+    const mt = constantJson({ maxErgebnisse: 0, ergebnisliste: [] });
     assert.throws(
       () => new JobsucheClient({ baseUrl, transport: mt.transport, apiKey: "test-key" }),
       JobsucheValidationError,
@@ -94,7 +94,7 @@ test("the client rejects a non-http(s) base URL, so a custom transport never see
 // entries keyed by `referenznummer` (the same field names as details).
 test("search reads the v6 envelope, and a listing's referenznummer feeds details", async () => {
   const mt = makeMockTransport((req) =>
-    new URL(req.url).pathname.endsWith("/pc/v6/jobs") ? jsonResponse(V6_SEARCH) : jsonResponse({}),
+    new URL(req.url).pathname.endsWith("/pc/v6/jobs") ? jsonResponse(V6_SEARCH) : okResponse(req),
   );
   const client = clientWith(mt, "k");
   const page = await client.search({ was: "Informatiker", wo: "Berlin", size: 1 });
@@ -117,4 +117,28 @@ test("a no-match v6 search has no ergebnisliste", async () => {
   const page = await clientWith(mt).search({ was: "Xyzzyqwvbnm" });
   assert.equal(page.maxErgebnisse, 0);
   assert.equal(page.ergebnisliste, undefined);
+});
+
+// 2026-10-05 sweep, 03 Bug 2: a proxy or captive portal answering 200 with other JSON
+// was printed as data (exit 0), and `.ergebnisliste // [] | length` read it as 0 hits.
+test("a 2xx body that is not a search result or a listing is a parse error", async () => {
+  const notSearch: unknown[] = [
+    null, {}, [], "text", 42,
+    { error: "rate limited" }, { message: "quota exceeded" },
+    { maxErgebnisse: "1" }, { maxErgebnisse: -1 },
+    { maxErgebnisse: 1, ergebnisliste: null }, { maxErgebnisse: 1, ergebnisliste: [null] },
+    { maxErgebnisse: 1, ergebnisliste: [{ titel: "no refnr" }] },
+    { maxErgebnisse: 0, woOutput: "Berlin" },
+  ];
+  for (const body of notSearch) {
+    const c = new JobsucheClient({ transport: constantJson(body).transport, maxRetries: 0 });
+    await assert.rejects(c.search({ was: "x" }), JobsucheParseError, JSON.stringify(body));
+  }
+  for (const body of [null, {}, [], { messages: [{ detail: "kaputt" }] }]) {
+    const c = new JobsucheClient({ transport: constantJson(body).transport, maxRetries: 0 });
+    await assert.rejects(c.details("10001-1-S"), JobsucheParseError, JSON.stringify(body));
+  }
+  // The server's own words are quoted.
+  const said = new JobsucheClient({ transport: constantJson({ message: "quota exceeded" }).transport });
+  await assert.rejects(said.search(), /not a search result \(no maxErgebnisse count; the server said: quota exceeded\)/);
 });

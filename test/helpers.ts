@@ -15,6 +15,16 @@ export function jsonResponse(body: unknown, status = 200): HttpResponse {
   };
 }
 
+/** The smallest valid `/pc/v6/jobs` answer: nothing matched. */
+export const EMPTY_SEARCH = { maxErgebnisse: 0, page: 1, size: 25 };
+
+/** A valid answer for whatever the request asks: a job listing for details, else an empty search. */
+export function okResponse(req: HttpRequest): HttpResponse {
+  return req.url.includes("/pc/v4/jobdetails/")
+    ? jsonResponse({ referenznummer: "10001-1002716922-S", stellenangebotsTitel: "Test" })
+    : jsonResponse(EMPTY_SEARCH);
+}
+
 export function rawResponse(
   data: string | Buffer,
   contentType: string,
@@ -88,7 +98,7 @@ export interface LibOutcome {
 }
 
 export interface ParityOptions {
-  /** Answers every request (both sides); defaults to `200 {}`. */
+  /** Answers every request (both sides); defaults to `okResponse`. */
   responder?: (req: HttpRequest) => HttpResponse | Promise<HttpResponse>;
   /** The CLI's environment (JOBSUCHE_API_KEY); defaults to none. */
   env?: Record<string, string | undefined>;
@@ -114,7 +124,7 @@ export async function parity(
   libCall: (transport: Transport) => unknown,
   options: ParityOptions = {},
 ): Promise<{ cli: CliOutcome; lib: LibOutcome }> {
-  const mt = makeMockTransport(options.responder ?? (() => jsonResponse({})));
+  const mt = makeMockTransport(options.responder ?? okResponse);
   const out: string[] = [];
   const err: string[] = [];
   const code = await run(argv, {

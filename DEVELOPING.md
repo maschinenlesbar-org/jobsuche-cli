@@ -300,6 +300,14 @@ above the cap rather than waiting it, because the BA gateway should not be asked
 again inside the window it named.
 `test/conformance-p6-retry-policy.test.ts` is the shared check.
 
+**Response shape.** `search()` and `details()` check a 2xx body before returning
+it (`searchResultProblem`, `jobDetailsProblem` in `validate.ts`): a search
+result is an object with an integer `maxErgebnisse` and, when present, an
+`ergebnisliste` array of listings with a string `referenznummer`; a listing is an
+object with a string `referenznummer`. Anything else — `null`, `{}`, an array, an
+error envelope such as `{"message": "quota exceeded"}` — is a `JobsucheParseError`
+(CLI exit `1`) quoting what the server said, never data or "nothing found".
+
 **Charset.** A body is decoded by the charset its `Content-Type` names (UTF-8
 when it names none; `decodeBody`, a `TextDecoder`), so an `iso-8859-1` answer
 keeps its umlauts and a byte order mark added by a proxy is dropped instead of
