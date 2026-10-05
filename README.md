@@ -28,7 +28,7 @@ keyword, location, radius or employer, and fetch the full record for any posting
 npm i -g @maschinenlesbar.org/jobsuche-cli
 ```
 
-This installs the **`jobsuche`** command. Requires **Node.js 20+**.
+This installs the **`jobsuche`** command. Requires **Node.js 22.12+**.
 
 Check it works:
 
@@ -213,7 +213,8 @@ same thing.
 ## Troubleshooting
 
 - **`command not found: jobsuche`** — the global npm bin directory isn't on
-  your `PATH`. Run `npm bin -g` to find it and add it, or run via
+  your `PATH`. Run `npm prefix -g` and add its `bin/` subdirectory (on Windows,
+  the directory itself), or run via
   `npx @maschinenlesbar.org/jobsuche-cli …`.
 - **Exit `3` / "request rejected"** — the API declined the request. Check that
   `JOBSUCHE_API_KEY` is set and non-empty, or pass `--api-key` explicitly —
