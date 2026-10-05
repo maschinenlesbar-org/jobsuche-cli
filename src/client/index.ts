@@ -8,7 +8,11 @@ export {
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_USER_AGENT,
+  cleartextCredentialsProblem,
   exchange,
+  followedElsewhere,
+  originOf,
+  splitUserinfo,
   intOption,
   isTransientNetworkError,
   networkError,
@@ -18,7 +22,7 @@ export {
   parseRetryAfter,
   validateBaseUrl,
 } from "./engine.js";
-export type { EngineOptions, ExchangeResponse, RawResponse } from "./engine.js";
+export type { CredentialsDropped, EngineOptions, ExchangeResponse, RawResponse } from "./engine.js";
 export { MAX_TIMEOUT_MS, nodeHttpTransport, sizeLimitMessage } from "./http.js";
 export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { obtainKey, API_KEY_ENV_VAR, KEY_SOURCE_URL, MAX_KEY_SOURCE_REDIRECTS } from "./obtain-key.js";
@@ -47,6 +51,7 @@ export {
   JobsucheNetworkError,
   JobsucheParseError,
   JobsucheValidationError,
+  credentialsDroppedHint,
   credentialsIn,
   redactCredentials,
   redactSecrets,

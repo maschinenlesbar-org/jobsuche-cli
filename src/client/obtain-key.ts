@@ -26,8 +26,10 @@ import {
   functionOption,
   headerValue,
   intOption,
+  followedElsewhere,
   networkError,
   secretScrubber,
+  splitUserinfo,
   type ExchangeResponse,
 } from "./engine.js";
 import { assertValid, headerValueProblem, httpUrlProblem } from "./validate.js";
@@ -149,7 +151,12 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   // raw.githubusercontent.com answers a renamed repository or branch with a
   // redirect, so follow a few — same origin only: the key is trusted because of
   // where it is published, and a hop to another host is not followed.
-  let url = sourceUrl;
+  // A source behind Basic auth (a private mirror) gets its userinfo as an
+  // Authorization header, never in the URL the transport sees; with same-origin
+  // redirects only, it never leaves that origin.
+  const start = splitUserinfo(sourceUrl);
+  const scrub = secretScrubber(credentialsIn(sourceUrl), []);
+  let url = start.url;
   let response: ExchangeResponse;
   for (let redirects = 0; ; redirects += 1) {
     // Through the engine's exchange(): the time limit and the size cap hold for any
@@ -163,16 +170,22 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
           headers: {
             Accept: "text/plain, text/markdown;q=0.9, */*;q=0.8",
             "User-Agent": userAgent,
+            ...(start.basic !== undefined ? { Authorization: start.basic } : {}),
           },
+          redirect: "manual",
           ...(timeoutMs > 0 ? { timeoutMs } : {}),
           ...(maxResponseBytes > 0 ? { maxResponseBytes } : {}),
         },
         { timeoutMs, maxResponseBytes },
       );
     } catch (cause) {
-      // A source behind Basic auth (a private mirror) is never named with its password.
-      throw networkError("GET", url, cause, secretScrubber(credentialsIn(sourceUrl), []));
+      // A source behind Basic auth is never named with its password.
+      throw networkError("GET", url, cause, scrub);
     }
+    // A transport that followed a redirect to another host itself read the key from a
+    // document this function would not trust (and would cite the wrong source).
+    const elsewhere = followedElsewhere("GET", url, response.url);
+    if (elsewhere !== undefined) throw elsewhere;
     if (!FOLLOWED_REDIRECTS.has(response.status) || redirects >= MAX_KEY_SOURCE_REDIRECTS) break;
     const next = resolveLocation(headerValue(response.headers["location"]), url);
     if (next === undefined || next.origin !== new URL(url).origin) break;

@@ -356,8 +356,10 @@ test("a password in --base-url is not echoed in an error, but still sent", async
   assert.equal(await run(["--base-url", "http://user:s3cret@127.0.0.1:1/e", "search", "--was", "x"], cli.deps), 4);
   const err = cli.err.join("\n");
   assert.doesNotMatch(err, /s3cret|user:/);
-  assert.match(err, /http:\/\/\*\*\*@127\.0\.0\.1:1\/e\/jobboerse/);
-  assert.match(cli.mt.last().url, /user:s3cret@/);
+  assert.match(err, /http:\/\/127\.0\.0\.1:1\/e\/jobboerse/);
+  // The engine sends the userinfo as Basic auth, per hop; the transport never sees it in the URL.
+  assert.doesNotMatch(cli.mt.last().url, /s3cret/);
+  assert.equal(cli.mt.last().headers?.["Authorization"], `Basic ${Buffer.from("user:s3cret").toString("base64")}`);
 });
 
 // CR/LF and non-Latin-1 in --api-key / --user-agent failed at request time as

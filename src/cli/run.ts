@@ -191,6 +191,13 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     if (err instanceof JobsucheApiError) {
       // Map a few notable statuses to distinct exit codes for scripting.
       if (err.status === 401 || err.status === 403) {
+        // A redirect to another origin (an http: base URL answered with https: is the
+        // usual case) dropped the key: the message says so and what to do, and the
+        // key itself is fine, so no key hint.
+        if (err.credentialsDropped !== undefined) {
+          deps.io.err(`Error: request rejected (HTTP ${err.status}): ${err.message.replace(/^HTTP \d+ for \S+ \S+: /, "")}.`);
+          return 3;
+        }
         // 401/403 is usually a key problem, but a resource-level forbidden or a
         // quota/rate reason can also land here. Surface the server-supplied
         // `detail` when present instead of unconditionally blaming the key, and

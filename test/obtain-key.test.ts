@@ -204,3 +204,26 @@ test("obtainKey stops a redirect loop", async () => {
   await assert.rejects(() => obtainKey({ transport: mt.transport }), /HTTP 301/);
   assert.equal(mt.calls.length, 6);
 });
+
+// 2026-10-05 sweep, 04 Bug 1 / note 7: with a fetch transport the cross-origin hop
+// happened inside fetch, and obtainKey cited the original URL as the source of a key
+// read from another host.
+test("obtainKey tells the transport not to follow redirects and rejects one it followed anyway", async () => {
+  const mt = makeMockTransport((req) => ({ ...rawResponse(README, "text/plain"), url: req.url }));
+  await obtainKey({ transport: mt.transport });
+  assert.equal(mt.last().redirect, "manual");
+  const elsewhere = makeMockTransport(() => ({ ...rawResponse(README, "text/plain"), url: "https://evil.example/README.md" }));
+  await assert.rejects(obtainKey({ transport: elsewhere.transport }), (e: unknown) => {
+    assert.ok(e instanceof Error && e.name === "JobsucheNetworkError", String(e));
+    assert.match((e as Error).message, /another origin/);
+    return true;
+  });
+});
+
+test("obtainKey sends a source's userinfo as Basic auth, never in the URL", async () => {
+  const mt = makeMockTransport(() => rawResponse(README, "text/plain"));
+  const result = await obtainKey({ transport: mt.transport, sourceUrl: "https://ci:pw-s3cret@mirror.example/README.md" });
+  assert.equal(mt.last().url, "https://mirror.example/README.md");
+  assert.equal(mt.last().headers?.["Authorization"], `Basic ${Buffer.from("ci:pw-s3cret").toString("base64")}`);
+  assert.equal(result.sourceUrl, "https://mirror.example/README.md");
+});

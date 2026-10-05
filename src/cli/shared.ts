@@ -7,7 +7,7 @@ import type { CliDeps } from "./io.js";
 import type { JobsucheClientOptions } from "../client/client.js";
 import { JobsucheError, JobsucheValidationError } from "../client/errors.js";
 import { API_KEY_ENV_VAR } from "../client/obtain-key.js";
-import { isBidiControl } from "../client/engine.js";
+import { DEFAULT_BASE_URL, cleartextCredentialsProblem, isBidiControl } from "../client/engine.js";
 import { baseUrlProblem, headerValueProblem, intRangeProblem, nonBlankProblem } from "../client/validate.js";
 
 /**
@@ -232,7 +232,11 @@ export function action(
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
-    const client = deps.createClient(toEngineOptions(global, deps.env ?? process.env));
+    const options = toEngineOptions(global, deps.env ?? process.env);
+    const client = deps.createClient(options);
+    // Built first, so a key the client rejects is a usage error before any warning.
+    const cleartext = cleartextCredentialsProblem(options.baseUrl ?? DEFAULT_BASE_URL, options.apiKey !== undefined);
+    if (cleartext !== undefined) deps.io.err(`warning: ${cleartext} Use an https base URL.`);
     await fn({ client, global, opts: command.opts() }, positionals);
   };
 }

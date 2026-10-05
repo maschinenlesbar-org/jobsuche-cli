@@ -202,7 +202,7 @@ same thing.
 | --- | --- |
 | `0` | success (also `--help` / `--version`) |
 | `2` | bad usage / invalid argument (nothing was sent) |
-| `3` | request rejected (`401`/`403`) — a missing or wrong API key, or a refused network |
+| `3` | request rejected (`401`/`403`) — a missing or wrong API key, a refused network, or a redirect to another origin that dropped the key (the message says which) |
 | `4` | listing not found (`404`) |
 | `1` | any other error (network/transport failure, JSON parse error, etc.) |
 
@@ -252,7 +252,12 @@ jobsuche --base-url https://proxy.internal.example search --was Pflege
 
 If the API redirects across an origin boundary (different scheme/host/port),
 the tool **strips your key** before following, so it never leaks to another
-host.
+host. That includes `http:` → `https:`: the gateway answers a plain-`http` base
+URL with a redirect to `https`, which then arrives without the key, and the
+`403` says so ("use an https base URL") rather than blaming the key. The CLI also
+warns when a key or a `user:password@` would go to a plain-`http` host other
+than `localhost`. A `user:password@` in the base URL is sent as
+`Authorization: Basic`, to that origin only.
 
 ## Learn more
 

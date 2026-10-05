@@ -262,10 +262,26 @@ the seam that injects `X-API-Key`. Because no default key is bundled, the CLI
 omits the header entirely when neither `--api-key` nor `JOBSUCHE_API_KEY` is
 set.
 
-**Cross-origin credential stripping.** When the API issues a redirect that
-crosses an origin boundary (different scheme, host, or port), the engine strips
-credential headers (`X-API-Key`, `Authorization`, `Cookie`) before following it,
-so the key is never forwarded to another host. Same-origin redirects keep the key.
+**Credentials per hop.** The engine attaches the credentials itself, per hop:
+the credential headers (`X-API-Key`, `Authorization`, `Cookie`) and the base
+URL's userinfo, sent as `Authorization: Basic` (`splitUserinfo`) — a transport
+never sees a URL with userinfo. They go to the start URL's origin only: a
+same-origin redirect (a relative or an absolute `Location`) keeps them; one to
+another scheme, host or port drops them for the rest of the chain, `http:` →
+`https:` on the same host included, and `RawResponse.credentialsDropped` /
+`JobsucheApiError.credentialsDropped` record where. A `401`/`403` after that names
+the redirect (`credentialsDroppedHint`: "use an https base URL (…)" for
+http→https), and the CLI prints that instead of its key hints (still exit `3`).
+`HttpRequest.redirect` is `"manual"`: a transport must not follow redirects
+(`fetch(url, { redirect: req.redirect })`). If it does and reports the final URL
+(`HttpResponse.url`, fetch's `response.url`) on another origin, the request fails
+as a `JobsucheNetworkError` (`followedElsewhere`) instead of being trusted; a
+transport that follows redirects and reports nothing cannot be detected, so pass
+`redirect` through. A non-http(s) `Location` (`file:`, `data:`) is never followed.
+`obtainKey()` applies the same rules to its source (same-origin redirects only).
+The CLI warns on stderr when a key or userinfo would go to a plain-`http` host
+other than loopback (`cleartextCredentialsProblem`).
+`test/conformance-p3-redirect-credentials.test.ts` is the shared check.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
 retried automatically, up to `maxRetries` / `--max-retries` (default 2, at most

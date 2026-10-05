@@ -163,9 +163,13 @@ default `2`, at most `10`), waiting the server's `Retry-After` when it asks for 
 to 30 s, else a linear backoff. A longer `Retry-After` is not retried: the error
 names the wait.
 
-**Credential stripping on redirect.** Credential headers (`X-API-Key`,
-`Authorization`, `Cookie`) are dropped if the API redirects to a different origin,
-so the key cannot leak to a third-party host. Same-origin redirects keep them.
+**Credential stripping on redirect.** Credentials (the `X-API-Key`, a base URL's
+`user:password@`, `Authorization`, `Cookie`) go only to the base URL's origin.
+They are dropped for the rest of the chain if the API redirects to another scheme,
+host or port — `http:` → `https:` on the same host included — so the key cannot
+leak to a third-party host. Same-origin redirects keep them. If the target then
+answers `401`/`403`, the error says the redirect dropped the key (for `http:` →
+`https:`: "use an https base URL") instead of blaming the key.
 
 ---
 

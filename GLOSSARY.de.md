@@ -162,10 +162,14 @@ Standard `2`, höchstens `10`) und wartet dabei das `Retry-After` des Servers ab
 höchstens 30 s verlangt, sonst einen linearen Backoff. Ein längeres `Retry-After` wird
 nicht wiederholt: Die Fehlermeldung nennt die verlangte Wartezeit.
 
-**Entfernen von Zugangsdaten bei Weiterleitungen.** Header mit Zugangsdaten (`X-API-Key`,
-`Authorization`, `Cookie`) werden verworfen, wenn die API auf einen anderen Origin
-weiterleitet, damit der Key nicht an fremde Hosts gelangt. Bei Weiterleitungen innerhalb
-desselben Origins bleiben sie erhalten.
+**Entfernen von Zugangsdaten bei Weiterleitungen.** Zugangsdaten (der `X-API-Key`, ein
+`user:passwort@` in der Basis-URL, `Authorization`, `Cookie`) gehen nur an den Origin der
+Basis-URL. Leitet die API auf ein anderes Schema, einen anderen Host oder Port weiter – auch
+`http:` → `https:` auf demselben Host –, werden sie für den Rest der Kette verworfen, damit der
+Key nicht an fremde Hosts gelangt. Bei Weiterleitungen innerhalb desselben Origins bleiben sie
+erhalten. Antwortet das Ziel dann mit `401`/`403`, sagt die Fehlermeldung, dass die
+Weiterleitung den Key verworfen hat (bei `http:` → `https:`: „use an https base URL“), statt
+den Key zu beschuldigen.
 
 ---
 
