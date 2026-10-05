@@ -245,6 +245,18 @@ test double), not only the built-in one:
 
 `test/conformance-p5-transport-contract.test.ts` is the shared check.
 
+**Secrets in library objects and errors.** The engine keeps the base URL and the
+default headers (the `X-API-Key`) in real `#private` fields, so `console.log`,
+`util.inspect` and `JSON.stringify` of a client never show the key or a
+base-URL password. Server and transport text is scrubbed of them before it
+reaches an error (`secretScrubber`, `scrubCause`): an error body that echoes the
+request, a transport message such as fetch's "Request cannot be constructed from
+a URL that includes credentials: http://user:pw@…", and the `cause` chain. URLs
+in messages go through `redactUrl`, which also cuts the userinfo out of a value
+that doesn't parse. `obtainKey()` names a `user:password@` source as `***@` in its
+errors and in `sourceUrl`. `test/conformance-p2-library-redaction.test.ts` is the
+shared check.
+
 **Default headers.** The engine merges `defaultHeaders` into every request —
 the seam that injects `X-API-Key`. Because no default key is bundled, the CLI
 omits the header entirely when neither `--api-key` nor `JOBSUCHE_API_KEY` is

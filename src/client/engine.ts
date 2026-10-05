@@ -24,6 +24,9 @@ import {
   JobsucheNetworkError,
   JobsucheParseError,
   JobsucheValidationError,
+  credentialsIn,
+  redactCredentials,
+  redactSecrets,
   redactUrl,
 } from "./errors.js";
 
@@ -412,12 +415,62 @@ export async function exchange(
 }
 
 /**
- * A transport failure as a `JobsucheNetworkError`. The default transport rejects with
- * one already (passed through); an injected one may throw anything (a TypeError from
- * fetch, a string, null), which is wrapped naming the request, with the original as
- * `cause`, so every failure stays a `JobsucheError`.
+ * A function that removes known secrets from text: the userinfo `credentials` (raw
+ * and percent-decoded, see `credentialsIn`) become `***@`, each of `secrets` (an API
+ * key, which has no `@` to anchor on) becomes `***`.
  */
-export function networkError(method: string, url: string, cause: unknown): JobsucheError {
+export function secretScrubber(credentials: readonly string[], secrets: readonly string[]): (text: string) => string {
+  const userinfo = credentials.flatMap((raw) => {
+    try {
+      return [raw, decodeURIComponent(raw)];
+    } catch {
+      return [raw];
+    }
+  });
+  return (text) => redactSecrets(redactCredentials(text, userinfo), secrets);
+}
+
+/**
+ * A transport failure as the `cause` of the error the library raises: the original
+ * when its text carries no secret, otherwise a copy with them scrubbed (message,
+ * `code` and the cause chain kept), so logging the error with its causes can't
+ * reveal the base URL's password or the key.
+ */
+export function scrubCause(cause: unknown, scrub: (text: string) => string, depth = 0): unknown {
+  if (depth > 5) return cause;
+  if (typeof cause === "string") return scrub(cause);
+  if (!(cause instanceof Error)) return cause;
+  const inner = scrubCause(cause.cause, scrub, depth + 1);
+  const message = scrub(cause.message);
+  const stack = cause.stack ?? "";
+  if (message === cause.message && inner === cause.cause && scrub(stack) === stack) return cause;
+  const copy = new Error(message, inner === undefined ? undefined : { cause: inner });
+  copy.name = cause.name;
+  const code = (cause as { code?: unknown }).code;
+  if (code !== undefined) Object.assign(copy, { code });
+  return copy;
+}
+
+/**
+ * A transport failure as a `JobsucheNetworkError`. The default transport rejects with
+ * one already (passed through, its text scrubbed); an injected one may throw anything
+ * (a TypeError from fetch, a string, null), which is wrapped naming the request, with
+ * the original as `cause`, so every failure stays a `JobsucheError`. `scrub` removes
+ * the caller's secrets from the message and the cause chain: fetch's "Request cannot be
+ * constructed from a URL that includes credentials: http://user:pw@…" carries them.
+ */
+export function networkError(
+  method: string,
+  url: string,
+  cause: unknown,
+  scrub: (text: string) => string = (text) => text,
+): JobsucheError {
+  if (cause instanceof JobsucheNetworkError) {
+    const message = scrub(cause.message);
+    const inner = scrubCause(cause.cause, scrub);
+    if (message === cause.message && inner === cause.cause) return cause;
+    return new JobsucheNetworkError(message, inner === undefined ? undefined : { cause: inner });
+  }
   if (cause instanceof JobsucheError) return cause;
   const reason =
     cause instanceof Error && cause.message.trim() !== ""
@@ -425,19 +478,25 @@ export function networkError(method: string, url: string, cause: unknown): Jobsu
       : typeof cause === "string" && cause.trim() !== ""
         ? cause
         : "the transport failed without a message";
-  return new JobsucheNetworkError(`${method} ${redactUrl(url)} failed: ${sanitizeServerText(redactUrl(reason))}`, {
-    cause,
-  });
+  return new JobsucheNetworkError(
+    `${method} ${redactUrl(url)} failed: ${sanitizeServerText(scrub(redactUrl(reason)))}`,
+    { cause: scrubCause(cause, scrub) },
+  );
 }
 
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 export class RequestEngine {
-  private readonly baseUrl: string;
+  // Real private fields (not TypeScript's `private`): util.inspect, console.log and
+  // JSON.stringify of a client never show them, so a password in the base URL or the
+  // API key in the default headers can't be logged by accident.
+  readonly #baseUrl: string;
+  readonly #defaultHeaders: Record<string, string>;
+  /** Removes the base URL's userinfo and the credential header values from text. */
+  readonly #scrub: (text: string) => string;
   private readonly transport: Transport;
   private readonly userAgent: string;
-  private readonly defaultHeaders: Record<string, string>;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
@@ -448,7 +507,7 @@ export class RequestEngine {
   constructor(options: EngineOptions = {}) {
     // Checked on the raw value, before the trailing-slash strip; only `undefined`
     // selects the default.
-    this.baseUrl = options.baseUrl === undefined ? DEFAULT_BASE_URL : validateBaseUrl(options.baseUrl);
+    this.#baseUrl = options.baseUrl === undefined ? DEFAULT_BASE_URL : validateBaseUrl(options.baseUrl);
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Header values are checked here, not only by the CLI: a CR/LF would reach a
     // custom transport as an injected header, and the default transport would fail
@@ -457,11 +516,22 @@ export class RequestEngine {
       options.userAgent === undefined
         ? DEFAULT_USER_AGENT
         : assertValid("userAgent", options.userAgent, headerValueProblem);
-    this.defaultHeaders = options.defaultHeaders ?? {};
-    for (const [name, value] of Object.entries(this.defaultHeaders)) {
+    if (
+      options.defaultHeaders !== undefined &&
+      (typeof options.defaultHeaders !== "object" || options.defaultHeaders === null || Array.isArray(options.defaultHeaders))
+    ) {
+      throw new JobsucheValidationError("Invalid defaultHeaders: Expected an object of header names and values.");
+    }
+    this.#defaultHeaders = { ...(options.defaultHeaders ?? {}) };
+    for (const [name, value] of Object.entries(this.#defaultHeaders)) {
       assertValid("header name", name, headerNameProblem);
       assertValid(`header ${name}`, value, headerValueProblem);
     }
+    // The secret part of a credential header (`X-API-Key: <key>`, `Bearer <token>`).
+    const secrets = Object.entries(this.#defaultHeaders)
+      .filter(([name]) => CREDENTIAL_HEADERS.has(name.toLowerCase()))
+      .map(([, value]) => value.replace(/^\S+\s+(?=\S)/, "").trim());
+    this.#scrub = secretScrubber(credentialsIn(this.#baseUrl), secrets);
     // Range-checked, not only by the CLI. A timeout above MAX_TIMEOUT_MS stays
     // allowed: the transport caps the timer at MAX_TIMEOUT_MS (documented).
     const unbounded = Number.MAX_SAFE_INTEGER;
@@ -484,7 +554,7 @@ export class RequestEngine {
   buildUrl(path: string, query?: QueryParams): string {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
-    return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
+    return `${this.#baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
 
   /** Perform a request with Accept negotiation and transient-error retries. */
@@ -497,7 +567,7 @@ export class RequestEngine {
     let headers: Record<string, string> = {
       Accept: options.accept,
       "User-Agent": this.userAgent,
-      ...this.defaultHeaders,
+      ...this.#defaultHeaders,
     };
 
     // Only an idempotent request is sent again: request() is public, and a POST re-sent
@@ -529,7 +599,7 @@ export class RequestEngine {
           await this.sleep(this.retryDelayMs * attempt);
           continue;
         }
-        throw networkError(method, url, cause);
+        throw networkError(method, url, cause, this.#scrub);
       }
 
       const status = response.status;
@@ -596,7 +666,7 @@ export class RequestEngine {
       // Both the echoed Content-Type and the body snippet are server-controlled and
       // are printed to stderr by run.ts; strip control chars so a hostile endpoint
       // cannot inject terminal escape sequences via the parse-error message.
-      const snippet = sanitizeServerText(text.slice(0, 200));
+      const snippet = sanitizeServerText(this.#scrub(text.slice(0, 200)));
       throw new JobsucheParseError(
         `Expected a JSON response from ${path} but got Content-Type "${sanitizeServerText(res.contentType)}"`,
         { cause: snippet ? new Error(snippet) : undefined },
@@ -605,7 +675,7 @@ export class RequestEngine {
     try {
       return JSON.parse(text) as T;
     } catch (cause) {
-      throw new JobsucheParseError(`Failed to parse JSON response from ${path}`, { cause });
+      throw new JobsucheParseError(`Failed to parse JSON response from ${path}`, { cause: scrubCause(cause, this.#scrub) });
     }
   }
 
@@ -623,7 +693,8 @@ export class RequestEngine {
     redirectsFollowed?: number,
     retryAfterMs?: number,
   ): JobsucheApiError {
-    const text = body.toString("utf8");
+    // The body is server text: an error page may echo the request URL or its headers.
+    const text = this.#scrub(body.toString("utf8"));
     let detail: string | undefined;
     try {
       const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown; messages?: unknown };

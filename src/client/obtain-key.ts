@@ -27,10 +27,11 @@ import {
   headerValue,
   intOption,
   networkError,
+  secretScrubber,
   type ExchangeResponse,
 } from "./engine.js";
 import { assertValid, headerValueProblem, httpUrlProblem } from "./validate.js";
-import { JobsucheError, JobsucheParseError } from "./errors.js";
+import { JobsucheError, JobsucheParseError, credentialsIn, redactUrl } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
 export const API_KEY_ENV_VAR = "JOBSUCHE_API_KEY";
@@ -110,7 +111,10 @@ export interface ObtainKeyOptions {
 export interface ObtainedKey {
   /** The public key, ready to put in `API_KEY_ENV_VAR`. */
   key: string;
-  /** Where it was read from (after any redirect), so callers can cite it. */
+  /**
+   * Where it was read from (after any redirect), so callers can cite it; a
+   * `user:password@` part is shown as `***@`.
+   */
   sourceUrl: string;
 }
 
@@ -166,7 +170,8 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
         { timeoutMs, maxResponseBytes },
       );
     } catch (cause) {
-      throw networkError("GET", url, cause);
+      // A source behind Basic auth (a private mirror) is never named with its password.
+      throw networkError("GET", url, cause, secretScrubber(credentialsIn(sourceUrl), []));
     }
     if (!FOLLOWED_REDIRECTS.has(response.status) || redirects >= MAX_KEY_SOURCE_REDIRECTS) break;
     const next = resolveLocation(headerValue(response.headers["location"]), url);
@@ -176,7 +181,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
 
   if (response.status < 200 || response.status >= 300) {
     throw new JobsucheError(
-      `Could not read the key source ${url} (HTTP ${response.status}). ` +
+      `Could not read the key source ${redactUrl(url)} (HTTP ${response.status}). ` +
         `Retry, or copy the key from github.com/bundesAPI/jobsuche-api by hand.`,
     );
   }
@@ -191,18 +196,18 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   const conflicting = [...new Set([...clientIds, ...headerKeys])];
   if (conflicting.length > 1) {
     throw new JobsucheError(
-      `The key source ${url} states conflicting keys (${conflicting.join(", ")}). ` +
+      `The key source ${redactUrl(url)} states conflicting keys (${conflicting.join(", ")}). ` +
         `Check it by hand before relying on this command.`,
     );
   }
   const key = conflicting[0];
   if (!key) {
     throw new JobsucheParseError(
-      `No X-API-Key found at ${url}. The upstream document may have changed ` +
+      `No X-API-Key found at ${redactUrl(url)}. The upstream document may have changed ` +
         `format or stopped publishing the key — check it by hand before relying on this command.`,
     );
   }
-  return { key, sourceUrl: url };
+  return { key, sourceUrl: redactUrl(url) };
 }
 
 /** Resolve a Location header against the request URL; undefined if missing or malformed. */
