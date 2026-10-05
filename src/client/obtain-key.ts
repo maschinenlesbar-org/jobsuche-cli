@@ -22,6 +22,7 @@ import {
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_USER_AGENT,
+  decodeBody,
   exchange,
   functionOption,
   headerValue,
@@ -199,7 +200,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
     );
   }
 
-  const text = response.body.toString("utf8");
+  const text = decodeBody(response.body, String(headerValue(response.headers["content-type"]) ?? ""), redactUrl(url));
   // The `clientId` is the documented value and wins; an `X-API-Key` example is
   // the fallback. When the document states more than one distinct key — two
   // clientIds, or an X-API-Key that contradicts the clientId — it is ambiguous,

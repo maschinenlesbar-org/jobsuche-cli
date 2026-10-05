@@ -2,6 +2,7 @@
 // requests via a Transport, applies retry/backoff for transient statuses
 // (429, 503), and decodes responses.
 
+import { TextDecoder } from "node:util";
 import {
   MAX_TIMEOUT_MS,
   nodeHttpTransport,
@@ -785,7 +786,7 @@ export class RequestEngine {
   /** Perform a GET expecting JSON and parse it into `T`. */
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
     const res = await this.request("GET", path, { query, accept: "application/json" });
-    const text = res.data.toString("utf8");
+    const text = decodeBody(res.data, res.contentType, path);
     // Guard against a 200 that is not actually JSON (e.g. an HTML error/landing
     // page from a misconfigured --base-url that resolves to an unexpected host).
     // Inspecting the Content-Type yields a clearer message than a raw parse error.
@@ -855,6 +856,24 @@ export class RequestEngine {
       ...(dropped !== undefined ? { credentialsDropped: dropped } : {}),
     });
   }
+}
+
+/**
+ * Decode a response body by the charset its Content-Type names (UTF-8 when it names
+ * none). TextDecoder drops a leading byte order mark, which Buffer#toString keeps and
+ * JSON.parse then rejects, so a BOM added by a proxy cannot turn a valid answer into
+ * a parse error, and an `iso-8859-1` body keeps its umlauts. An unknown charset label
+ * is a `JobsucheParseError` naming it and `where`.
+ */
+export function decodeBody(body: Buffer, contentType: string, where: string): string {
+  const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
+  let decoder: TextDecoder;
+  try {
+    decoder = new TextDecoder(charset);
+  } catch {
+    throw new JobsucheParseError(`Unsupported response charset "${sanitizeServerText(charset)}" from ${where}.`);
+  }
+  return decoder.decode(body);
 }
 
 /** Resolve a Location header against the current URL; undefined if missing or malformed. */

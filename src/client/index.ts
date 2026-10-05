@@ -9,6 +9,7 @@ export {
   DEFAULT_TIMEOUT_MS,
   DEFAULT_USER_AGENT,
   cleartextCredentialsProblem,
+  decodeBody,
   exchange,
   followedElsewhere,
   originOf,

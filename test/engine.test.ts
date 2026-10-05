@@ -302,3 +302,13 @@ test("server text on stderr drops bidi controls and stays on one line", async ()
     (err: unknown) => err instanceof JobsucheApiError && err.detail === "ab Error: forged c",
   );
 });
+
+test("getJson decodes the body by its declared charset and drops a BOM", async () => {
+  const text = { ort: "München" };
+  const latin1 = makeMockTransport(() => rawResponse(Buffer.from(JSON.stringify(text), "latin1"), "application/json; charset=ISO-8859-1"));
+  assert.deepEqual(await new RequestEngine({ transport: latin1.transport }).getJson("/x"), text);
+  const bom = makeMockTransport(() => rawResponse(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(JSON.stringify(text))]), "application/json"));
+  assert.deepEqual(await new RequestEngine({ transport: bom.transport }).getJson("/x"), text);
+  const unknown = makeMockTransport(() => rawResponse("{}", "application/json; charset=x-no-such"));
+  await assert.rejects(new RequestEngine({ transport: unknown.transport }).getJson("/x"), (e: unknown) => e instanceof JobsucheParseError && /x-no-such/.test(e.message));
+});

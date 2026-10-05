@@ -300,6 +300,12 @@ above the cap rather than waiting it, because the BA gateway should not be asked
 again inside the window it named.
 `test/conformance-p6-retry-policy.test.ts` is the shared check.
 
+**Charset.** A body is decoded by the charset its `Content-Type` names (UTF-8
+when it names none; `decodeBody`, a `TextDecoder`), so an `iso-8859-1` answer
+keeps its umlauts and a byte order mark added by a proxy is dropped instead of
+breaking `JSON.parse`. An unknown charset label is a `JobsucheParseError` naming
+it. `obtainKey()` decodes its source the same way.
+
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;
 default 100 MiB), guarding against unbounded responses.
 
