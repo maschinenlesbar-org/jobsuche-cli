@@ -104,7 +104,10 @@ run them up front.
   to the raw string), no query and no fragment (`baseUrlProblem`,
   `validateBaseUrl`). Only `undefined` selects `DEFAULT_BASE_URL`. `obtainKey()`
   checks its `sourceUrl` with the same rule, a query allowed (`httpUrlProblem`).
-  A path prefix and userinfo are fine; userinfo is never echoed in a message. The
+  A path prefix and userinfo are fine, but a `%` in the userinfo must start a
+  valid escape (`%25` for a literal one): Node decodes it for the Authorization
+  header and would otherwise fail at request time. Userinfo is never echoed in a
+  message. The
   CLI's `--base-url` parser calls the same rule. This is a configuration error, not
   a `JobsucheNetworkError`: the default transport keeps that class for its per-hop
   scheme check, which also covers redirect targets.

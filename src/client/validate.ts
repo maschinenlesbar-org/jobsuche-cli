@@ -114,7 +114,8 @@ export const headerValueProblem: Problem = (value) => {
  * An absolute http(s) URL, checked on the RAW value: new URL() silently trims
  * surrounding whitespace and drops tab/CR/LF, but the engine appends request
  * paths to the raw string, so a padded value would request `/%20/...` or reach a
- * custom transport unparsed. Userinfo is allowed; it is redacted from the reasons.
+ * custom transport unparsed. Userinfo is allowed, but a "%" in it must start a
+ * valid escape (`%25` for a literal one); it is redacted from the reasons.
  */
 export const httpUrlProblem: Problem = (value) => {
   if (typeof value !== "string") return "Expected an absolute http(s) URL.";
@@ -131,6 +132,15 @@ export const httpUrlProblem: Problem = (value) => {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     return `Unsupported protocol "${url.protocol}" (use http: or https:).`;
+  }
+  // The userinfo is decoded for the Authorization header; a "%" that isn't an escape
+  // would only fail at request time ("URI malformed"), as a network error.
+  for (const part of [url.username, url.password]) {
+    try {
+      decodeURIComponent(part);
+    } catch {
+      return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
+    }
   }
   return undefined;
 };
