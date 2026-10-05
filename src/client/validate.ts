@@ -172,10 +172,16 @@ export const TEXT_FILTERS = ["was", "wo", "berufsfeld", "arbeitgeber"] as const;
  * (nonBlankProblem): leave a filter out to search without it. `umkreis` and `size`
  * must be non-negative integers, `veroeffentlichtseit` an integer
  * 0..MAX_VEROEFFENTLICHT_SEIT, `angebotsart` one of ANGEBOTSART_CODES and `page`
- * an integer >= 1 (the API answers `page=0` with HTTP 400). Throws a
- * JobsucheValidationError naming the parameter; returns `params` unchanged.
+ * an integer >= 1 (the API answers `page=0` with HTTP 400), `zeitarbeit` a boolean;
+ * `params` itself must be an object. Throws a JobsucheValidationError naming the
+ * parameter; returns `params` unchanged.
  */
 export function validateSearchParams(params: JobSearchParams): JobSearchParams {
+  // A JavaScript caller may pass anything; a string or a number used to be read as
+  // "no filters" and run the search unfiltered.
+  if (!isPlainObject(params as unknown)) {
+    throw new JobsucheValidationError("Invalid search parameters: Expected an object of parameters.");
+  }
   for (const name of TEXT_FILTERS) {
     const value = params[name];
     if (value !== undefined && value !== null) assertValid(name, value, nonBlankProblem);
@@ -183,6 +189,10 @@ export function validateSearchParams(params: JobSearchParams): JobSearchParams {
   for (const [name, problem] of NUMERIC_PARAMS) {
     const value = params[name];
     if (value !== undefined && value !== null) assertValid(name, value as number, problem);
+  }
+  // A string such as "false" or "nein" was sent as given.
+  if (params.zeitarbeit !== undefined && params.zeitarbeit !== null && typeof params.zeitarbeit !== "boolean") {
+    throw new JobsucheValidationError("Invalid zeitarbeit: Expected true or false.");
   }
   return params;
 }
@@ -255,4 +265,13 @@ export const jobDetailsProblem: Problem<unknown> = (value) => {
     return `no referenznummer${said !== undefined ? `; the server said: ${said}` : ""}`;
   }
   return undefined;
+};
+
+/**
+ * A reference number (or encoded code) for `details()`: a string that is not blank.
+ * A number, `undefined` or an object used to fail as a raw TypeError.
+ */
+export const refnrProblem: Problem<unknown> = (value) => {
+  if (typeof value !== "string") return "Expected a reference number (a string such as 10001-1002716922-S).";
+  return isBlank(value) ? "Must not be blank." : undefined;
 };

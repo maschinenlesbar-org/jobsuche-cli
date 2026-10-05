@@ -43,6 +43,7 @@ export {
   jobDetailsProblem,
   MAX_VEROEFFENTLICHT_SEIT,
   nonBlankProblem,
+  refnrProblem,
   searchResultProblem,
   TEXT_FILTERS,
   validateSearchParams,

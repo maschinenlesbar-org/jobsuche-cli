@@ -14,12 +14,14 @@
 // answers an empty 403 since 2026-09), details /pc/v4/jobdetails.
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
-import { JobsucheError, JobsucheParseError } from "./errors.js";
+import { JobsucheParseError, JobsucheValidationError } from "./errors.js";
 import { sanitizeServerText } from "./engine.js";
 import {
   assertValid,
   headerValueProblem,
+  isPlainObject,
   jobDetailsProblem,
+  refnrProblem,
   searchResultProblem,
   validateSearchParams,
   type Problem,
@@ -80,7 +82,16 @@ export class JobsucheClient {
   private readonly engine: RequestEngine;
 
   constructor(options: JobsucheClientOptions = {}) {
+    // A JavaScript caller may pass null for "no options"; anything else must be an object.
+    options = options ?? {};
+    if (!isPlainObject(options as unknown)) throw new JobsucheValidationError("Invalid options: Expected an object.");
     const { apiKey, ...engineOptions } = options;
+    if (engineOptions.defaultHeaders !== undefined && !isPlainObject(engineOptions.defaultHeaders as unknown)) {
+      throw new JobsucheValidationError("Invalid defaultHeaders: Expected an object of header names and values.");
+    }
+    if (apiKey !== undefined && typeof apiKey !== "string") {
+      throw new JobsucheValidationError("Invalid apiKey: Expected a string.");
+    }
     // Normalised once, here: the key is trimmed, a blank one means "no key" (the
     // header is omitted; none is ever defaulted), and the trimmed key is what is
     // checked and sent.
@@ -129,10 +140,7 @@ export class JobsucheClient {
    *   as `"1002716922"`, which is NOT base64 of a refnr, is correctly encoded.
    */
   async details(refnr: string): Promise<JobDetails> {
-    const trimmed = refnr.trim();
-    if (trimmed.length === 0) {
-      throw new JobsucheError("details() requires a non-empty reference number (refnr).");
-    }
+    const trimmed = (assertValid("refnr", refnr as unknown, refnrProblem) as string).trim();
     const code = this.isEncodedCode(trimmed)
       ? trimmed
       : Buffer.from(trimmed, "utf8").toString("base64");

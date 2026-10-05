@@ -34,7 +34,7 @@ import {
   type ExchangeResponse,
 } from "./engine.js";
 import { assertValid, headerValueProblem, httpUrlProblem } from "./validate.js";
-import { JobsucheError, JobsucheParseError, credentialsIn, redactUrl } from "./errors.js";
+import { JobsucheError, JobsucheParseError, JobsucheValidationError, credentialsIn, redactUrl } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
 export const API_KEY_ENV_VAR = "JOBSUCHE_API_KEY";
@@ -128,6 +128,11 @@ export interface ObtainedKey {
  * no longer states a key, so a caller never proceeds with a made-up value.
  */
 export async function obtainKey(options: ObtainKeyOptions = {}): Promise<ObtainedKey> {
+  // A JavaScript caller may pass null for "no options"; anything else must be an object.
+  options = options ?? {};
+  if (typeof options !== "object" || Array.isArray(options)) {
+    throw new JobsucheValidationError("Invalid options: Expected an object.");
+  }
   const sourceUrl = options.sourceUrl ?? KEY_SOURCE_URL;
   // Same rule as the engine's base URL (a query is fine here): a custom transport
   // must never get a file:/ftp: URL.

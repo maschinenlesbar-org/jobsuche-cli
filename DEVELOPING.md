@@ -96,6 +96,14 @@ run them up front.
   `NaN`, `Infinity` and fractions are rejected too (`validateSearchParams`,
   `intRangeProblem`, `angebotsartProblem`). The CLI's `--veroeffentlicht-seit`,
   `--angebotsart` and `--page` parsers use the same constants and rules.
+- **Wrong-typed input.** `search()` takes an object (a string or a number used to
+  run the search unfiltered); a text filter must be a string, `zeitarbeit` a
+  boolean (`"false"` used to be sent as given). `details()` takes a non-blank
+  string (`refnrProblem`; `undefined`, a number or an object used to fail as a raw
+  `TypeError`). The client and `obtainKey()` take an options object (or nothing);
+  `apiKey` must be a string, `defaultHeaders` an object, `transport` and `sleep`
+  functions. Every such input is a `JobsucheValidationError`, never a raw
+  `TypeError` or `RangeError`.
 - **Engine options out of range** (constructor, and `obtainKey()`): see *Engine
   option ranges* below.
 - **A malformed base URL** (constructor). `baseUrl` must be an absolute http(s)
@@ -243,7 +251,9 @@ test double), not only the built-in one:
   failure or a timeout is not.
 - `transport` and `sleep` must be functions (else `JobsucheValidationError`).
 
-`test/conformance-p5-transport-contract.test.ts` is the shared check.
+`test/conformance-p5-transport-contract.test.ts` is the shared check;
+`test/conformance-p8-p9-p13-responses-and-errors.test.ts` covers the charset, the
+response shapes and the wrong-typed inputs.
 
 **Secrets in library objects and errors.** The engine keeps the base URL and the
 default headers (the `X-API-Key`) in real `#private` fields, so `console.log`,
@@ -299,6 +309,10 @@ server asking for an hour); it now follows the portfolio default, failing early
 above the cap rather than waiting it, because the BA gateway should not be asked
 again inside the window it named.
 `test/conformance-p6-retry-policy.test.ts` is the shared check.
+
+**Server text in messages** (an error `detail`) is stripped of control characters
+and cut at 500 characters ("…"), so a hostile or buggy body cannot flood stderr or
+a CI log; `JobsucheApiError.body` keeps the full text.
 
 **Response shape.** `search()` and `details()` check a 2xx body before returning
 it (`searchResultProblem`, `jobDetailsProblem` in `validate.ts`): a search

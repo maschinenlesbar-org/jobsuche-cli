@@ -292,6 +292,19 @@ export function sanitizeServerText(text: string): string {
 }
 
 /**
+ * Longest server text (in characters) kept for an error message (a `detail`). A longer
+ * one is cut and ends in "…", so a hostile or buggy body cannot flood stderr or a CI
+ * log with one huge line. `JobsucheApiError.body` keeps the full text.
+ */
+const MAX_DETAIL_LENGTH = 500;
+
+/** sanitizeServerText, then cut at MAX_DETAIL_LENGTH characters. */
+function cleanDetail(text: string): string {
+  const clean = sanitizeServerText(text);
+  return clean.length > MAX_DETAIL_LENGTH ? `${clean.slice(0, MAX_DETAIL_LENGTH)}…` : clean;
+}
+
+/**
  * The Unicode bidirectional controls (ALM, LRM, RLM, LRE/RLE/PDF/LRO/RLO,
  * LRI/RLI/FSI/PDI). Invisible, but they reorder the text around them, so server
  * text using them can spoof what a terminal shows.
@@ -609,6 +622,8 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
+    // A JavaScript caller may pass null for "no options".
+    options = options ?? {};
     // Checked on the raw value, before the trailing-slash strip; only `undefined`
     // selects the default.
     this.#baseUrl = options.baseUrl === undefined ? DEFAULT_BASE_URL : validateBaseUrl(options.baseUrl);
@@ -840,7 +855,7 @@ export class RequestEngine {
     // `detail` came from the response body and ends up in the Error.message that
     // run.ts prints to stderr; strip control characters so a hostile endpoint
     // cannot inject terminal escape sequences via that message.
-    if (detail !== undefined) detail = sanitizeServerText(detail);
+    if (detail !== undefined) detail = cleanDetail(detail);
     // Name the target of a redirect that was not followed.
     const location =
       status >= 300 && status < 400 && locationHeader ? redirectTarget(url, locationHeader) : undefined;
