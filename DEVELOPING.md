@@ -139,6 +139,22 @@ exposure is low, but the env var is the recommended path and the `--help` text
 says so. The key is only ever carried as a request header — never placed in a URL,
 log line, error message, or output — and is stripped on a cross-origin redirect.
 
+**Secrets in the CLI's output** (`withRedactedOutput` and `usageErrorMask` in
+`run.ts`). Commander echoes a rejected value in its usage errors and names an
+unknown command, surplus argument or unknown option as typed, so `run()` wraps
+`deps.io` first. The userinfo of every URL-like argument (`credentialsIn`, which
+finds it whether the value parses or not, then `redactCredentials`) becomes `***@`
+on stdout and stderr; the `--api-key` value and the `JOBSUCHE_API_KEY` value become
+`***` on stderr (`redactSecrets`) — not on stdout, where `obtain-key` prints the
+key. Commander's own error text additionally masks every argv token that is not a
+short value, a lower-case word or an option name (`OrgKey-55` → `Org…`, a URL →
+the URL without userinfo), so a key pasted where a command belongs is never
+echoed; an `--api-key` value there is `***`. An invalid `JOBSUCHE_API_KEY` is
+reported as `Invalid JOBSUCHE_API_KEY: <reason>`, without the value.
+`test/conformance-p1-cli-redaction.test.ts` is the shared check (ten passwords,
+seven URL shapes, every echo path, plus the key by flag, by environment and typed
+without its flag).
+
 The key is publicly documented and can be fetched out-of-band (for CI or local
 live testing — never from production) with the bundled script:
 

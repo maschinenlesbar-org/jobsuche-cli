@@ -235,8 +235,8 @@ These apply to every command and may be given before *or* after it:
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `--api-key <key>` | Override or supply the `X-API-Key` (env `JOBSUCHE_API_KEY`) |
-| `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`; http(s), a path prefix is fine, no `?query` or `#fragment`, no surrounding or inner whitespace) |
+| `--api-key <key>` | Override or supply the `X-API-Key` (env `JOBSUCHE_API_KEY`). A key with control characters or characters above U+00FF is a usage error (exit `2`) that never repeats the key, from the flag or the env var |
+| `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`; http(s), a path prefix is fine, no `?query` or `#fragment`, no surrounding or inner whitespace). A `user:password@` part is sent but shown as `***@` in everything the CLI prints, usage errors included |
 | `--timeout <ms>` | Per-request timeout (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters or characters above U+00FF, which a header cannot carry) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, at most `10`) |

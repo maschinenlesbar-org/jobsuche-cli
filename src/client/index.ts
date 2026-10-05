@@ -42,6 +42,9 @@ export {
   JobsucheNetworkError,
   JobsucheParseError,
   JobsucheValidationError,
+  credentialsIn,
+  redactCredentials,
+  redactSecrets,
   redactUrl,
 } from "./errors.js";
 

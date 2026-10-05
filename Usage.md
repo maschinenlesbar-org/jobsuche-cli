@@ -184,8 +184,8 @@ These apply to every command and may be given before or after the command name
 
 | Option | Description |
 | --- | --- |
-| `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`; http(s), a path prefix is fine, no `?query` or `#fragment`, no surrounding or inner whitespace) |
-| `--api-key <key>` | the `X-API-Key` to send (env `JOBSUCHE_API_KEY`; no key is bundled, see `obtain-key`); blank/whitespace is ignored and the env var is used, else no key is sent |
+| `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`; http(s), a path prefix is fine, no `?query` or `#fragment`, no surrounding or inner whitespace). A `user:password@` part is sent but shown as `***@` in everything the CLI prints, usage errors included |
+| `--api-key <key>` | the `X-API-Key` to send (env `JOBSUCHE_API_KEY`; no key is bundled, see `obtain-key`); blank/whitespace is ignored and the env var is used, else no key is sent; a key that can't be sent as a header is a usage error (exit `2`) that never repeats the key |
 | `--timeout <ms>` | per-request timeout in milliseconds (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters or characters above U+00FF, which a header cannot carry) |
 | `--max-retries <n>` | retries for transient `429`/`503` responses (`0`–`10`) |

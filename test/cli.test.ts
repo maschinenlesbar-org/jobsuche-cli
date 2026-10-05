@@ -388,7 +388,7 @@ test("an unsendable JOBSUCHE_API_KEY is a usage error, as from --api-key", async
   const cli = makeCli(() => jsonResponse({ ergebnisliste: [] }), { JOBSUCHE_API_KEY: "a\nb" });
   assert.equal(await run(["search", "--was", "x"], cli.deps), 2);
   assert.equal(cli.mt.calls.length, 0);
-  assert.match(cli.err.join("\n"), /^Error: Invalid apiKey: Value contains control characters\./);
+  assert.match(cli.err.join("\n"), /^Error: Invalid JOBSUCHE_API_KEY: Value contains control characters\./);
 });
 
 // A 100 000-deep body parsed fine but overflowed JSON.stringify:
@@ -419,5 +419,24 @@ test("bidi controls and U+2028/U+2029 are escaped in the JSON output", async () 
     assert.doesNotMatch(text, /[\u202e\u2028\u2029\u2066\u200f]/);
     assert.match(text, /a\\u202eRTL\\u2028b\\u2029c\\u2066d/);
     assert.deepEqual(JSON.parse(text), served);
+  }
+});
+
+// 2026-10-05 sweep, 01 Bug 2/3: a key pasted where a command, an argument or an
+// option value belongs was echoed by commander in full.
+test("usage errors mask a pasted key but still echo a mistyped command", async () => {
+  const cases: Array<[string[], RegExp]> = [
+    [["OrgKey-55", "search"], /unknown command 'Org…'/],
+    [["details", "10001-1-S", "OrgKey-55"], /got 2: 100…, Org…\./],
+    [["search", "--apikey=my-org-key-7Hq2"], /unknown option '--apikey=my-…'/],
+    [["--api-key", "OrgKey-55\u000bz", "search"], /option '--api-key <key>' argument '\*\*\*' is invalid\. Value contains control characters\./],
+    [["serach"], /unknown command 'serach'/],
+  ];
+  for (const [argv, expected] of cases) {
+    const cli = makeCli(() => jsonResponse({}));
+    assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+    const err = cli.err.join("\n");
+    assert.match(err, expected);
+    assert.doesNotMatch(err, /OrgKey-55|my-org-key-7Hq2|\u000b/);
   }
 });

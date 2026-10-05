@@ -13,25 +13,150 @@ import {
   JobsucheNetworkError,
   JobsucheParseError,
   JobsucheValidationError,
+  credentialsIn,
+  redactCredentials,
+  redactSecrets,
+  redactUrl,
 } from "../client/errors.js";
+import { API_KEY_ENV_VAR } from "../client/obtain-key.js";
 
 /**
  * Apply exitOverride + output redirection to every command in the tree.
  * commander does not propagate these to subcommands, so a parse error on a
  * subcommand would otherwise call process.exit() and bypass our error handling.
  */
-function configureTree(command: Command, deps: CliDeps): void {
+function configureTree(command: Command, deps: CliDeps, mask: (text: string) => string): void {
   command.exitOverride();
   command.configureOutput({
     writeOut: (str) => deps.io.out(str.replace(/\n$/, "")),
     writeErr: (str) => deps.io.err(str.replace(/\n$/, "")),
+    // Commander's own errors echo what was typed: an unknown command, surplus
+    // arguments, an unknown option, a rejected option value. Mask what may be a secret.
+    outputError: (str, write) => write(mask(str)),
   });
-  for (const child of command.commands) configureTree(child, deps);
+  for (const child of command.commands) configureTree(child, deps, mask);
+}
+
+/** The options whose value is a secret on its own (no `@` to anchor a redaction on). */
+const SECRET_FLAGS = ["--api-key"];
+
+/**
+ * Whether commander may echo an argv token as typed: a short value (up to 6
+ * characters), an all-lower-case word (a mistyped command such as `serach`) or an
+ * option name. Anything else — a key pasted where a command belongs, a reference
+ * number, a URL — is shown as its first three characters only.
+ */
+function echoable(token: string): boolean {
+  return token.length <= 6 || /^[a-z][a-z-]{0,19}$/.test(token) || /^--?[A-Za-z][A-Za-z0-9-]*$/.test(token);
+}
+
+/**
+ * The shown form of a token that is not `echoable`: a URL without its userinfo
+ * (`redactUrl`), anything else as three visible characters and "…".
+ */
+function maskToken(token: string): string {
+  if (token.includes("://")) return sanitizeServerText(redactUrl(token));
+  return `${token.slice(0, 3).replace(/[^\x21-\x7e]/g, "?")}…`;
+}
+
+/**
+ * A function that masks the argv tokens commander's usage errors would echo: the
+ * value of a secret flag (`--api-key`, both forms) becomes `***`, and every other
+ * token, or `--opt=value` value, that is not `echoable` becomes `abc…` (a URL:
+ * itself without userinfo). Applied to
+ * commander's error text only; help and the CLI's own messages are not touched.
+ */
+export function usageErrorMask(argv: readonly string[]): (text: string) => string {
+  const secrets = new Set<string>();
+  const others = new Set<string>();
+  argv.forEach((token, i) => {
+    if (SECRET_FLAGS.includes(token) && argv[i + 1] !== undefined) secrets.add(argv[i + 1] as string);
+    const eq = token.indexOf("=");
+    if (token.startsWith("-") && eq > 0) {
+      const value = token.slice(eq + 1);
+      if (SECRET_FLAGS.includes(token.slice(0, eq))) secrets.add(value);
+      else if (!echoable(value)) others.add(value);
+    } else if (!echoable(token)) {
+      others.add(token);
+    }
+  });
+  for (const secret of secrets) others.delete(secret);
+  const replacements = [
+    ...[...secrets].filter((s) => s !== "").map((s): [string, string] => [s, "***"]),
+    ...[...others].map((s): [string, string] => [s, maskToken(s)]),
+  ].sort((a, b) => b[0].length - a[0].length);
+  if (replacements.length === 0) return (text) => text;
+  return (text) => {
+    let out = text;
+    for (const [from, to] of replacements) out = out.split(from).join(to);
+    return out;
+  };
+}
+
+/**
+ * `deps` with an `io` that keeps the secrets of this run out of everything it
+ * prints. Commander echoes rejected values in its usage errors, and a library
+ * message may name a URL, so whatever path a secret takes to the terminal it is
+ * replaced:
+ *
+ * - the userinfo of every URL-like argument, `--opt=value` value and of the key
+ *   variable (as `credentialsIn` finds it, parseable or not) becomes `***@`, on
+ *   stdout and stderr;
+ * - the value of `--api-key` (both forms) and the `JOBSUCHE_API_KEY` value become
+ *   `***` on stderr. Not on stdout: `obtain-key` prints the key there, and it may
+ *   well be the one already in `JOBSUCHE_API_KEY`.
+ *
+ * A pattern alone can't delimit a password with spaces, quotes, `#`, `?` or `/`; the
+ * exact strings can. Without secrets the output passes through unchanged.
+ */
+export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliDeps {
+  const env = deps.env ?? process.env;
+  // An `--option=value` token is echoed as its value alone.
+  const values = argv.map((token) =>
+    token.startsWith("-") && token.includes("=") ? token.slice(token.indexOf("=") + 1) : token,
+  );
+  const envKey = env[API_KEY_ENV_VAR] ?? "";
+  const userinfo = new Set<string>();
+  const encodedUserinfo = new Set<string>();
+  const keys = new Set<string>();
+  for (const source of [...argv, ...values, envKey]) {
+    for (const secret of credentialsIn(source)) {
+      userinfo.add(secret);
+      userinfo.add(JSON.stringify(secret).slice(1, -1));
+      const encoded = encodeURIComponent(secret);
+      if (encoded !== secret) encodedUserinfo.add(encoded);
+    }
+  }
+  const addKey = (value: string | undefined): void => {
+    if (value === undefined) return;
+    for (const form of [value, value.trim()]) {
+      keys.add(form);
+      keys.add(JSON.stringify(form).slice(1, -1));
+    }
+  };
+  addKey(envKey);
+  argv.forEach((token, i) => {
+    if (SECRET_FLAGS.includes(token)) addKey(argv[i + 1]);
+    const eq = token.indexOf("=");
+    if (eq > 0 && SECRET_FLAGS.includes(token.slice(0, eq))) addKey(token.slice(eq + 1));
+  });
+  if (userinfo.size === 0 && [...keys].every((k) => k.trim().length < 4)) return deps;
+  const urlList = [...userinfo];
+  // Longest first, so a key is never left half-replaced by one of its own substrings.
+  const keyList = [...keys].sort((a, b) => b.length - a.length);
+  const encodedList = [...encodedUserinfo];
+  const redactOut = (text: string): string => redactSecrets(redactCredentials(text, urlList), encodedList);
+  const redactErr = (text: string): string => redactSecrets(redactOut(text), keyList);
+  return {
+    ...deps,
+    io: { ...deps.io, out: (text) => deps.io.out(redactOut(text)), err: (text) => deps.io.err(redactErr(text)) },
+  };
 }
 
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
+  deps = withRedactedOutput(deps, argv);
   const program = buildProgram(deps);
-  configureTree(program, deps);
+  configureTree(program, deps, usageErrorMask(argv));
 
   try {
     await program.parseAsync(argv, { from: "user" });

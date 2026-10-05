@@ -5,7 +5,8 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { JobsucheClientOptions } from "../client/client.js";
-import { JobsucheError } from "../client/errors.js";
+import { JobsucheError, JobsucheValidationError } from "../client/errors.js";
+import { API_KEY_ENV_VAR } from "../client/obtain-key.js";
 import { isBidiControl } from "../client/engine.js";
 import { baseUrlProblem, headerValueProblem, intRangeProblem, nonBlankProblem } from "../client/validate.js";
 
@@ -127,7 +128,8 @@ export interface GlobalOptions {
 /**
  * Translate resolved global CLI options into client options.
  *
- * `env` (defaulting to `process.env`) supplies the `JOBSUCHE_API_KEY` fallback.
+ * `env` (defaulting to `process.env`) supplies the `JOBSUCHE_API_KEY` fallback; a
+ * value there that cannot be sent is a JobsucheValidationError naming the variable.
  * Precedence: a non-blank `--api-key` (in `global.apiKey`) wins; otherwise a
  * non-blank `JOBSUCHE_API_KEY` seeds the key; otherwise no key is set and the
  * `X-API-Key` header is omitted (the API then answers 401/403). No key is
@@ -152,6 +154,10 @@ export function toEngineOptions(
   if (flagKey?.trim()) {
     options.apiKey = flagKey;
   } else if (envKey?.trim()) {
+    // The client would reject it as "Invalid apiKey"; name the variable the user set,
+    // perhaps long ago in a profile. The reason never repeats the value.
+    const problem = headerValueProblem(envKey.trim());
+    if (problem !== undefined) throw new JobsucheValidationError(`Invalid ${API_KEY_ENV_VAR}: ${problem}`);
     options.apiKey = envKey;
   }
   return options;

@@ -357,7 +357,8 @@ test("parity: an API key with an inner newline is rejected from flag, env and li
   const viaFlag = await parity(["--api-key", "a\nb", "search", "--was", "Dev"], libCall);
   const viaEnv = await parity(["search", "--was", "Dev"], libCall, { env: { JOBSUCHE_API_KEY: "a\nb" } });
   for (const r of [viaFlag, viaEnv]) assertBothReject(r, "Invalid apiKey: Value contains control characters.");
-  assert.equal(viaEnv.cli.err, "Error: Invalid apiKey: Value contains control characters.");
+  // The CLI names the variable the key came from; the library its option.
+  assert.equal(viaEnv.cli.err, "Error: Invalid JOBSUCHE_API_KEY: Value contains control characters.");
 });
 
 test("a blank API key is no key on every path", async () => {
