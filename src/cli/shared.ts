@@ -115,6 +115,22 @@ export function parseBaseUrl(value: string): string {
   return value;
 }
 
+/**
+ * Wrap a commander value-parser so the option may be given only once per run:
+ * commander keeps the last of a repeated option silently (`--wo Berlin --wo
+ * Hamburg` searched Hamburg), and every option of this CLI takes one value. `seen`
+ * is the per-program set of flags already parsed.
+ */
+export function onceOnly<T>(seen: Set<string>, flag: string, parse: (value: string) => T): (value: string) => T {
+  return (value: string) => {
+    if (seen.has(flag)) {
+      throw new InvalidArgumentError(`${flag} is given more than once; it takes one value, so give it once.`);
+    }
+    seen.add(flag);
+    return parse(value);
+  };
+}
+
 export interface GlobalOptions {
   baseUrl?: string;
   apiKey?: string;

@@ -1,6 +1,6 @@
 import { InvalidArgumentError, type Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, parseBoundedInt, parseIntArg, parseNonBlank, parseTextArg, renderJson } from "../shared.js";
+import { action, onceOnly, parseBoundedInt, parseIntArg, parseNonBlank, parseTextArg, renderJson } from "../shared.js";
 import type { JobSearchParams } from "../../client/types.js";
 import {
   MAX_VEROEFFENTLICHT_SEIT,
@@ -20,34 +20,53 @@ function parseAngebotsart(value: string): Angebotsart {
 }
 
 export function registerJobCommands(program: Command, deps: CliDeps): void {
-  program
+  // Every search option takes one value: a repeated one is a usage error (commander
+  // would keep the last silently, e.g. `--wo Berlin --wo Hamburg` searched Hamburg).
+  const seen = new Set<string>();
+  const once = <T>(flag: string, parse: (value: string) => T): ((value: string) => T) => onceOnly(seen, flag, parse);
+  const search = program
     .command("search")
     .description("Search job listings")
-    .option("--was <text>", "job title / keyword (was)", parseTextArg)
-    .option("--wo <text>", "location (wo)", parseTextArg)
-    .option("--berufsfeld <text>", "occupational field", parseTextArg)
-    .option("--arbeitgeber <text>", "employer name", parseTextArg)
-    .option("--umkreis <km>", "radius in km around the location", parseIntArg)
+    .option("--was <text>", "job title / keyword (was)", once("--was", parseTextArg))
+    .option("--wo <text>", "location (wo)", once("--wo", parseTextArg))
+    .option("--berufsfeld <text>", "occupational field", once("--berufsfeld", parseTextArg))
+    .option("--arbeitgeber <text>", "employer name", once("--arbeitgeber", parseTextArg))
+    .option("--umkreis <km>", "radius in km around the location", once("--umkreis", parseIntArg))
     // The API accepts 0..100 days and silently ignores a larger value (the whole
     // unfiltered set comes back), so the library rejects it, and so does this parser.
     .option(
       "--veroeffentlicht-seit <days>",
       `published within the last N days (0-${MAX_VEROEFFENTLICHT_SEIT})`,
-      parseBoundedInt(0, MAX_VEROEFFENTLICHT_SEIT),
+      once("--veroeffentlicht-seit", parseBoundedInt(0, MAX_VEROEFFENTLICHT_SEIT)),
     )
     // The API's zeitarbeit parameter is a three-way switch: absent = temp-work
     // (Zeitarbeit) listings mixed in with the rest, true = only those, false =
     // none (checked live 2026-09-26: true + false = absent). Both flags are
-    // declared, so neither is set by default.
+    // declared, so neither is set by default; giving both is a usage error.
     .option("--zeitarbeit", "only temp-work agency listings (default: included with the rest)")
     .option("--no-zeitarbeit", "leave out temp-work agency listings")
     .option(
       "--angebotsart <code>",
       "offer type code: 1 job, 2 self-employment, 4 apprenticeship/dual study, 34 internship/trainee",
-      parseAngebotsart,
+      once("--angebotsart", parseAngebotsart),
     )
-    .option("--page <n>", "1-based page (1 or more)", parseBoundedInt(1, Number.MAX_SAFE_INTEGER))
-    .option("--size <n>", "page size", parseIntArg)
+    .option("--page <n>", "1-based page (1 or more)", once("--page", parseBoundedInt(1, Number.MAX_SAFE_INTEGER)))
+    .option("--size <n>", "page size", once("--size", parseIntArg));
+  // commander keeps the last of --zeitarbeit / --no-zeitarbeit silently; they ask for
+  // opposite things, so both together is a usage error.
+  const zeitarbeit = new Set<string>();
+  for (const flag of ["zeitarbeit", "no-zeitarbeit"]) {
+    search.on(`option:${flag}`, () => {
+      zeitarbeit.add(flag);
+      if (zeitarbeit.size === 2) {
+        search.error("error: --zeitarbeit and --no-zeitarbeit ask for opposite things; give one of them.", {
+          exitCode: 2,
+          code: "commander.conflictingOption",
+        });
+      }
+    });
+  }
+  search
     .action(
       action(deps, async ({ client, global, opts }) => {
         const params: JobSearchParams = {

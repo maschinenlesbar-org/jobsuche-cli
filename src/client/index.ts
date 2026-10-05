@@ -44,11 +44,13 @@ export {
   MAX_VEROEFFENTLICHT_SEIT,
   nonBlankProblem,
   refnrProblem,
+  SEARCH_PARAMS,
+  searchParamKeyProblem,
   searchResultProblem,
   TEXT_FILTERS,
   validateSearchParams,
 } from "./validate.js";
-export type { Angebotsart, Problem } from "./validate.js";
+export type { Angebotsart, Problem, SearchOptions } from "./validate.js";
 export type { QueryParams, QueryValue } from "./query.js";
 export {
   JobsucheError,

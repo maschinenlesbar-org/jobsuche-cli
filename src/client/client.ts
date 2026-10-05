@@ -25,6 +25,7 @@ import {
   searchResultProblem,
   validateSearchParams,
   type Problem,
+  type SearchOptions,
 } from "./validate.js";
 import type { QueryParams } from "./query.js";
 import type { JobSearchResult, JobDetails, JobSearchParams } from "./types.js";
@@ -112,6 +113,10 @@ export class JobsucheClient {
    * Search job listings (`/pc/v6/jobs`). The listings are in `ergebnisliste`,
    * which is absent when nothing matched (or `size` is 0).
    *
+   * Also rejects a parameter name that is not one of `SEARCH_PARAMS` (the API
+   * ignores an unknown one and returns the unfiltered set), unless
+   * `options.allowUnknownParams` is set.
+   *
    * Rejects with a JobsucheParseError when a 2xx body is not a search result
    * (searchResultProblem): `null`, `{}`, an array or an error envelope is never
    * returned as "nothing found".
@@ -120,8 +125,8 @@ export class JobsucheClient {
    * parameters break a rule of validateSearchParams (e.g. a blank `was`, which
    * would otherwise run the search unfiltered).
    */
-  async search(params: JobSearchParams = {}): Promise<JobSearchResult> {
-    validateSearchParams(params);
+  async search(params: JobSearchParams = {}, options: SearchOptions = {}): Promise<JobSearchResult> {
+    validateSearchParams(params, options);
     const path = `${SERVICE}/pc/v6/jobs`;
     return checked(path, await this.engine.getJson<unknown>(path, prune({ ...params })), searchResultProblem, "search result");
   }

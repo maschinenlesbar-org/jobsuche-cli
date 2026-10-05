@@ -115,7 +115,8 @@ set comes back), so the CLI rejects it as a usage error and the library client w
 **zeitarbeit (temp work).** Temporary-work / staffing-agency listings. By default
 (no parameter) they are included with the rest; `zeitarbeit=true`
 (`--zeitarbeit`) returns **only** them, `zeitarbeit=false` (`--no-zeitarbeit`)
-leaves them out. Checked live: the two counts add up to the default's.
+leaves them out. Checked live: the two counts add up to the default's. Giving both
+flags is a usage error, and the library takes only `true` or `false`.
 
 **angebotsart (offer type).** A numeric code selecting the kind of offer
 (`--angebotsart`): `1` job vacancy (Arbeit), `2` self-employment

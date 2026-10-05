@@ -135,7 +135,9 @@ details  <refnr>        full details for one listing
 | `--page <n>` | 1-based page index (`1` or more) |
 | `--size <n>` | page size |
 
-The flag names mirror the API's German field names — the
+Each flag takes one value: giving one twice (`--wo Berlin --wo Hamburg`), or
+`--zeitarbeit` together with `--no-zeitarbeit`, is a usage error (exit `2`) rather
+than "the last one wins". The flag names mirror the API's German field names — the
 **[Glossary](GLOSSARY.md)** decodes every one.
 
 ### `details <refnr>`

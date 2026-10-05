@@ -96,6 +96,15 @@ run them up front.
   `NaN`, `Infinity` and fractions are rejected too (`validateSearchParams`,
   `intRangeProblem`, `angebotsartProblem`). The CLI's `--veroeffentlicht-seit`,
   `--angebotsart` and `--page` parsers use the same constants and rules.
+- **Unknown search parameters.** `search()` rejects a key that is not one of
+  `SEARCH_PARAMS` (`searchParamKeyProblem`): the API ignores a name it doesn't
+  know (`wos`, `Was`, `extra`) and answers with the unfiltered set. A filter the
+  client does not model (`befristung`, `arbeitszeit`, from the facets) can still be
+  sent with `search(params, { allowUnknownParams: true })`, as one string, number
+  or boolean; `__proto__` and `constructor` never. The CLI makes a repeated option
+  (`--wo Berlin --wo Hamburg`, `onceOnly`) and `--zeitarbeit` with
+  `--no-zeitarbeit` usage errors instead of "last one wins".
+  `test/conformance-p10-strict-filters.test.ts` is the shared check.
 - **Wrong-typed input.** `search()` takes an object (a string or a number used to
   run the search unfiltered); a text filter must be a string, `zeitarbeit` a
   boolean (`"false"` used to be sent as given). `details()` takes a non-blank

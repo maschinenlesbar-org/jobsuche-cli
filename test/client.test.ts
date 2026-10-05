@@ -142,3 +142,18 @@ test("a 2xx body that is not a search result or a listing is a parse error", asy
   const said = new JobsucheClient({ transport: constantJson({ message: "quota exceeded" }).transport });
   await assert.rejects(said.search(), /not a search result \(no maxErgebnisse count; the server said: quota exceeded\)/);
 });
+
+// 2026-10-05 sweep, 04 question 1: an unknown parameter (a typo such as `wos`) went to
+// the API, which ignores it and returns the unfiltered set. It is rejected now, with an
+// opt-out for filters the client does not model.
+test("search() sends an unknown parameter only with allowUnknownParams", async () => {
+  const mt = makeMockTransport(okResponse);
+  const c = new JobsucheClient({ transport: mt.transport });
+  await assert.rejects(c.search({ befristung: "1" } as never), JobsucheValidationError);
+  assert.equal(mt.calls.length, 0);
+  await c.search({ was: "Dev", befristung: "1" } as never, { allowUnknownParams: true });
+  assert.equal(new URL(mt.last().url).searchParams.get("befristung"), "1");
+  for (const bad of [JSON.parse('{"__proto__": 1}'), { constructor: "x" }, { befristung: ["1", "2"] }]) {
+    await assert.rejects(c.search(bad as never, { allowUnknownParams: true }), JobsucheValidationError, JSON.stringify(bad));
+  }
+});

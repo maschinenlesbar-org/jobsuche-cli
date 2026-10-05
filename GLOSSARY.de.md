@@ -114,7 +114,8 @@ Bibliotheks-Client mit einem `JobsucheValidationError`.
 **zeitarbeit.** Stellenangebote von Zeitarbeits- bzw. Personaldienstleistungsfirmen. Ohne
 Parameter sind sie zusammen mit allen anderen enthalten; `zeitarbeit=true` (`--zeitarbeit`)
 liefert **nur** sie, `zeitarbeit=false` (`--no-zeitarbeit`) lässt sie weg. Live geprüft: Die
-beiden Trefferzahlen ergeben zusammen die ohne Parameter.
+beiden Trefferzahlen ergeben zusammen die ohne Parameter. Beide Flags zusammen sind ein
+Aufruffehler, und die Bibliothek nimmt nur `true` oder `false`.
 
 **angebotsart.** Ein numerischer Code für die Art des Angebots
 (`--angebotsart`): `1` Arbeit, `2` Selbstständigkeit, `4` Ausbildung bzw. Duales

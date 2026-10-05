@@ -166,6 +166,43 @@ export const headerNameProblem: Problem = (name) =>
 /** The free-text search filters, which must not be blank when given. */
 export const TEXT_FILTERS = ["was", "wo", "berufsfeld", "arbeitgeber"] as const;
 
+/** Every parameter `search()` takes (JobSearchParams). */
+export const SEARCH_PARAMS = [
+  ...TEXT_FILTERS,
+  "umkreis",
+  "veroeffentlichtseit",
+  "zeitarbeit",
+  "angebotsart",
+  "page",
+  "size",
+] as const;
+
+/** Options for `search()`. */
+export interface SearchOptions {
+  /**
+   * Send parameter names that are not in `SEARCH_PARAMS` — for a filter the API
+   * offers that this client does not model (its facets show `befristung`,
+   * `arbeitszeit`, …). Default `false`: an unknown name is rejected, because the API
+   * ignores one it doesn't know (a typo such as `wos`) and returns the unfiltered set.
+   * Such a value must still be a string, a finite number or a boolean.
+   */
+  allowUnknownParams?: boolean;
+}
+
+/**
+ * Why `key` is not a search parameter, or undefined. `__proto__` and `constructor`
+ * are never parameters (a `JSON.parse`d object can carry them as own keys).
+ */
+export function searchParamKeyProblem(key: string, allowUnknown = false): string | undefined {
+  if ((SEARCH_PARAMS as readonly string[]).includes(key)) return undefined;
+  if (key === "__proto__" || key === "constructor" || key === "prototype") return `"${key}" is not a search parameter.`;
+  if (allowUnknown) return undefined;
+  return (
+    `Unknown search parameter "${key}" (the API ignores it and returns the unfiltered set). ` +
+    `Known: ${SEARCH_PARAMS.join(", ")}; pass { allowUnknownParams: true } to send it anyway.`
+  );
+}
+
 /**
  * Check search parameters before any request. `undefined` (or `null`) means "not
  * set". A given `was`, `wo`, `berufsfeld` or `arbeitgeber` must not be blank
@@ -173,14 +210,29 @@ export const TEXT_FILTERS = ["was", "wo", "berufsfeld", "arbeitgeber"] as const;
  * must be non-negative integers, `veroeffentlichtseit` an integer
  * 0..MAX_VEROEFFENTLICHT_SEIT, `angebotsart` one of ANGEBOTSART_CODES and `page`
  * an integer >= 1 (the API answers `page=0` with HTTP 400), `zeitarbeit` a boolean;
- * `params` itself must be an object. Throws a JobsucheValidationError naming the
- * parameter; returns `params` unchanged.
+ * `params` itself must be an object, and every key one of `SEARCH_PARAMS` unless
+ * `options.allowUnknownParams` is set (`__proto__` and `constructor` never). Throws
+ * a JobsucheValidationError naming the parameter; returns `params` unchanged.
  */
-export function validateSearchParams(params: JobSearchParams): JobSearchParams {
+export function validateSearchParams(params: JobSearchParams, options: SearchOptions = {}): JobSearchParams {
   // A JavaScript caller may pass anything; a string or a number used to be read as
   // "no filters" and run the search unfiltered.
   if (!isPlainObject(params as unknown)) {
     throw new JobsucheValidationError("Invalid search parameters: Expected an object of parameters.");
+  }
+  if (!isPlainObject((options ?? {}) as unknown)) {
+    throw new JobsucheValidationError("Invalid search options: Expected an object, e.g. { allowUnknownParams: true }.");
+  }
+  const allowUnknown = options?.allowUnknownParams === true;
+  for (const [key, value] of Object.entries(params as Record<string, unknown>)) {
+    const problem = searchParamKeyProblem(key, allowUnknown);
+    if (problem !== undefined) throw new JobsucheValidationError(`Invalid search parameter: ${problem}`);
+    if ((SEARCH_PARAMS as readonly string[]).includes(key) || value === undefined || value === null) continue;
+    // An unknown parameter sent on request: one scalar, as for the known ones.
+    const scalar = typeof value === "string" ? !isBlank(value) : typeof value === "boolean" || Number.isFinite(value);
+    if (!scalar) {
+      throw new JobsucheValidationError(`Invalid ${key}: Expected one non-blank string, a finite number or a boolean.`);
+    }
   }
   for (const name of TEXT_FILTERS) {
     const value = params[name];

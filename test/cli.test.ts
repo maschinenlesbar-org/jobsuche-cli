@@ -443,3 +443,16 @@ test("usage errors mask a pasted key but still echo a mistyped command", async (
     assert.doesNotMatch(err, /OrgKey-55|my-org-key-7Hq2|\u000b/);
   }
 });
+
+test("--zeitarbeit with --no-zeitarbeit, or a repeated option, is a usage error", async () => {
+  for (const argv of [
+    ["search", "--zeitarbeit", "--no-zeitarbeit"],
+    ["search", "--no-zeitarbeit", "--zeitarbeit"],
+    ["--timeout", "1000", "search", "--timeout", "2000"],
+    ["search", "--wo", "Berlin", "--wo", "Hamburg"],
+  ]) {
+    const cli = makeCli(okResponse);
+    assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+    assert.equal(cli.mt.calls.length, 0);
+  }
+});

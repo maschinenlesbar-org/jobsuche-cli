@@ -10,7 +10,7 @@ import { defaultIO } from "./io.js";
 import { JobsucheClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
 import { MAX_RETRIES } from "../client/engine.js";
-import { parseApiKey, parseBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg } from "./shared.js";
+import { onceOnly, parseApiKey, parseBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg } from "./shared.js";
 import { registerJobCommands } from "./commands/jobs.js";
 import { registerObtainKeyCommands } from "./commands/obtain-key.js";
 import { nodeHttpTransport } from "../client/http.js";
@@ -42,6 +42,9 @@ export const defaultDeps: CliDeps = {
 
 export function buildProgram(deps: CliDeps = defaultDeps): Command {
   const program = new Command();
+  // Every option takes one value: a repeated one is a usage error, not "last one wins".
+  const seen = new Set<string>();
+  const once = <T>(flag: string, parse: (value: string) => T): ((value: string) => T) => onceOnly(seen, flag, parse);
 
   program
     .name("jobsuche")
@@ -52,24 +55,24 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
         "`jobsuche obtain-key` to fetch the published public one.",
     )
     .version(VERSION)
-    .option("--base-url <url>", "API base URL", parseBaseUrl, "https://rest.arbeitsagentur.de")
+    .option("--base-url <url>", "API base URL", once("--base-url", parseBaseUrl), "https://rest.arbeitsagentur.de")
     .option(
       "--api-key <key>",
       "X-API-Key header value. Prefer JOBSUCHE_API_KEY: an --api-key argument is " +
         "visible to other local users via the process table and shell history.",
-      parseApiKey,
+      once("--api-key", parseApiKey),
     )
-    .option("--timeout <ms>", "per-request timeout in milliseconds", parseBoundedInt(0, MAX_TIMEOUT_MS))
-    .option("--user-agent <ua>", "User-Agent header value", parseHeaderValue)
+    .option("--timeout <ms>", "per-request timeout in milliseconds", once("--timeout", parseBoundedInt(0, MAX_TIMEOUT_MS)))
+    .option("--user-agent <ua>", "User-Agent header value", once("--user-agent", parseHeaderValue))
     .option(
       "--max-retries <n>",
       `retries for transient 429/503 responses (0-${MAX_RETRIES})`,
-      parseBoundedInt(0, MAX_RETRIES),
+      once("--max-retries", parseBoundedInt(0, MAX_RETRIES)),
     )
     .option(
       "--max-response-bytes <n>",
       "cap response body size in bytes (0 = unlimited; default 100 MiB)",
-      parseIntArg,
+      once("--max-response-bytes", parseIntArg),
     )
     .option("--compact", "print JSON on a single line instead of pretty-printed")
     .showHelpAfterError();
