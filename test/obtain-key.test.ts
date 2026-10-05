@@ -158,9 +158,14 @@ test("obtainKey applies the client's default timeout and size cap", async () => 
 
 test("obtainKey takes explicit limits, and 0 turns one off", async () => {
   const mt = makeMockTransport(() => rawResponse(README, "text/plain"));
-  await obtainKey({ transport: mt.transport, timeoutMs: 5, maxResponseBytes: 10 });
-  assert.equal(mt.last().timeoutMs, 5);
-  assert.equal(mt.last().maxResponseBytes, 10);
+  await obtainKey({ transport: mt.transport, timeoutMs: 5000, maxResponseBytes: 100_000 });
+  assert.equal(mt.last().timeoutMs, 5000);
+  assert.equal(mt.last().maxResponseBytes, 100_000);
+  // The cap holds even for a transport that ignores it (the engine checks the body).
+  await assert.rejects(
+    obtainKey({ transport: mt.transport, maxResponseBytes: 10 }),
+    (e: unknown) => e instanceof Error && e.name === "JobsucheNetworkError" && /maxResponseBytes \(10 bytes/.test(e.message),
+  );
   await obtainKey({ transport: mt.transport, timeoutMs: 0, maxResponseBytes: 0 });
   assert.equal("timeoutMs" in mt.last(), false);
   assert.equal("maxResponseBytes" in mt.last(), false);
@@ -168,9 +173,9 @@ test("obtainKey takes explicit limits, and 0 turns one off", async () => {
 
 test("obtain-key passes --timeout and --max-response-bytes to the request", async () => {
   const cli = makeCli(() => rawResponse(README, "text/plain"));
-  assert.equal(await run(["--timeout", "1234", "--max-response-bytes", "10", "obtain-key"], cli.deps), 0);
+  assert.equal(await run(["--timeout", "1234", "--max-response-bytes", "100000", "obtain-key"], cli.deps), 0);
   assert.equal(cli.mt.last().timeoutMs, 1234);
-  assert.equal(cli.mt.last().maxResponseBytes, 10);
+  assert.equal(cli.mt.last().maxResponseBytes, 100000);
 });
 
 function redirectTo(location: string, status = 301): HttpResponse {

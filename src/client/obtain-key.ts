@@ -16,13 +16,18 @@
 // cap by default, so a stalled source cannot hang
 // `eval "$(jobsuche obtain-key --export)"`.
 
-import type { HttpResponse, Transport } from "./http.js";
+import type { Transport } from "./http.js";
 import { nodeHttpTransport } from "./http.js";
 import {
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_USER_AGENT,
+  exchange,
+  functionOption,
+  headerValue,
   intOption,
+  networkError,
+  type ExchangeResponse,
 } from "./engine.js";
 import { assertValid, headerValueProblem, httpUrlProblem } from "./validate.js";
 import { JobsucheError, JobsucheParseError } from "./errors.js";
@@ -120,7 +125,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   // Same rule as the engine's base URL (a query is fine here): a custom transport
   // must never get a file:/ftp: URL.
   assertValid("sourceUrl", sourceUrl, httpUrlProblem);
-  const transport = options.transport ?? nodeHttpTransport;
+  const transport = functionOption("transport", options.transport, nodeHttpTransport);
   // The request gets the client's limits: a source that stalls, or streams
   // without end, must not hang the command or exhaust memory.
   // Range-checked like the engine's options (intOption): a negative or NaN value
@@ -141,20 +146,30 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   // redirect, so follow a few — same origin only: the key is trusted because of
   // where it is published, and a hop to another host is not followed.
   let url = sourceUrl;
-  let response: HttpResponse;
+  let response: ExchangeResponse;
   for (let redirects = 0; ; redirects += 1) {
-    response = await transport({
-      method: "GET",
-      url,
-      headers: {
-        Accept: "text/plain, text/markdown;q=0.9, */*;q=0.8",
-        "User-Agent": userAgent,
-      },
-      ...(timeoutMs > 0 ? { timeoutMs } : {}),
-      ...(maxResponseBytes > 0 ? { maxResponseBytes } : {}),
-    });
+    // Through the engine's exchange(): the time limit and the size cap hold for any
+    // transport, and whatever it throws or returns becomes a JobsucheNetworkError.
+    try {
+      response = await exchange(
+        transport,
+        {
+          method: "GET",
+          url,
+          headers: {
+            Accept: "text/plain, text/markdown;q=0.9, */*;q=0.8",
+            "User-Agent": userAgent,
+          },
+          ...(timeoutMs > 0 ? { timeoutMs } : {}),
+          ...(maxResponseBytes > 0 ? { maxResponseBytes } : {}),
+        },
+        { timeoutMs, maxResponseBytes },
+      );
+    } catch (cause) {
+      throw networkError("GET", url, cause);
+    }
     if (!FOLLOWED_REDIRECTS.has(response.status) || redirects >= MAX_KEY_SOURCE_REDIRECTS) break;
-    const next = resolveLocation(response.headers["location"], url);
+    const next = resolveLocation(headerValue(response.headers["location"]), url);
     if (next === undefined || next.origin !== new URL(url).origin) break;
     url = next.href;
   }
@@ -191,8 +206,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
 }
 
 /** Resolve a Location header against the request URL; undefined if missing or malformed. */
-function resolveLocation(location: string | string[] | undefined, base: string): URL | undefined {
-  const value = Array.isArray(location) ? location[0] : location;
+function resolveLocation(value: string | undefined, base: string): URL | undefined {
   if (value === undefined || value === "") return undefined;
   try {
     return new URL(value, base);

@@ -220,6 +220,31 @@ default 100 MiB) to defend against memory exhaustion.
 ([`http.ts`](src/client/http.ts)). The default (`nodeHttpTransport`) uses
 Node's built-in `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
+**The transport contract is enforced by the engine** (`exchange()` in
+`engine.ts`, used for every hop and by `obtainKey()`), so the documented limits
+hold for any transport a library user writes (`fetch`, a node:http wrapper, a
+test double), not only the built-in one:
+
+- `timeoutMs`: the request carries an `AbortSignal` (`HttpRequest.signal`) that
+  fires at the deadline; the call rejects then (`JobsucheNetworkError`) whether
+  the transport stops or not.
+- `maxResponseBytes`: checked on the body that came back; the message names the
+  option and the CLI flag.
+- Response shapes: `headers` may be a plain object with names in any case, a
+  `Headers` instance or a `Map` (read lower-cased); `body` may be a Buffer, any
+  ArrayBuffer view (a `Uint8Array`, from any realm), an ArrayBuffer or a string.
+  A missing or non-HTTP status, no headers or no body is a `JobsucheNetworkError`.
+- Whatever a transport throws (a `TypeError: fetch failed`, a string, `null`, a
+  synchronous throw) becomes a `JobsucheNetworkError` naming the request, the
+  original as `cause`.
+- A reset connection (`ECONNRESET`, `EPIPE`, `ECONNABORTED`, undici's
+  `UND_ERR_SOCKET`, anywhere in the `cause` chain; `isTransientNetworkError`) is
+  retried like a 503 for a GET, within `maxRetries`. A refused connection, a DNS
+  failure or a timeout is not.
+- `transport` and `sleep` must be functions (else `JobsucheValidationError`).
+
+`test/conformance-p5-transport-contract.test.ts` is the shared check.
+
 **Default headers.** The engine merges `defaultHeaders` into every request —
 the seam that injects `X-API-Key`. Because no default key is bundled, the CLI
 omits the header entirely when neither `--api-key` nor `JOBSUCHE_API_KEY` is
@@ -253,9 +278,10 @@ default 100 MiB), guarding against unbounded responses.
 **Engine option ranges.** The `RequestEngine` constructor (and so
 `new JobsucheClient(...)`) throws a `JobsucheValidationError` for a numeric option
 that is not an integer in its range: `maxRetries` `0`..`MAX_RETRIES` (10),
-`maxRedirects` `0`..`MAX_REDIRECTS` (10), and `timeoutMs`, `retryDelayMs` and
-`maxResponseBytes` any non-negative integer (`intOption`, `intRangeProblem`); a
-`timeoutMs` above `MAX_TIMEOUT_MS` stays allowed and is capped by the transport.
+`maxRedirects` `0`..`MAX_REDIRECTS` (10), `timeoutMs` and `maxResponseBytes` any
+non-negative integer, `retryDelayMs` `0`..`MAX_RETRY_AFTER_MS`
+(`intOption`, `intRangeProblem`); a `timeoutMs` above `MAX_TIMEOUT_MS` stays
+allowed and is capped at it.
 `obtainKey()` applies the same rule to its `timeoutMs` and `maxResponseBytes`. A
 `NaN`, negative or fractional value would otherwise silently disable the timeout or
 the size cap, and `Infinity` would retry without end. The CLI's `--max-retries`

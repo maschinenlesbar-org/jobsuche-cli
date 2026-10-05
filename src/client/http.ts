@@ -17,12 +17,27 @@ export interface HttpRequest {
   headers?: Record<string, string>;
   /** Optional request body (already serialised). */
   body?: string | Buffer;
-  /** Per-request timeout in milliseconds. */
+  /** Per-request timeout in milliseconds, whole response included. */
   timeoutMs?: number;
   /** Hard cap on the response body size in bytes; the request aborts if exceeded. */
   maxResponseBytes?: number;
+  /**
+   * Aborted when the engine's time limit (`timeoutMs`) passes. A transport should stop
+   * the request then (`fetch(url, { signal })`); the engine rejects at the deadline
+   * either way, and enforces `maxResponseBytes` on the body it gets back, so neither
+   * limit depends on the transport.
+   */
+  signal?: AbortSignal;
 }
 
+/**
+ * What a transport resolves with. The engine is lenient about the shapes custom
+ * transports naturally return: `headers` may be a plain object with names in any
+ * case, a `Headers` instance or a `Map`; `body` may be a Buffer, any other
+ * ArrayBuffer view (a `Uint8Array` from fetch, a DataView), an ArrayBuffer or a
+ * string (read as UTF-8). Anything else — a missing status, no body — is a
+ * JobsucheNetworkError.
+ */
 export interface HttpResponse {
   status: number;
   headers: http.IncomingHttpHeaders;
@@ -30,6 +45,11 @@ export interface HttpResponse {
 }
 
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
+
+/** The message for a body over the size cap, naming the option on both sides. */
+export function sizeLimitMessage(maxBytes: number): string {
+  return `Response exceeded maxResponseBytes (${maxBytes} bytes; --max-response-bytes on the CLI)`;
+}
 
 /**
  * The longest delay Node's timers support (2^31 - 1 ms, about 24.8 days). A longer one
@@ -100,7 +120,7 @@ export const nodeHttpTransport: Transport = (request) =>
               aborted = true;
               clearDeadline();
               res.destroy();
-              reject(new JobsucheNetworkError(`Response exceeded maxResponseBytes (${maxBytes})`));
+              reject(new JobsucheNetworkError(sizeLimitMessage(maxBytes)));
               return;
             }
             chunks.push(chunk);
@@ -144,6 +164,16 @@ export const nodeHttpTransport: Transport = (request) =>
       }, delayMs);
       // Don't let the deadline timer keep the event loop alive on its own.
       deadline.unref?.();
+    }
+
+    if (request.signal !== undefined) {
+      const signal = request.signal;
+      const abort = (): void => {
+        const reason: unknown = signal.reason;
+        req.destroy(reason instanceof JobsucheNetworkError ? reason : new JobsucheNetworkError("Request aborted"));
+      };
+      if (signal.aborted) abort();
+      else signal.addEventListener("abort", abort, { once: true });
     }
 
     req.on("error", (err) => {

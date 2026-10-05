@@ -2,7 +2,14 @@
 // requests via a Transport, applies retry/backoff for transient statuses
 // (429, 503), and decodes responses.
 
-import { nodeHttpTransport, type Transport } from "./http.js";
+import {
+  MAX_TIMEOUT_MS,
+  nodeHttpTransport,
+  sizeLimitMessage,
+  type HttpRequest,
+  type HttpResponse,
+  type Transport,
+} from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import {
   assertValid,
@@ -11,7 +18,14 @@ import {
   headerValueProblem,
   intRangeProblem,
 } from "./validate.js";
-import { JobsucheApiError, JobsucheParseError, redactUrl } from "./errors.js";
+import {
+  JobsucheApiError,
+  JobsucheError,
+  JobsucheNetworkError,
+  JobsucheParseError,
+  JobsucheValidationError,
+  redactUrl,
+} from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://rest.arbeitsagentur.de";
 /** The User-Agent sent when none is given (by the engine and by obtainKey). */
@@ -49,12 +63,15 @@ export interface EngineOptions {
    */
   defaultHeaders?: Record<string, string>;
   /**
-   * Per-request timeout in milliseconds, a non-negative integer (0 disables;
-   * capped at MAX_TIMEOUT_MS, 2^31 - 1 ms). Defaults to 30000.
+   * Per-request timeout in milliseconds, whole response included, a non-negative
+   * integer (0 disables; capped at MAX_TIMEOUT_MS, 2^31 - 1 ms). Defaults to 30000.
+   * Enforced by the engine for every transport: the transport gets an AbortSignal
+   * that fires at the deadline, and the call fails then either way.
    */
   timeoutMs?: number;
   /**
-   * Number of automatic retries for transient (429/503) responses, an integer
+   * Number of automatic retries for transient (429/503) responses and reset
+   * connections (`isTransientNetworkError`; GET/HEAD only), an integer
    * 0..`MAX_RETRIES` (10). Defaults to 2.
    */
   maxRetries?: number;
@@ -75,7 +92,7 @@ export interface EngineOptions {
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
    * from a hostile/buggy endpoint), a non-negative integer. Defaults to 100 MiB;
-   * set to 0 for no limit.
+   * set to 0 for no limit. Checked on the body of every transport.
    */
   maxResponseBytes?: number;
   /** Injectable sleep, primarily for deterministic tests. */
@@ -236,6 +253,183 @@ export function intOption(name: string, value: number | undefined, max: number, 
   return value === undefined ? fallback : assertValid(name, value, intRangeProblem(0, max));
 }
 
+/** A transport's answer as the engine reads it: lower-case headers, a Buffer body. */
+export interface ExchangeResponse {
+  status: number;
+  headers: Record<string, string | string[] | undefined>;
+  body: Buffer;
+}
+
+/** Why `value` is not a usable HttpResponse, or undefined when it is. */
+function responseProblem(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) return "not an object";
+  const r = value as Partial<Record<"status" | "headers" | "body", unknown>>;
+  if (typeof r.status !== "number" || !Number.isInteger(r.status) || r.status < 100 || r.status > 599) {
+    return "status is not an HTTP status code";
+  }
+  if (typeof r.headers !== "object" || r.headers === null || Array.isArray(r.headers)) return "headers is not an object";
+  if (bodyBytes(r.body) === undefined) {
+    return "body is not a Buffer, Uint8Array, other ArrayBuffer view, ArrayBuffer or string";
+  }
+  return undefined;
+}
+
+/**
+ * The response body as a Buffer (a view, no copy): a Buffer, any ArrayBuffer view (a
+ * Uint8Array from fetch, a DataView) or an ArrayBuffer/SharedArrayBuffer — checked by
+ * internal slot, not `instanceof`, so a value from another realm (a vm context, a Jest
+ * test) counts. A string is read as UTF-8. Undefined for anything else.
+ */
+function bodyBytes(value: unknown): Buffer | undefined {
+  if (Buffer.isBuffer(value)) return value;
+  if (typeof value === "string") return Buffer.from(value, "utf8");
+  if (ArrayBuffer.isView(value)) return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+  const tag = Object.prototype.toString.call(value);
+  if (tag === "[object ArrayBuffer]" || tag === "[object SharedArrayBuffer]") {
+    return Buffer.from(value as ArrayBuffer);
+  }
+  return undefined;
+}
+
+/**
+ * The response headers as a plain record with lower-case names, as the engine reads
+ * them. A transport built on `fetch` naturally returns its `Headers` object, which
+ * passes as an object but has no plain properties: the engine then saw no Location,
+ * Retry-After or Content-Type at all. Such an object (anything with `get` and
+ * `forEach`, a `Map` included) is copied into a record; a plain record gets its names
+ * lower-cased (Node's transport does that already, a custom one may not).
+ */
+function plainHeaders(headers: object): Record<string, string | string[] | undefined> {
+  const h = headers as { get?: unknown; forEach?: unknown };
+  const record: Record<string, string | string[] | undefined> = {};
+  if (typeof h.get === "function" && typeof h.forEach === "function") {
+    (h.forEach as (cb: (value: string, name: string) => void) => void).call(headers, (value, name) => {
+      record[String(name).toLowerCase()] = String(value);
+    });
+    return record;
+  }
+  for (const [name, value] of Object.entries(headers as Record<string, string | string[] | undefined>)) {
+    record[name.toLowerCase()] = value;
+  }
+  return record;
+}
+
+/** A single header value (the first of a repeated one), or undefined. */
+export function headerValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * Error codes of a connection that broke off mid-request: Node's (`socket hang up` is
+ * ECONNRESET) and undici's (`fetch failed` with cause UND_ERR_SOCKET, "other side closed").
+ */
+const TRANSIENT_NETWORK_CODES = new Set(["ECONNRESET", "EPIPE", "ECONNABORTED", "UND_ERR_SOCKET"]);
+
+/** True when `err` or an error in its `cause` chain has a transient connection code. */
+function hasTransientCode(err: unknown, depth = 0): boolean {
+  if (typeof err !== "object" || err === null || depth > 4) return false;
+  const code = (err as { code?: unknown }).code;
+  if (typeof code === "string" && TRANSIENT_NETWORK_CODES.has(code)) return true;
+  return hasTransientCode((err as { cause?: unknown }).cause, depth + 1);
+}
+
+/**
+ * True for a failure caused by a reset or aborted connection (`ECONNRESET`, `EPIPE`,
+ * `ECONNABORTED`, undici's `UND_ERR_SOCKET`, anywhere in the `cause` chain), which the
+ * engine retries like a 503 — whichever transport raised it. A refused connection, a
+ * DNS failure or a timeout is not transient in that sense and is not retried.
+ */
+export function isTransientNetworkError(err: unknown): boolean {
+  return hasTransientCode(err);
+}
+
+/**
+ * Read a function option: `undefined` gives the default; anything else that is not a
+ * function is a JobsucheValidationError. A string `transport` used to fail at the first
+ * request as a raw TypeError, and a bad `sleep` on the first retry.
+ */
+export function functionOption<F>(name: string, value: F | undefined, fallback: F): F {
+  if (value === undefined) return fallback;
+  if (typeof value !== "function") {
+    throw new JobsucheValidationError(`Invalid ${name}: Expected a function, got ${typeof value}.`);
+  }
+  return value;
+}
+
+/**
+ * One exchange through a transport, with the client's limits enforced whatever the
+ * transport does — used by the engine for every hop and by `obtainKey`:
+ *
+ * - `timeoutMs` (0 = none): the transport gets an AbortSignal that fires at the
+ *   deadline, and the call rejects then whether the transport stops or not;
+ * - `maxResponseBytes` (0 = none): checked on the body that came back;
+ * - the response must have an HTTP status, a headers object and a byte body (see
+ *   HttpResponse); headers come back lower-cased, the body as a Buffer.
+ *
+ * A thrown value (a synchronous throw included) and a malformed response reject; the
+ * caller turns them into a JobsucheNetworkError (`networkError`).
+ */
+export async function exchange(
+  transport: Transport,
+  request: HttpRequest,
+  limits: { timeoutMs: number; maxResponseBytes: number },
+): Promise<ExchangeResponse> {
+  const call = (signal?: AbortSignal): Promise<HttpResponse> =>
+    Promise.resolve().then(() => transport(signal === undefined ? request : { ...request, signal }));
+  let raw: unknown;
+  if (limits.timeoutMs === 0) {
+    raw = await call();
+  } else {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        const err = new JobsucheNetworkError(`Request exceeded the ${limits.timeoutMs}ms deadline`);
+        controller.abort(err);
+        reject(err);
+      }, Math.min(limits.timeoutMs, MAX_TIMEOUT_MS));
+    });
+    try {
+      raw = await Promise.race([call(controller.signal), deadline]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  // An injected transport may resolve with anything; a malformed HttpResponse would
+  // otherwise surface later as a raw TypeError, outside the JobsucheError contract.
+  const invalid = responseProblem(raw);
+  if (invalid !== undefined) {
+    throw new JobsucheNetworkError(`the transport returned an invalid response (${invalid})`);
+  }
+  const response = raw as HttpResponse;
+  const body = bodyBytes(response.body) as Buffer;
+  // The size cap holds whatever the transport did: the default one aborts early, a
+  // custom one may have read everything.
+  if (limits.maxResponseBytes > 0 && body.byteLength > limits.maxResponseBytes) {
+    throw new JobsucheNetworkError(sizeLimitMessage(limits.maxResponseBytes));
+  }
+  return { status: response.status, headers: plainHeaders(response.headers), body };
+}
+
+/**
+ * A transport failure as a `JobsucheNetworkError`. The default transport rejects with
+ * one already (passed through); an injected one may throw anything (a TypeError from
+ * fetch, a string, null), which is wrapped naming the request, with the original as
+ * `cause`, so every failure stays a `JobsucheError`.
+ */
+export function networkError(method: string, url: string, cause: unknown): JobsucheError {
+  if (cause instanceof JobsucheError) return cause;
+  const reason =
+    cause instanceof Error && cause.message.trim() !== ""
+      ? cause.message
+      : typeof cause === "string" && cause.trim() !== ""
+        ? cause
+        : "the transport failed without a message";
+  return new JobsucheNetworkError(`${method} ${redactUrl(url)} failed: ${sanitizeServerText(redactUrl(reason))}`, {
+    cause,
+  });
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -255,7 +449,7 @@ export class RequestEngine {
     // Checked on the raw value, before the trailing-slash strip; only `undefined`
     // selects the default.
     this.baseUrl = options.baseUrl === undefined ? DEFAULT_BASE_URL : validateBaseUrl(options.baseUrl);
-    this.transport = options.transport ?? nodeHttpTransport;
+    this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Header values are checked here, not only by the CLI: a CR/LF would reach a
     // custom transport as an injected header, and the default transport would fail
     // late. Only `undefined` selects the default User-Agent.
@@ -283,7 +477,7 @@ export class RequestEngine {
       unbounded,
       DEFAULT_MAX_RESPONSE_BYTES,
     );
-    this.sleep = options.sleep ?? realSleep;
+    this.sleep = functionOption("sleep", options.sleep, realSleep);
   }
 
   /** Build a fully-qualified URL from a path and optional query parameters. */
@@ -306,22 +500,42 @@ export class RequestEngine {
       ...this.defaultHeaders,
     };
 
+    // Only an idempotent request is sent again: request() is public, and a POST re-sent
+    // after a reset or a 503 may be applied twice. The client itself sends GETs only.
+    const idempotent = /^(GET|HEAD)$/i.test(method);
     let attempt = 0;
     let redirects = 0;
     // attempts = initial try + maxRetries (redirects are counted separately)
     for (;;) {
-      const response = await this.transport({
-        method,
-        url,
-        headers,
-        timeoutMs: this.timeoutMs,
-        ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
-      });
+      let response: ExchangeResponse;
+      try {
+        response = await exchange(
+          this.transport,
+          {
+            method,
+            url,
+            headers,
+            timeoutMs: this.timeoutMs,
+            ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
+          },
+          { timeoutMs: this.timeoutMs, maxResponseBytes: this.maxResponseBytes },
+        );
+      } catch (cause) {
+        // A connection the server (or a gateway) reset is the network-level twin of a
+        // 503: retry the GET like one, whichever transport reported it. Timeouts are
+        // not retried — a slow upstream should not be asked again at once.
+        if (idempotent && hasTransientCode(cause) && attempt < this.maxRetries) {
+          attempt += 1;
+          await this.sleep(this.retryDelayMs * attempt);
+          continue;
+        }
+        throw networkError(method, url, cause);
+      }
 
       const status = response.status;
       const retryable = status === 429 || status === 503;
       let retryAfterTooLong: number | undefined;
-      if (retryable && attempt < this.maxRetries) {
+      if (idempotent && retryable && attempt < this.maxRetries) {
         // Back off linearly (retryDelayMs * attempt). A Retry-After header can ask for
         // longer, never for less: `Retry-After: 0` or a date in the past would turn the
         // retries into a zero-delay burst against a server that has just asked for less
@@ -338,8 +552,7 @@ export class RequestEngine {
       }
 
       // Follow redirects, resolving the Location relative to the current URL.
-      const locationHeader = response.headers["location"];
-      const location = typeof locationHeader === "string" ? locationHeader : undefined;
+      const location = headerValue(response.headers["location"]);
       const target = FOLLOWED_REDIRECTS.has(status) ? resolveLocation(location, url) : undefined;
       if (target !== undefined && redirects >= this.maxRedirects) {
         // A loop (or a long chain): say how far it got rather than a bare 3xx.
@@ -362,7 +575,7 @@ export class RequestEngine {
       // Any other 3xx — not a followed status, or no usable Location — falls
       // through and surfaces as a JobsucheApiError naming the target.
 
-      const contentType = String(response.headers["content-type"] ?? "");
+      const contentType = String(headerValue(response.headers["content-type"]) ?? "");
       if (status < 200 || status >= 300) {
         throw this.toApiError(method, url, status, response.body, location, undefined, retryAfterTooLong);
       }
