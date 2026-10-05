@@ -11,6 +11,8 @@ export {
   intOption,
   MAX_REDIRECTS,
   MAX_RETRIES,
+  MAX_RETRY_AFTER_MS,
+  parseRetryAfter,
   validateBaseUrl,
 } from "./engine.js";
 export type { EngineOptions, RawResponse } from "./engine.js";

@@ -188,7 +188,7 @@ These apply to every command and may be given before or after the command name
 | `--api-key <key>` | the `X-API-Key` to send (env `JOBSUCHE_API_KEY`; no key is bundled, see `obtain-key`); blank/whitespace is ignored and the env var is used, else no key is sent; a key that can't be sent as a header is a usage error (exit `2`) that never repeats the key |
 | `--timeout <ms>` | per-request timeout in milliseconds (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters or characters above U+00FF, which a header cannot carry) |
-| `--max-retries <n>` | retries for transient `429`/`503` responses (`0`–`10`) |
+| `--max-retries <n>` | retries for transient `429`/`503` responses (`0`–`10`, default `2`); each waits the server's `Retry-After` (up to 30 s; a longer one is not retried, and the error names it) or else backs off linearly |
 | `--max-response-bytes <n>` | cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | print JSON on a single line instead of pretty-printed |
 | `-V, --version` | print the version |

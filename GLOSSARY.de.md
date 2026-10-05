@@ -157,8 +157,10 @@ Suche und Details sind umgesetzt. Der statische `X-API-Key` ist kein Zugangsdatu
 Nutzer erst beantragen müssen.
 
 **Rate-Limiting / vorübergehende Fehler.** Die API kann **429** (zu viele Anfragen) oder
-**503** zurückgeben; der Client wiederholt diese Anfragen automatisch mit linearem Backoff
-(`--max-retries`, Standard `2`, höchstens `10`).
+**503** zurückgeben; der Client wiederholt diese Anfragen automatisch (`--max-retries`,
+Standard `2`, höchstens `10`) und wartet dabei das `Retry-After` des Servers ab, wenn es
+höchstens 30 s verlangt, sonst einen linearen Backoff. Ein längeres `Retry-After` wird
+nicht wiederholt: Die Fehlermeldung nennt die verlangte Wartezeit.
 
 **Entfernen von Zugangsdaten bei Weiterleitungen.** Header mit Zugangsdaten (`X-API-Key`,
 `Authorization`, `Cookie`) werden verworfen, wenn die API auf einen anderen Origin

@@ -231,13 +231,21 @@ credential headers (`X-API-Key`, `Authorization`, `Cookie`) before following it,
 so the key is never forwarded to another host. Same-origin redirects keep the key.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
-retried automatically with backoff, up to `--max-retries`. `JobsucheApiError`
-exposes `isRetryable` (true for `429`/`503`). **Divergence from the portfolio
-default:** this repo uses linear backoff only (`retryDelayMs * attempt`) and does
-**not** honour a `Retry-After` header — the retry count is bounded by
-`maxRetries` / `--max-retries` (default 2, at most `MAX_RETRIES`, 10), so there is
-no runaway, but the client is not as polite to the server's stated cool-off as the
-shared convention would be.
+retried automatically, up to `maxRetries` / `--max-retries` (default 2, at most
+`MAX_RETRIES`, 10). `JobsucheApiError` exposes `isRetryable` (true for
+`429`/`503`). Each retry waits `retryDelayMs * attempt` (linear; `retryDelayMs`
+defaults to 200 and is at most `MAX_RETRY_AFTER_MS`, 30 000), or the server's
+`Retry-After` when that is longer (`parseRetryAfter`: delay-seconds or an
+IMF-fixdate; a malformed value falls back to the backoff). A `Retry-After` can
+lengthen a wait, never shorten it, so `Retry-After: 0` or a date in the past is
+no zero-delay burst. One above `MAX_RETRY_AFTER_MS` is **not retried at all**: the
+`JobsucheApiError` surfaces at once and its message names the requested wait
+("the server asked to wait 3600 s (Retry-After) … retrying sooner won't help").
+Until 0.2.0 this repo ignored `Retry-After` (11 requests in 11 s against a
+server asking for an hour); it now follows the portfolio default, failing early
+above the cap rather than waiting it, because the BA gateway should not be asked
+again inside the window it named.
+`test/conformance-p6-retry-policy.test.ts` is the shared check.
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;
 default 100 MiB), guarding against unbounded responses.

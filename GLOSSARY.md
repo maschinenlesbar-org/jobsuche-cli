@@ -158,8 +158,10 @@ a faithful raw JSON object rather than a narrowed type.
 are implemented. The static `X-API-Key` is not a credential a user must obtain.
 
 **Rate limiting / transient errors.** The API may return **429** (too many
-requests) or **503**; the client retries these automatically with linear backoff
-(`--max-retries`, default `2`, at most `10`).
+requests) or **503**; the client retries these automatically (`--max-retries`,
+default `2`, at most `10`), waiting the server's `Retry-After` when it asks for up
+to 30 s, else a linear backoff. A longer `Retry-After` is not retried: the error
+names the wait.
 
 **Credential stripping on redirect.** Credential headers (`X-API-Key`,
 `Authorization`, `Cookie`) are dropped if the API redirects to a different origin,

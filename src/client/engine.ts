@@ -58,7 +58,12 @@ export interface EngineOptions {
    * 0..`MAX_RETRIES` (10). Defaults to 2.
    */
   maxRetries?: number;
-  /** Base backoff between retries in milliseconds (grows linearly), a non-negative integer. */
+  /**
+   * Base backoff between retries in milliseconds (grows linearly: `retryDelayMs *
+   * attempt`), an integer 0..`MAX_RETRY_AFTER_MS` (30 000). Defaults to 200. A
+   * `Retry-After` header can lengthen a wait (up to `MAX_RETRY_AFTER_MS`), never
+   * shorten it; a longer one is not retried at all.
+   */
   retryDelayMs?: number;
   /**
    * Number of HTTP redirects (301/302/303/307/308) to follow, an integer
@@ -83,6 +88,40 @@ export interface EngineOptions {
  * (deprecated) are not redirects to follow; they surface as a JobsucheApiError.
  */
 const FOLLOWED_REDIRECTS = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * Longest `Retry-After` the engine waits out before retrying a 429/503. When the
+ * server asks for longer, the engine does not retry at all and surfaces the error at
+ * once, naming the requested wait: retrying early would only land inside the window
+ * the server asked us to wait out, and a hostile value must not stall the CLI.
+ */
+export const MAX_RETRY_AFTER_MS = 30_000;
+
+/** An IMF-fixdate (RFC 9110 §5.6.7), the one HTTP-date form senders must generate. */
+const IMF_FIXDATE =
+  /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/;
+
+/**
+ * Parse a `Retry-After` header into a delay in milliseconds (RFC 9110 §10.2.3):
+ * either delay-seconds (`"120"`) or an HTTP-date (`"Wed, 21 Oct 2026 07:28:00 GMT"`,
+ * turned into the time left from `now`; a date in the past gives 0).
+ *
+ * Returns `undefined` when the header is absent or malformed — negative (`"-1"`),
+ * fractional (`"1.5"`), any other date format — so the caller falls back to its own
+ * backoff. The strict patterns matter: `Date.parse` alone would read `"1.5"` as a
+ * date in 2001 and retry at once.
+ */
+export function parseRetryAfter(
+  header: string | string[] | undefined,
+  now: number = Date.now(),
+): number | undefined {
+  const value = (Array.isArray(header) ? header[0] : header)?.trim();
+  if (value === undefined || value === "") return undefined;
+  if (/^\d+$/.test(value)) return Number(value) * 1000;
+  if (!IMF_FIXDATE.test(value)) return undefined;
+  const when = Date.parse(value);
+  return Number.isNaN(when) ? undefined : Math.max(0, when - now);
+}
 
 /** Default per-request timeout in milliseconds (the client's and obtain-key's). */
 export const DEFAULT_TIMEOUT_MS = 30_000;
@@ -234,7 +273,9 @@ export class RequestEngine {
     const unbounded = Number.MAX_SAFE_INTEGER;
     this.timeoutMs = intOption("timeoutMs", options.timeoutMs, unbounded, DEFAULT_TIMEOUT_MS);
     this.maxRetries = intOption("maxRetries", options.maxRetries, MAX_RETRIES, 2);
-    this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, unbounded, 200);
+    // Bounded like the Retry-After cap: a longer base delay would outlast any wait the
+    // server may ask for.
+    this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, MAX_RETRY_AFTER_MS, 200);
     this.maxRedirects = intOption("maxRedirects", options.maxRedirects, MAX_REDIRECTS, 5);
     this.maxResponseBytes = intOption(
       "maxResponseBytes",
@@ -279,10 +320,21 @@ export class RequestEngine {
 
       const status = response.status;
       const retryable = status === 429 || status === 503;
+      let retryAfterTooLong: number | undefined;
       if (retryable && attempt < this.maxRetries) {
-        attempt += 1;
-        await this.sleep(this.retryDelayMs * attempt);
-        continue;
+        // Back off linearly (retryDelayMs * attempt). A Retry-After header can ask for
+        // longer, never for less: `Retry-After: 0` or a date in the past would turn the
+        // retries into a zero-delay burst against a server that has just asked for less
+        // load. One beyond MAX_RETRY_AFTER_MS is not retried: the error below surfaces
+        // at once and names the wait, since retrying sooner would only land inside it.
+        const retryAfter = parseRetryAfter(response.headers["retry-after"]);
+        if (retryAfter === undefined || retryAfter <= MAX_RETRY_AFTER_MS) {
+          attempt += 1;
+          const backoff = this.retryDelayMs * attempt;
+          await this.sleep(retryAfter === undefined ? backoff : Math.max(retryAfter, backoff));
+          continue;
+        }
+        retryAfterTooLong = retryAfter;
       }
 
       // Follow redirects, resolving the Location relative to the current URL.
@@ -312,7 +364,7 @@ export class RequestEngine {
 
       const contentType = String(response.headers["content-type"] ?? "");
       if (status < 200 || status >= 300) {
-        throw this.toApiError(method, url, status, response.body, location);
+        throw this.toApiError(method, url, status, response.body, location, undefined, retryAfterTooLong);
       }
 
       return { data: response.body, contentType, status };
@@ -356,6 +408,7 @@ export class RequestEngine {
     body: Buffer,
     locationHeader?: string,
     redirectsFollowed?: number,
+    retryAfterMs?: number,
   ): JobsucheApiError {
     const text = body.toString("utf8");
     let detail: string | undefined;
@@ -382,6 +435,7 @@ export class RequestEngine {
       detail,
       ...(location !== undefined ? { location } : {}),
       ...(redirectsFollowed !== undefined ? { redirectsFollowed } : {}),
+      ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
     });
   }
 }

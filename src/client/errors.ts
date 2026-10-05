@@ -114,6 +114,8 @@ export class JobsucheApiError extends JobsucheError {
     location?: string;
     /** Set when the redirect limit stopped the request: the redirects followed. */
     redirectsFollowed?: number;
+    /** Set when a 429/503 asked for a wait longer than the client retries after (ms). */
+    retryAfterMs?: number;
   }) {
     // The URL is shown without userinfo: a credential in --base-url must not leak.
     const url = redactUrl(args.url);
@@ -128,6 +130,12 @@ export class JobsucheApiError extends JobsucheError {
         args.location
           ? `redirect to ${args.location} not followed${limit}`
           : "redirect not followed (no Location header)",
+      );
+    }
+    if (args.retryAfterMs !== undefined) {
+      parts.push(
+        `the server asked to wait ${Math.ceil(args.retryAfterMs / 1000)} s (Retry-After), longer than ` +
+          `the 30 s the client waits, so it did not retry: retrying sooner won't help, try again later`,
       );
     }
     const detailPart = parts.length > 0 ? `: ${parts.join("; ")}` : "";
