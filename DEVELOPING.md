@@ -327,6 +327,13 @@ as `true`/`false`, dates as ISO-8601, and encodes spaces as `%20` (not `+`).
 and an injectable `env` (for `JOBSUCHE_API_KEY`). Lets the whole CLI run in
 tests with a mocked client and captured output — no subprocess.
 
+**Closed pipes.** The bin shim installs `handleOutputErrors()` (in `io.ts`) before
+`run()`. An EPIPE on stdout (`| head`, `| jq` exiting early) exits `0` at once,
+quietly; an EPIPE on stderr is ignored, so a failed run keeps its exit code — a
+usage error piped through `2>&1 | head` still exits `2`. Any other write error
+exits `1`. `test/conformance-p7-pipes-exit-codes.test.ts` spawns the built bin to
+check both.
+
 **Input validation.** [`validate.ts`](src/client/validate.ts) — the library owns
 every rule about what a request may contain. A rule is a pure, exported
 `…Problem(value)` function that returns the reason a value is invalid (or
