@@ -109,7 +109,9 @@ live API (an empty `was=`). Leave a filter out to search without it.
 **wo.** The location to search in or around (`--wo`). The API echoes the resolved
 location back as `woOutput` in the result.
 
-**umkreis.** Search radius in kilometres around `wo` (`--umkreis`).
+**umkreis.** Search radius in kilometres around `wo` (`--umkreis`), `0`–`200`: the
+API answers a larger radius with HTTP 400, so the CLI and the library reject it
+before any request. `0` searches the place itself (`suchmodus` `ORTSUCHE`).
 
 **veroeffentlichtseit (published since).** Restrict results to listings published
 within the last N days (`--veroeffentlicht-seit`), `0` to `100`

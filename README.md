@@ -127,7 +127,7 @@ details  <refnr>        full details for one listing
 | --- | --- |
 | `--was <text>` | job title / keyword (*was*) |
 | `--wo <text>` | location (*wo*) |
-| `--umkreis <km>` | radius in km around `--wo` (*Umkreis*) |
+| `--umkreis <km>` | radius in km around `--wo` (*Umkreis*; `0`–`200`, the API rejects a larger one) |
 | `--berufsfeld <text>` | occupational field (*Berufsfeld*) |
 | `--arbeitgeber <text>` | employer name (*Arbeitgeber*), matched exactly and case-sensitively against the registered name (`"Siemens AG"`, not `"Siemens"`) |
 | `--veroeffentlicht-seit <days>` | published within the last N days (`0`–`100`) |

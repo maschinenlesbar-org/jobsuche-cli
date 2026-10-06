@@ -109,7 +109,9 @@ Filter suchen will, lässt ihn weg.
 **wo.** Der Ort, in dem oder um den herum gesucht wird (`--wo`). Die API gibt den
 aufgelösten Ort im Ergebnis als `woOutput` zurück.
 
-**umkreis.** Suchradius in Kilometern um `wo` (`--umkreis`).
+**umkreis.** Suchradius in Kilometern um `wo` (`--umkreis`), `0`–`200`: Einen größeren
+Radius beantwortet die API mit HTTP 400, deshalb lehnen CLI und Bibliothek ihn vor jeder
+Anfrage ab. `0` sucht nur im Ort selbst (`suchmodus` `ORTSUCHE`).
 
 **veroeffentlichtseit.** Beschränkt die Ergebnisse auf Stellenangebote, die in den letzten
 N Tagen veröffentlicht wurden (`--veroeffentlicht-seit`), `0` bis `100`

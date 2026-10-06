@@ -93,7 +93,8 @@ run them up front.
   integer `0`..`MAX_VEROEFFENTLICHT_SEIT` (100; the API ignores a larger value and
   returns the unfiltered set), `angebotsart` one of `ANGEBOTSART_CODES` (1, 2, 4, 34;
   any other code gets a false empty result), `page` an integer `>= 1` (the API
-  answers `page=0` with HTTP 400), and `umkreis` and `size` non-negative integers.
+  answers `page=0` with HTTP 400), `umkreis` an integer `0`..`MAX_UMKREIS` (200; the
+  API answers 201 and above with HTTP 400), and `size` a non-negative integer.
   `NaN`, `Infinity` and fractions are rejected too (`validateSearchParams`,
   `intRangeProblem`, `angebotsartProblem`). The CLI's `--veroeffentlicht-seit`,
   `--angebotsart` and `--page` parsers use the same constants and rules.

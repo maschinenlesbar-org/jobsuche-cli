@@ -53,7 +53,8 @@ Catch listings in the surrounding area, not just the exact city.
 jobsuche search --was Pflegefachkraft --wo "München" --umkreis 50
 ```
 
-`--umkreis` is the radius in km around `--wo`. Listings found around a `--wo`
+`--umkreis` is the radius in km around `--wo` (`0`–`200`; the API rejects a larger
+one, so the CLI does too). Listings found around a `--wo`
 carry `entfernung` (distance in km, a number) you can sort on:
 
 ```bash

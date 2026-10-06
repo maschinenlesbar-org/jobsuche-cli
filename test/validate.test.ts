@@ -423,3 +423,22 @@ test("obtainKey() rejects a non-http(s) sourceUrl as a validation error, before 
   );
   assert.equal(calls, 0);
 });
+
+// 2026-10-05 sweep, 02 Bug 2: --umkreis 201..99999 went out with the key and came back
+// as a bare HTTP 400 (exit 1). The API's bound is 200.
+test("parity: umkreis above 200 is rejected by CLI and library alike; 200 is sent", async () => {
+  for (const value of [201, 250, 99999]) {
+    const r = await parity(["search", "--wo", "Hamburg", "--umkreis", String(value)], (transport) =>
+      new lib.JobsucheClient({ transport }).search({ wo: "Hamburg", umkreis: value }),
+    );
+    assert.equal(r.cli.code, 2, r.cli.err);
+    assert.deepEqual(r.cli.requests, []);
+    assert.match(r.cli.err, /Must be <= 200/);
+    assertBothReject(r, "Invalid umkreis: Must be <= 200.");
+  }
+  const ok = await parity(["search", "--wo", "Hamburg", "--umkreis", "200"], (transport) =>
+    new lib.JobsucheClient({ transport }).search({ wo: "Hamburg", umkreis: 200 }),
+  );
+  assert.equal(ok.cli.code, 0, ok.cli.err);
+  assert.deepEqual(ok.lib.requests, ok.cli.requests);
+});

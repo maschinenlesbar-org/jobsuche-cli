@@ -3,6 +3,7 @@ import type { CliDeps } from "../io.js";
 import { action, onceOnly, parseBoundedInt, parseIntArg, parseNonBlank, parseTextArg, renderJson } from "../shared.js";
 import type { JobSearchParams } from "../../client/types.js";
 import {
+  MAX_UMKREIS,
   MAX_VEROEFFENTLICHT_SEIT,
   angebotsartProblem,
   type Angebotsart,
@@ -31,7 +32,11 @@ export function registerJobCommands(program: Command, deps: CliDeps): void {
     .option("--wo <text>", "location (wo)", once("--wo", parseTextArg))
     .option("--berufsfeld <text>", "occupational field", once("--berufsfeld", parseTextArg))
     .option("--arbeitgeber <text>", "employer name, exact and case-sensitive (e.g. \"Siemens AG\")", once("--arbeitgeber", parseTextArg))
-    .option("--umkreis <km>", "radius in km around the location", once("--umkreis", parseIntArg))
+    .option(
+      "--umkreis <km>",
+      `radius in km around the location (0-${MAX_UMKREIS})`,
+      once("--umkreis", parseBoundedInt(0, MAX_UMKREIS)),
+    )
     // The API accepts 0..100 days and silently ignores a larger value (the whole
     // unfiltered set comes back), so the library rejects it, and so does this parser.
     .option(

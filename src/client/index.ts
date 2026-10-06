@@ -41,6 +41,7 @@ export {
   isBlank,
   isPlainObject,
   jobDetailsProblem,
+  MAX_UMKREIS,
   MAX_VEROEFFENTLICHT_SEIT,
   nonBlankProblem,
   refnrProblem,

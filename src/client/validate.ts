@@ -66,6 +66,12 @@ export function intRangeProblem(min: number, max: number): Problem<number> {
 export const MAX_VEROEFFENTLICHT_SEIT = 100;
 
 /**
+ * The largest `umkreis` (km) the API takes: 200 is answered, 201 and above get HTTP
+ * 400 `umkreis: Wert ungültig` (checked live 2026-10-05).
+ */
+export const MAX_UMKREIS = 200;
+
+/**
  * The documented `angebotsart` codes: 1 Arbeit (job), 2 Selbstständigkeit
  * (self-employment), 4 Ausbildung / Duales Studium (apprenticeship / dual study),
  * 34 Praktikum / Trainee (internship / trainee). Any other code returns an empty
@@ -85,7 +91,7 @@ export const angebotsartProblem: Problem<number> = (code) =>
 
 /** The numeric search parameters and their rules. */
 const NUMERIC_PARAMS: ReadonlyArray<[keyof JobSearchParams, Problem<number>]> = [
-  ["umkreis", intRangeProblem(0, Number.MAX_SAFE_INTEGER)],
+  ["umkreis", intRangeProblem(0, MAX_UMKREIS)],
   ["veroeffentlichtseit", intRangeProblem(0, MAX_VEROEFFENTLICHT_SEIT)],
   ["angebotsart", angebotsartProblem],
   ["page", intRangeProblem(1, Number.MAX_SAFE_INTEGER)],
@@ -206,8 +212,8 @@ export function searchParamKeyProblem(key: string, allowUnknown = false): string
 /**
  * Check search parameters before any request. `undefined` (or `null`) means "not
  * set". A given `was`, `wo`, `berufsfeld` or `arbeitgeber` must not be blank
- * (nonBlankProblem): leave a filter out to search without it. `umkreis` and `size`
- * must be non-negative integers, `veroeffentlichtseit` an integer
+ * (nonBlankProblem): leave a filter out to search without it. `umkreis` must be an
+ * integer 0..MAX_UMKREIS (200), `size` a non-negative integer, `veroeffentlichtseit` an integer
  * 0..MAX_VEROEFFENTLICHT_SEIT, `angebotsart` one of ANGEBOTSART_CODES and `page`
  * an integer >= 1 (the API answers `page=0` with HTTP 400), `zeitarbeit` a boolean;
  * `params` itself must be an object, and every key one of `SEARCH_PARAMS` unless

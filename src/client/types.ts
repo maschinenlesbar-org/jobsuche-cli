@@ -114,7 +114,10 @@ export interface JobSearchParams {
    * `facetten.arbeitgeber` keys of a search are those names.
    */
   arbeitgeber?: string;
-  /** Radius in km around `wo`; a non-negative integer. */
+  /**
+   * Radius in km around `wo`: an integer 0..`MAX_UMKREIS` (200; the API answers a
+   * larger one with HTTP 400). 0 searches the place itself.
+   */
   umkreis?: number;
   /**
    * Published within the last N days: an integer 0..`MAX_VEROEFFENTLICHT_SEIT`
