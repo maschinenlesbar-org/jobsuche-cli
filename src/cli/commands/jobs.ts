@@ -2,6 +2,7 @@ import { InvalidArgumentError, type Command } from "commander";
 import type { CliDeps } from "../io.js";
 import { action, onceOnly, parseBoundedInt, parseIntArg, parseNonBlank, parseTextArg, renderJson } from "../shared.js";
 import type { JobSearchParams } from "../../client/types.js";
+import { woNote } from "../../client/client.js";
 import {
   MAX_UMKREIS,
   MAX_VEROEFFENTLICHT_SEIT,
@@ -86,7 +87,12 @@ export function registerJobCommands(program: Command, deps: CliDeps): void {
           page: opts["page"] as number | undefined,
           size: opts["size"] as number | undefined,
         };
-        renderJson(deps, global, await client.search(params));
+        const result = await client.search(params);
+        renderJson(deps, global, result);
+        // The API answers an unknown or garbled --wo with exit-0 data about another
+        // town, or with nothing; say so (stderr, exit code unchanged).
+        const note = woNote(params.wo, result);
+        if (note !== undefined) deps.io.err(`warning: ${note}`);
       }),
     );
 

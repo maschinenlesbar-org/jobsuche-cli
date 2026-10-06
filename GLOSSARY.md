@@ -107,7 +107,13 @@ it would silently run the search unfiltered, and sending it gets HTTP 400 from t
 live API (an empty `was=`). Leave a filter out to search without it.
 
 **wo.** The location to search in or around (`--wo`). The API echoes the resolved
-location back as `woOutput` in the result.
+location back as `woOutput` in the result: `bereinigterOrt` (the place it used) and
+`suchmodus` (`UMKREISSUCHE`, `ORTSUCHE`, or `UNGUELTIG` when it did not recognise
+the place). It never rejects a place: a typo is corrected silently (`Berln` →
+`Berlin`), a garbled name can resolve to another town (`Hambrugxx Nord` →
+`Tackesdorf-Nord`, 150 km away), and an unknown one gives `UNGUELTIG` and an empty
+result. The CLI prints a warning on stderr in those cases (`woNote` in the
+library); a postcode is unambiguous.
 
 **umkreis.** Search radius in kilometres around `wo` (`--umkreis`), `0`–`200`: the
 API answers a larger radius with HTTP 400, so the CLI and the library reject it

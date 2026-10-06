@@ -78,7 +78,10 @@ Choose the search axis to match the question:
 - A specific role/title → `--was` (e.g. `Pflege`, "Data Engineer").
 - A broad field → `--berufsfeld` (e.g. `Altenpflege`) — wider net than `--was`.
 - Add `--wo` + `--umkreis <km>` to scope a region (a radius of 30–50 km captures
-  a metro area; omit `--wo` for a nationwide scan).
+  a metro area; omit `--wo` for a nationwide scan). If the CLI warns that the API
+  searched around another place or did not recognise `--wo`, the counts are not
+  for the region the user named: fix `--wo` (a postcode is unambiguous) before
+  reporting anything.
 - Staffing/temp agencies are **included by default**; for a "real employer"
   picture add `--no-zeitarbeit` and say so. (`--zeitarbeit` returns **only**
   agency listings.)

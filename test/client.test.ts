@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { JobsucheClient } from "../src/client/client.js";
+import { JobsucheClient, woNote } from "../src/client/client.js";
 import { JobsucheApiError, JobsucheError, JobsucheParseError, JobsucheValidationError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson, okResponse } from "./helpers.js";
 import { V6_NO_MATCH, V6_SEARCH } from "./fixtures.js";
@@ -175,4 +175,18 @@ test("details passes the encoded form of a refnr with _ or : through unchanged",
     await clientWith(mt).details(refnr);
     assert.equal(new URL(mt.last().url).pathname, `${SERVICE}/pc/v4/jobdetails/${encodeURIComponent(Buffer.from(refnr).toString("base64"))}`, refnr);
   }
+});
+
+// 2026-10-05 sweep, 02 Bug 3: a misspelt --wo silently searched another town
+// (Hambrugxx Nord → Tackesdorf-Nord) or nothing (suchmodus UNGUELTIG), exit 0.
+test("woNote names an unrecognised or substituted place, not a correction in kind", async () => {
+  const at = (bereinigterOrt?: string, suchmodus = "UMKREISSUCHE") => ({ maxErgebnisse: 1, woOutput: { ...(bereinigterOrt ? { bereinigterOrt } : {}), suchmodus } });
+  assert.match(woNote("Qqqqzzzz", at(undefined, "UNGUELTIG")) ?? "", /did not recognise the place "Qqqqzzzz"/);
+  assert.match(woNote("Hambrugxx Nord", at("Tackesdorf-Nord")) ?? "", /searched around "Tackesdorf-Nord" for --wo "Hambrugxx Nord"/);
+  assert.match(woNote("Berln", at("Berlin")) ?? "", /searched around "Berlin"/);
+  for (const [wo, resolved] of [["Berlin", "Berlin"], ["berlin", "Berlin"], ["10115", "10115"], ["Frankfurt", "Frankfurt am Main"], ["München", "München"], ["Hamburg-Altona", "Hamburg"]] as const) {
+    assert.equal(woNote(wo, at(resolved)), undefined, `${wo} → ${resolved}`);
+  }
+  assert.equal(woNote(undefined, at(undefined, "UNGUELTIG")), undefined);
+  assert.equal(woNote("Berlin", { maxErgebnisse: 0 }), undefined);
 });

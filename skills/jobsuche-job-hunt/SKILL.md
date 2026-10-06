@@ -72,7 +72,11 @@ Map the request to flags:
 - `--was <role/keyword>` for a specific title; `--berufsfeld <field>` for a broad
   category (use one or the other; `--berufsfeld` casts wider).
 - `--wo <city>` + `--umkreis <km>` for "near me" (with `--wo` every listing
-  carries its **distance** `entfernung`, see Step 3).
+  carries its **distance** `entfernung`, see Step 3). The API never rejects a place
+  it doesn't know: if the CLI prints `warning: the API searched around "…"` or
+  `warning: the API did not recognise the place …`, the results (and every
+  `entfernung`) are not for the place the user named — fix `--wo` (a postcode is
+  unambiguous) and search again, or tell the user which place was searched.
 - `--veroeffentlicht-seit <days>` to keep it fresh (7/14/30 are good defaults for
   an active hunt).
 - `--angebotsart <code>` for offer type: `1` = regular vacancy, `4` =

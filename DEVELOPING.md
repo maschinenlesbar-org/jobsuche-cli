@@ -335,6 +335,14 @@ again inside the window it named.
 and cut at 500 characters ("…"), so a hostile or buggy body cannot flood stderr or
 a CI log; `JobsucheApiError.body` keeps the full text.
 
+**What the API did with `wo`.** The API never fails on a place: it corrects a
+typo, may resolve a garbled name to another town, or answers `suchmodus:
+"UNGUELTIG"` with an empty result — all HTTP 200. `woNote(wo, result)` (in
+`client.ts`, exported) returns a sentence when the place used
+(`woOutput.bereinigterOrt`) neither contains nor is contained in the `wo` asked
+for (NFC, case-insensitive, blanks collapsed), or when it was not recognised; the
+`search` command prints it as `warning: …` on stderr and keeps exit `0`.
+
 **Response shape.** `search()` and `details()` check a 2xx body before returning
 it (`searchResultProblem`, `jobDetailsProblem` in `validate.ts`): a search
 result is an object with an integer `maxErgebnisse` and, when present, an

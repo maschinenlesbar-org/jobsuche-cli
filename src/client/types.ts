@@ -79,6 +79,21 @@ export interface Stellenangebot {
 }
 
 /**
+ * The place the API resolved `wo` to (`woOutput`). `suchmodus` is
+ * `"UMKREISSUCHE"` (radius search around `bereinigterOrt`), `"ORTSUCHE"` (the place
+ * itself, `umkreis` 0) or `"UNGUELTIG"` (the place was not recognised: nothing was
+ * searched there, and `bereinigterOrt` is absent). The API corrects typos silently
+ * (`Berln` → `Berlin`) and may resolve a garbled name to a different town
+ * (`Hambrugxx Nord` → `Tackesdorf-Nord`); `woNote()` says when.
+ */
+export interface WoOutput {
+  bereinigterOrt?: string;
+  suchmodus?: string;
+  koordinaten?: Array<{ lat?: number; lon?: number }>;
+  [key: string]: unknown;
+}
+
+/**
  * Response of the jobs search endpoint (`/pc/v6/jobs`). `ergebnisliste` is
  * absent (not `[]`) when nothing matched or when `size` is 0, and `facetten` is
  * absent when nothing matched.
@@ -89,8 +104,8 @@ export interface JobSearchResult {
   page?: number;
   size?: number;
   facetten?: JsonObject;
-  /** Echo of the resolved location (`wo`) the API searched against. */
-  woOutput?: JsonObject;
+  /** Echo of the resolved location (`wo`) the API searched against (see WoOutput). */
+  woOutput?: WoOutput;
 }
 
 /** Full single-job payload — kept as a faithful raw object. */

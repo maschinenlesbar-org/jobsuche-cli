@@ -107,7 +107,13 @@ ungefiltert, und ein leeres `was=` lehnt die Live-API mit HTTP 400 ab. Wer ohne 
 Filter suchen will, lässt ihn weg.
 
 **wo.** Der Ort, in dem oder um den herum gesucht wird (`--wo`). Die API gibt den
-aufgelösten Ort im Ergebnis als `woOutput` zurück.
+aufgelösten Ort im Ergebnis als `woOutput` zurück: `bereinigterOrt` (der verwendete Ort) und
+`suchmodus` (`UMKREISSUCHE`, `ORTSUCHE` oder `UNGUELTIG`, wenn sie den Ort nicht erkannt hat).
+Sie lehnt keinen Ort ab: Ein Tippfehler wird stillschweigend korrigiert (`Berln` → `Berlin`),
+ein verstümmelter Name kann zu einem anderen Ort werden (`Hambrugxx Nord` →
+`Tackesdorf-Nord`, 150 km entfernt), und ein unbekannter ergibt `UNGUELTIG` und ein leeres
+Ergebnis. Die CLI gibt in diesen Fällen eine Warnung auf stderr aus (`woNote` in der
+Bibliothek); eine Postleitzahl ist eindeutig.
 
 **umkreis.** Suchradius in Kilometern um `wo` (`--umkreis`), `0`–`200`: Einen größeren
 Radius beantwortet die API mit HTTP 400, deshalb lehnen CLI und Bibliothek ihn vor jeder

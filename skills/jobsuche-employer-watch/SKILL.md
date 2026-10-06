@@ -80,7 +80,9 @@ entity or the whole group (run each name and merge), and say which you did.
 jobsuche --compact search --arbeitgeber "Deutsche Bahn AG" --size 100
 ```
 
-- Add `--wo <city> --umkreis <km>` to scope to a region; omit for nationwide.
+- Add `--wo <city> --umkreis <km>` to scope to a region; omit for nationwide. If
+  the CLI warns that the API searched around another place or did not recognise
+  `--wo`, fix the place before reading anything into the counts.
 - Add `--veroeffentlicht-seit <days>` for "new this week/month".
 - Temp-agency postings are **included by default**; add `--no-zeitarbeit` to
   leave them out. (`--zeitarbeit` returns **only** those — not "too".)

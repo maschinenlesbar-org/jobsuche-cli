@@ -126,7 +126,7 @@ details  <refnr>        full details for one listing
 | Flag | Meaning |
 | --- | --- |
 | `--was <text>` | job title / keyword (*was*) |
-| `--wo <text>` | location (*wo*) |
+| `--wo <text>` | location (*wo*). The API never rejects a place: when it searched around another one (`woOutput.bereinigterOrt`) or did not recognise it (`suchmodus` `UNGUELTIG`), a `warning:` on stderr says so (exit `0`) |
 | `--umkreis <km>` | radius in km around `--wo` (*Umkreis*; `0`–`200`, the API rejects a larger one) |
 | `--berufsfeld <text>` | occupational field (*Berufsfeld*) |
 | `--arbeitgeber <text>` | employer name (*Arbeitgeber*), matched exactly and case-sensitively against the registered name (`"Siemens AG"`, not `"Siemens"`) |

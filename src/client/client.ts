@@ -173,3 +173,45 @@ export class JobsucheClient {
     return REFNR_PATTERN.test(decoded.toString("utf8"));
   }
 }
+
+/** `text` in NFC, lower-cased, with blanks collapsed, for comparing two place names. */
+function placeKey(text: string): string {
+  return text.normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
+ * What a search did with its `wo`, when that is not the place asked for — or
+ * undefined. The API never fails on a place it doesn't know: it answers
+ * `woOutput.suchmodus` `"UNGUELTIG"` with an empty result, which reads as "no jobs
+ * there", and it silently searches around another town for a garbled name
+ * (`Hambrugxx Nord` → `Tackesdorf-Nord`, 307 listings 150 km from Hamburg), so every
+ * `entfernung` is measured from the wrong place. Returns a sentence for the caller
+ * to show (the CLI prints it as a warning on stderr):
+ *
+ * - `UNGUELTIG`: the place was not recognised and nothing was searched there;
+ * - a `bereinigterOrt` that neither contains nor is contained in `wo` (compared
+ *   case-insensitively, NFC, blanks collapsed): the API searched around that place
+ *   instead. A correction such as `Berln` → `Berlin` is named the same way; a
+ *   postcode or `Frankfurt` → `Frankfurt am Main` is not.
+ */
+export function woNote(wo: string | undefined, result: JobSearchResult): string | undefined {
+  if (wo === undefined || wo.trim() === "" || !isPlainObject(result as unknown)) return undefined;
+  const out = result.woOutput;
+  if (!isPlainObject(out as unknown)) return undefined;
+  const asked = sanitizeServerText(wo);
+  if (out?.suchmodus === "UNGUELTIG") {
+    return (
+      `the API did not recognise the place "${asked}" (woOutput.suchmodus UNGUELTIG), so nothing ` +
+      `was searched there: an empty result does not mean "no jobs". Check the spelling or use a postcode.`
+    );
+  }
+  const resolved = typeof out?.bereinigterOrt === "string" ? sanitizeServerText(out.bereinigterOrt) : "";
+  if (resolved === "") return undefined;
+  const a = placeKey(asked);
+  const b = placeKey(resolved);
+  if (a.includes(b) || b.includes(a)) return undefined;
+  return (
+    `the API searched around "${resolved}" for --wo "${asked}" (woOutput.bereinigterOrt); ` +
+    `distances (entfernung) are from there. Check that this is the place you meant.`
+  );
+}

@@ -43,7 +43,11 @@ jobsuche search --was Informatiker --wo Berlin --size 10
 `--was` is the keyword/title, `--wo` the location, `--size` caps the page size.
 The result is a `JobSearchResult` object: `ergebnisliste` (the listings — absent,
 not `[]`, when nothing matched), plus `maxErgebnisse` (total matches), `page`,
-`size`, `woOutput` and `facetten`.
+`size`, `woOutput` and `facetten`. `woOutput.bereinigterOrt` is the place the API
+actually searched: it corrects a typo silently and may resolve a garbled name to
+another town, or answer `suchmodus: "UNGUELTIG"` with an empty result. In those
+cases the CLI prints a `warning:` on stderr (exit `0`); check the place, or use a
+postcode.
 
 ### 2. Search within a radius of a location
 

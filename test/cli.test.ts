@@ -456,3 +456,13 @@ test("--zeitarbeit with --no-zeitarbeit, or a repeated option, is a usage error"
     assert.equal(cli.mt.calls.length, 0);
   }
 });
+
+test("search warns on stderr when the API did not search the --wo asked for, exit 0", async () => {
+  const cli = makeCli(() => jsonResponse({ maxErgebnisse: 307, page: 1, size: 1, woOutput: { bereinigterOrt: "Tackesdorf-Nord", suchmodus: "UMKREISSUCHE" } }));
+  assert.equal(await run(["search", "--was", "Pflege", "--wo", "Hambrugxx Nord"], cli.deps), 0);
+  assert.match(cli.err.join("\n"), /^warning: the API searched around "Tackesdorf-Nord" for --wo "Hambrugxx Nord"/);
+  assert.equal(JSON.parse(cli.out.join("\n")).maxErgebnisse, 307);
+  const ok = makeCli(() => jsonResponse(V6_SEARCH));
+  assert.equal(await run(["search", "--wo", "Berlin"], ok.deps), 0);
+  assert.deepEqual(ok.err, []);
+});
