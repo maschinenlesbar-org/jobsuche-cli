@@ -447,7 +447,9 @@ copied as is and differs only in its adapter block at the top:
 - `p8-p9-p13-responses-and-errors` — charset, response shapes, wrong-typed input;
 - `p10-strict-filters` — unknown parameters and repeated options;
 - `p20-cleartext-warning` — one stderr warning for a plain-`http:` base URL (follow-up round
-  2026-10-06).
+  2026-10-06);
+- `p21-readme-links` — a relative README link points only at a file `files` ships (npmjs.com
+  shows the README); every other document is linked by its absolute GitHub URL.
 
 Cases that don't apply here are skipped in the adapter with the reason (no
 base-URL environment variable; `obtain-key` does not verify the key).

@@ -20,7 +20,7 @@ keyword, location, radius or employer, and fetch the full record for any posting
 - **Full-detail lookups** — pass a listing's reference number (`referenznummer`, the *refnr*) from any search result; the CLI base64-encodes it for the API automatically.
 
 > Want to use this as a TypeScript library or understand how it's built?
-> See **[DEVELOPING.md](DEVELOPING.md)**.
+> See **[DEVELOPING.md](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/DEVELOPING.md)**.
 
 ## Install
 
@@ -140,7 +140,7 @@ details  <refnr>        full details for one listing
 Each flag takes one value: giving one twice (`--wo Berlin --wo Hamburg`), or
 `--zeitarbeit` together with `--no-zeitarbeit`, is a usage error (exit `2`) rather
 than "the last one wins". The flag names mirror the API's German field names — the
-**[Glossary](GLOSSARY.md)** decodes every one.
+**[Glossary](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/GLOSSARY.md)** decodes every one.
 
 ### `details <refnr>`
 
@@ -151,7 +151,7 @@ already-encoded code is also accepted and passed through unchanged.
 
 ## Common tasks
 
-A few recipes to get going — see **[Usage.md](Usage.md)** for the full,
+A few recipes to get going — see **[Usage.md](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/Usage.md)** for the full,
 use-case-driven set.
 
 ```bash
@@ -272,11 +272,11 @@ than `localhost`. A `user:password@` in the base URL is sent as
 
 ## Learn more
 
-- **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills bundled with this repo
+- **[SKILLS.md](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/SKILLS.md)** — Claude Code Agent Skills bundled with this repo
   (market scan, job hunt, employer watch), installable as a plugin.
-- **[Usage.md](Usage.md)** — full use-case-driven cookbook.
-- **[GLOSSARY.md](GLOSSARY.md)** — every flag and domain term explained.
-- **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
+- **[Usage.md](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/Usage.md)** — full use-case-driven cookbook.
+- **[GLOSSARY.md](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/GLOSSARY.md)** — every flag and domain term explained.
+- **[DEVELOPING.md](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
 ## Data license
 
