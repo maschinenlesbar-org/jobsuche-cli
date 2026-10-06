@@ -27,6 +27,13 @@ test("EPIPE on stdout (reader closed early, e.g. | head) exits 0 instead of cras
   assert.deepEqual(s.exits, [0]);
 });
 
+test("ENOTCONN (stdout is a socket whose reader has gone) is treated like EPIPE", () => {
+  const s = setup();
+  s.stdout.emit("error", epipe("ENOTCONN"));
+  s.stderr.emit("error", epipe("ENOTCONN"));
+  assert.deepEqual(s.exits, [0]);
+});
+
 test("EPIPE on stderr is ignored, so a failed run keeps its exit code", () => {
   const s = setup();
   s.stderr.emit("error", epipe("EPIPE"));
