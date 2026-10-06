@@ -426,6 +426,25 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`client.test.ts`** — the X-API-Key header, search params and the refnr base64 encoding (incl. hyphenless numeric refnrs and empty-refnr rejection) — mocked transport.
 - **`cli.test.ts`** — command parsing, `--api-key` / `JOBSUCHE_API_KEY` precedence, 401/403 and other exit codes — mocked client.
 - **`validate.test.ts`** — `assertValid`, the exit-2 mapping of `JobsucheValidationError`, and the CLI ↔ library parity tests. `parity()` in `test/helpers.ts` runs one input through `run()` and through the library on one recording mock transport; a parity test asserts both reject without a request, or both send the identical request.
+- **`obtain-key.test.ts`** — the key source parser (the documented key format, placeholders, conflicting keys), redirects, limits and the `--export` line.
+- **`io.test.ts`** — `handleOutputErrors` (EPIPE on stdout and stderr).
+
+The **conformance tests** (`test/conformance-p*.test.ts`) are shared across the
+`*-cli` repos (`.reviews/2026-10-06-fix-patterns.md` in the workspace); each is
+copied as is and differs only in its adapter block at the top:
+
+- `p1-cli-redaction` — no password or key in anything the CLI prints;
+- `p2-library-redaction` — none in a logged client or error either;
+- `p3-redirect-credentials` — credentials only to the base URL's origin, the http→https hint;
+- `p4-p19-config-validation` — a `%` in the userinfo, help with a bad `JOBSUCHE_API_KEY`;
+- `p5-transport-contract` — timeouts, size cap, body and header shapes for any transport;
+- `p6-retry-policy` — `Retry-After`, never a zero-delay burst;
+- `p7-pipes-exit-codes` — closed pipes (spawns the built bin);
+- `p8-p9-p13-responses-and-errors` — charset, response shapes, wrong-typed input;
+- `p10-strict-filters` — unknown parameters and repeated options.
+
+Cases that don't apply here are skipped in the adapter with the reason (no
+base-URL environment variable; `obtain-key` does not verify the key).
 
 ## Continuous integration
 
