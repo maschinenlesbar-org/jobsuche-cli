@@ -70,12 +70,15 @@ Homeoffice-Angaben sowie optional `externeURL` – dieselben Feldnamen wie im Da
 jedes Suchergebnis im Feld `referenznummer` liefert (in älteren API-Versionen und in der Hilfe
 dieser CLI `refnr` genannt) – z. B. `10001-1002716922-S`, die Hex-Form
 `14225-dafcdd47aabe512d-S` oder eine rein numerische `1002716922`. Sie besteht aus
-Ziffern, Buchstaben und Bindestrichen. Das ist das Argument, das Sie an `details` übergeben.
+Ziffern, Buchstaben und Bindestrichen; rund 15 % der Stellenangebote enthalten außerdem `_`
+oder `:` (`13635-dc8d6fe5_JB5255995-S`, `17296-0008159:01-S`). Das ist das Argument, das Sie
+an `details` übergeben.
 
 **encryptedJobCode.** Die Form, die eine `refnr` in der URL von `details` haben muss: die
 Base64-Kodierung der `refnr`. Der Client kodiert die `refnr` für Sie; ein bereits
-Base64-kodierter Code wird erkannt (über einen exakten Base64-Roundtrip, nicht anhand des
-Zeichensatzes) und unverändert durchgereicht.
+Base64-kodierter Code wird erkannt (über einen exakten Base64-Roundtrip, der eine `refnr`
+ergibt – eine Ziffer vorn, dann druckbare Zeichen –, nicht anhand des Zeichensatzes) und
+unverändert durchgereicht, welche Zeichen die `refnr` auch enthält.
 
 **Stellenlokation.** Ein Eintrag im Array `stellenlokationen` eines Stellenangebots:
 `adresse` (`strasse`, `hausnummer`, `plz` Postleitzahl, `ort` Stadt oder Gemeinde, `region`,

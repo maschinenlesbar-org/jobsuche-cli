@@ -73,8 +73,9 @@ new JobsucheClient({
 `referenznummer`) and `client.details(refnr)` (`/pc/v4/jobdetails`). `details` takes a
 reference number (`refnr`, e.g. `"10001-1002716922-S"` or a purely numeric
 `"1002716922"`) and base64-encodes it into the API's `encryptedJobCode` for you.
-An already-encoded `encryptedJobCode` is detected (by exact base64 round-trip,
-not charset sniffing) and passed through unchanged. An empty/whitespace `refnr`
+An already-encoded `encryptedJobCode` is detected (by exact base64 round-trip to
+a refnr: a digit first, then printable ASCII, so the `_` and `:` of live refnrs
+pass too; not charset sniffing) and passed through unchanged. An empty/whitespace `refnr`
 is rejected before any request.
 
 ### What the library rejects

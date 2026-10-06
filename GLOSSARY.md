@@ -70,12 +70,15 @@ as the `details` payload. The full description is fetched separately via
 listing, returned in each search result's `referenznummer` field (called `refnr`
 in older API versions and in this CLI's help) — e.g. `10001-1002716922-S`, the hex form
 `14225-dafcdd47aabe512d-S`, or a purely numeric `1002716922`. It is made of
-digits, letters and hyphens. This is the argument you pass to `details`.
+digits, letters and hyphens, and some 15 % of live listings also have `_` or `:`
+(`13635-dc8d6fe5_JB5255995-S`, `17296-0008159:01-S`). This is the argument you
+pass to `details`.
 
 **encryptedJobCode.** The form a `refnr` must take in the `details` URL: the
 base64 encoding of the `refnr`. The client base64-encodes the `refnr` for you;
-an already-base64-encoded code is detected (by an exact base64 round-trip, not
-charset sniffing) and passed through unchanged.
+an already-base64-encoded code is detected (by an exact base64 round-trip that
+decodes to a refnr — a digit first, then printable characters — not charset
+sniffing) and passed through unchanged, whatever characters the refnr has.
 
 **Stellenlokation (work location).** One entry of a listing's
 `stellenlokationen` array: `adresse` (`strasse`, `hausnummer`, `plz` postal code,

@@ -32,13 +32,17 @@ import type { JobSearchResult, JobDetails, JobSearchParams } from "./types.js";
 
 const SERVICE = "/jobboerse/jobsuche-service";
 /**
- * Shape of a reference number once base64-decoded. Refnrs are made of digits,
- * letters and hyphens (e.g. "10001-1002716922-S", and real listings contain
- * lowercase hex such as "14225-dafcdd47aabe512d-S"). A purely numeric refnr such
- * as "1002716922" is also valid. Used to distinguish a refnr from an
- * already-base64-encoded `encryptedJobCode`.
+ * Shape of a reference number once base64-decoded: a digit first, then printable
+ * ASCII without blanks. Live refnrs are digits, letters and hyphens
+ * ("10001-1002716922-S", "14225-dafcdd47aabe512d-S", a purely numeric
+ * "1002716922"), and 15 % of them also contain "_" or ":"
+ * ("13635-dc8d6fe5_JB5255995-S", "17296-0008159:01-S"), so the alphabet is not
+ * narrowed further. Used to tell a refnr from an already-base64-encoded
+ * `encryptedJobCode`: a raw refnr never passes as one, since it contains a "-"
+ * (outside the base64 alphabet) or, when purely numeric, decodes to bytes above
+ * 0x7f.
  */
-const REFNR_PATTERN = /^[A-Za-z0-9-]+$/;
+const REFNR_PATTERN = /^[0-9][\x21-\x7e]*$/;
 
 /** Options for the Jobsuche client (engine options plus the API key). */
 export interface JobsucheClientOptions extends EngineOptions {

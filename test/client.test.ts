@@ -157,3 +157,22 @@ test("search() sends an unknown parameter only with allowUnknownParams", async (
     await assert.rejects(c.search(bad as never, { allowUnknownParams: true }), JobsucheValidationError, JSON.stringify(bad));
   }
 });
+
+// 2026-10-05 sweep, 02 Bug 1: the encoded form of a refnr with "_" or ":" (15 % of live
+// listings) was encoded a second time, and the API answered 404 for a listing that exists.
+test("details passes the encoded form of a refnr with _ or : through unchanged", async () => {
+  for (const refnr of ["13635-dc8d6fe5_JB5255995-S", "14795-70453_124092-S", "17296-0008159:01-S", "14225-ec7257e47df354d8-S"]) {
+    const encoded = Buffer.from(refnr).toString("base64");
+    for (const input of [refnr, encoded]) {
+      const mt = makeMockTransport(okResponse);
+      await clientWith(mt).details(input);
+      assert.equal(new URL(mt.last().url).pathname, `${SERVICE}/pc/v4/jobdetails/${encodeURIComponent(encoded)}`, input);
+    }
+  }
+  // Raw numeric refnrs of every length still get encoded (they never decode to a refnr).
+  for (const refnr of ["12345678", "1002716922", "100271692212"]) {
+    const mt = makeMockTransport(okResponse);
+    await clientWith(mt).details(refnr);
+    assert.equal(new URL(mt.last().url).pathname, `${SERVICE}/pc/v4/jobdetails/${encodeURIComponent(Buffer.from(refnr).toString("base64"))}`, refnr);
+  }
+});
