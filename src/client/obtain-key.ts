@@ -63,18 +63,42 @@ const CLIENT_ID_PATTERN = new RegExp(String.raw`client_?id${SEPARATOR}${VALUE}`,
 const X_API_KEY_PATTERN = new RegExp(String.raw`X-API-Key${SEPARATOR}${VALUE}`, "gi");
 
 /**
- * What a key looks like: letters, digits, `.`, `_` and `-`. A placeholder such as
- * `<your-key>` or `$KEY`, or a value carrying control characters, is not a key —
- * it is skipped rather than printed (and never reaches the terminal raw).
+ * The documented key format, taken from the key the source has published since the
+ * API opened (two lower-case words joined by a hyphen, 18 characters): lower-case
+ * letters and digits in hyphen-joined words, at least two, 8–64 characters in all.
+ * A rotated key of the same kind passes; a value of another kind makes `obtainKey`
+ * fail rather than print something that is not a key.
  */
-const KEY_SHAPE = /^[A-Za-z0-9._-]+$/;
+const KEY_FORMAT = /^(?=.{8,64}$)[a-z0-9]+(?:-[a-z0-9]+)+$/;
 
-/** Distinct key-shaped values the pattern finds, in document order. */
+/** Words that mark an example value in documentation, not a key (`your-api-key`). */
+const PLACEHOLDER_WORDS = new Set([
+  "your", "my", "api", "key", "apikey", "example", "placeholder", "token", "secret",
+  "insert", "here", "dein", "ihr", "schluessel", "todo", "changeme", "dummy", "test",
+]);
+
+/**
+ * Why `value` is not a key in the documented format, or undefined. Placeholders
+ * (`YOUR-API-KEY.`, `your-api-key`, `xxx`, `...`, `e.g.`), flags (`-`, `--help`),
+ * punctuation, `<key>`, `$KEY` and control characters are never a key: printing one
+ * would put a non-key in `JOBSUCHE_API_KEY` and every request would then fail as the
+ * ambiguous empty 403.
+ */
+export function keyFormatProblem(value: string): string | undefined {
+  if (!KEY_FORMAT.test(value)) {
+    return "not in the documented key format (lower-case words joined by hyphens, 8-64 characters)";
+  }
+  const words = value.split("-");
+  if (words.some((w) => PLACEHOLDER_WORDS.has(w) || /^x+$/.test(w))) return "a placeholder, not a key";
+  return undefined;
+}
+
+/** Distinct values in the key format (keyFormatProblem) the pattern finds, in document order. */
 function findKeys(text: string, pattern: RegExp): string[] {
   const keys: string[] = [];
   for (const match of text.matchAll(pattern)) {
     const key = match[1];
-    if (key !== undefined && KEY_SHAPE.test(key) && !keys.includes(key)) keys.push(key);
+    if (key !== undefined && keyFormatProblem(key) === undefined && !keys.includes(key)) keys.push(key);
   }
   return keys;
 }

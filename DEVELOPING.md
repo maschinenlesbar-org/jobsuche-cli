@@ -183,14 +183,24 @@ npm run obtain-key                                      # prints the current pub
 JOBSUCHE_API_KEY="$(npm run --silent obtain-key)" jobsuche search --was Informatiker
 ```
 
-The script scrapes the key from the upstream
-[bundesAPI README](https://github.com/bundesAPI/jobsuche-api); it is a
-dev/CI tool only and is not part of the published package.
+`obtainKey()` (the `obtain-key` command) reads the key from the upstream
+[bundesAPI README](https://github.com/bundesAPI/jobsuche-api) at run time. It
+accepts only a value in the documented key format (`keyFormatProblem`:
+lower-case letters and digits in hyphen-joined words, 8–64 characters, as the
+published key has always been) and never a placeholder (`YOUR-API-KEY.`,
+`your-api-key`, `xxx`, `...`, `e.g.`), a flag (`-`, `--help`), `<key>`, `$KEY` or a
+value with control characters: such a value is skipped, and a source that states
+no real key makes the command fail (non-zero exit, nothing on stdout) rather than
+print a non-key that would make every request fail as the ambiguous empty 403.
+After a same-origin redirect, the result (and the CLI's stderr note) names the
+document the key was actually read from.
 
 **Redirect safety.** When the API issues a redirect that crosses an origin
-boundary (a different scheme, host, or port), the client **strips credential
-headers** (`X-API-Key`, `Authorization`, `Cookie`) before following it, so your
-key is never forwarded to another host. Same-origin redirects keep the key.
+boundary (a different scheme, host, or port — `http:` → `https:` included), the
+client **drops the credentials** (`X-API-Key`, the base URL's userinfo,
+`Authorization`, `Cookie`) for the rest of the chain, so your key is never
+forwarded to another host; see *Credentials per hop* below. Same-origin redirects
+keep the key.
 
 ## Architecture
 

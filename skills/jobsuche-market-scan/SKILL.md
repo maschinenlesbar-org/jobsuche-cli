@@ -47,8 +47,9 @@ between separate commands:
 JOBSUCHE_API_KEY="<the key obtain-key printed>" jobsuche --compact search --was Informatiker
 ```
 
-Say which key you used when you report back — it is public, not a credential to hide. If
-`obtain-key` exits non-zero, stop and tell the user; never guess a key or hard-code one.
+Pass the key on each call, but don't repeat it in your answer: the published key is public,
+yet one already in `JOBSUCHE_API_KEY` may be the user's own. If `obtain-key` exits non-zero,
+stop and tell the user; never guess a key or hard-code one.
 
 **If a call exits `3` with `HTTP 403`, the cause is ambiguous.** The gateway at
 `rest.arbeitsagentur.de` sends the same empty-body 403 for a wrong or missing key as when

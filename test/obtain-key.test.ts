@@ -71,13 +71,14 @@ test("obtain-key --export emits a quoted, eval-safe export line", async () => {
   assert.deepEqual(cli.out, [`export ${API_KEY_ENV_VAR}='jobboerse-jobsuche'`]);
 });
 
-test("a quote in the source truncates the value rather than escaping into the shell", async () => {
+test("a quote in the source never escapes into the shell", async () => {
   // The key pattern accepts no whitespace, quote or backtick, so a payload that
-  // needs any of them cannot even be captured.
+  // needs any of them cannot even be captured; what is left before the quote ("a")
+  // is not in the key format, so nothing is printed at all.
   const cli = makeCli(() => rawResponse(`X-API-Key: a'$(touch /tmp/pwned)'b`, "text/plain"));
   const code = await run(["obtain-key", "--export"], cli.deps);
-  assert.equal(code, 0);
-  assert.equal(cli.out[0], `export ${API_KEY_ENV_VAR}='a'`);
+  assert.notEqual(code, 0);
+  assert.deepEqual(cli.out, []);
 });
 
 test("a quote-free shell payload is not taken for a key", async () => {
@@ -121,8 +122,8 @@ test("obtainKey reads the README's clientId line and ignores prose", async () =>
 });
 
 test("obtainKey refuses a source that states two different keys", async () => {
-  const mt = makeMockTransport(() => rawResponse(`**clientId:** one-key\n${README}`, "text/plain"));
-  await assert.rejects(() => obtainKey({ transport: mt.transport }), /conflicting keys \(one-key, jobboerse-jobsuche\)/);
+  const mt = makeMockTransport(() => rawResponse(`**clientId:** jobboerse-other\n${README}`, "text/plain"));
+  await assert.rejects(() => obtainKey({ transport: mt.transport }), /conflicting keys \(jobboerse-other, jobboerse-jobsuche\)/);
 });
 
 test("obtain-key needs no configured key and sends none", async () => {
@@ -226,4 +227,34 @@ test("obtainKey sends a source's userinfo as Basic auth, never in the URL", asyn
   assert.equal(mt.last().url, "https://mirror.example/README.md");
   assert.equal(mt.last().headers?.["Authorization"], `Basic ${Buffer.from("ci:pw-s3cret").toString("base64")}`);
   assert.equal(result.sourceUrl, "https://mirror.example/README.md");
+});
+
+// 2026-10-05 sweep, 04 Bug 6: `YOUR-API-KEY.`, `...`, `e.g.`, `xxx`, `-` and `--help`
+// passed the old shape check and were printed as the key (exit 0).
+test("obtainKey accepts only a value in the documented key format, never a placeholder", async () => {
+  const lines = [
+    "X-API-Key: YOUR-API-KEY.",
+    "X-API-Key: your-api-key",
+    "clientId: ...",
+    "clientId: e.g.",
+    "X-API-Key: xxx",
+    "X-API-Key: xxx-xxx-xxx",
+    "clientId: -",
+    "clientId: --help",
+    "clientId: <your-client-id>",
+    "X-API-Key: $JOBSUCHE_API_KEY",
+    "X-API-Key: ABCDEF-123456",
+    "clientId: a-b",
+  ];
+  for (const line of lines) {
+    const mt = makeMockTransport(() => rawResponse(line, "text/plain"));
+    await assert.rejects(() => obtainKey({ transport: mt.transport }), JobsucheParseError, line);
+    // Next to the real key, the placeholder is skipped and the real key wins.
+    const both = makeMockTransport(() => rawResponse(`${line}\n${README}`, "text/plain"));
+    assert.equal((await obtainKey({ transport: both.transport })).key, "jobboerse-jobsuche", line);
+  }
+  // The CLI prints nothing on stdout and exits non-zero for a placeholder-only source.
+  const cli = makeCli(() => rawResponse("X-API-Key: YOUR-API-KEY.", "text/plain"));
+  assert.notEqual(await run(["obtain-key"], cli.deps), 0);
+  assert.deepEqual(cli.out, []);
 });
