@@ -142,8 +142,9 @@ Narrow to one company's openings in a region.
 jobsuche search --arbeitgeber "Deutsche Bahn AG" --wo Frankfurt --umkreis 30
 ```
 
-`--arbeitgeber` filters by employer name (matched against the full registered
-name, so use the exact spelling, e.g. `"Deutsche Bahn AG"`). Pull a quick
+`--arbeitgeber` filters by employer name (matched exactly and case-sensitively
+against the full registered name, so use the exact spelling, e.g. `"Deutsche Bahn
+AG"`; a partial or lower-case name finds nothing). Pull a quick
 title-and-city overview:
 
 ```bash

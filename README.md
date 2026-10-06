@@ -129,7 +129,7 @@ details  <refnr>        full details for one listing
 | `--wo <text>` | location (*wo*) |
 | `--umkreis <km>` | radius in km around `--wo` (*Umkreis*) |
 | `--berufsfeld <text>` | occupational field (*Berufsfeld*) |
-| `--arbeitgeber <text>` | employer name (*Arbeitgeber*) |
+| `--arbeitgeber <text>` | employer name (*Arbeitgeber*), matched exactly and case-sensitively against the registered name (`"Siemens AG"`, not `"Siemens"`) |
 | `--veroeffentlicht-seit <days>` | published within the last N days (`0`–`100`) |
 | `--angebotsart <code>` | offer type code: `1` regular vacancy, `2` self-employment, `4` apprenticeship / dual study, `34` internship / trainee (others are rejected) |
 | `--zeitarbeit` | **only** temp-work / staffing-agency listings (by default they are included with the rest) |

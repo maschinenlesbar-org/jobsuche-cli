@@ -108,7 +108,11 @@ export interface JobSearchParams {
   wo?: string;
   /** Occupational field; not blank. */
   berufsfeld?: string;
-  /** Employer name; not blank. */
+  /**
+   * Employer name; not blank. Matched exactly and case-sensitively against the
+   * registered name (`"Siemens AG"`, not `"Siemens"` or `"siemens ag"`); the
+   * `facetten.arbeitgeber` keys of a search are those names.
+   */
   arbeitgeber?: string;
   /** Radius in km around `wo`; a non-negative integer. */
   umkreis?: number;

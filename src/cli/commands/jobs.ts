@@ -30,7 +30,7 @@ export function registerJobCommands(program: Command, deps: CliDeps): void {
     .option("--was <text>", "job title / keyword (was)", once("--was", parseTextArg))
     .option("--wo <text>", "location (wo)", once("--wo", parseTextArg))
     .option("--berufsfeld <text>", "occupational field", once("--berufsfeld", parseTextArg))
-    .option("--arbeitgeber <text>", "employer name", once("--arbeitgeber", parseTextArg))
+    .option("--arbeitgeber <text>", "employer name, exact and case-sensitive (e.g. \"Siemens AG\")", once("--arbeitgeber", parseTextArg))
     .option("--umkreis <km>", "radius in km around the location", once("--umkreis", parseIntArg))
     // The API accepts 0..100 days and silently ignores a larger value (the whole
     // unfiltered set comes back), so the library rejects it, and so does this parser.

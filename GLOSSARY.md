@@ -88,7 +88,9 @@ searched location, present when `wo` was given.
 
 **firma / arbeitgeber (employer).** The hiring organisation named on a listing
 (`firma`); `arbeitgeber` is the search filter (`--arbeitgeber`) and the employer
-facet.
+facet. The filter matches the registered name exactly and case-sensitively
+(checked live: `"Siemens AG"` 72 listings, `"Siemens"` and `"siemens ag"` none);
+the facet's keys are those exact names.
 
 **hauptberuf / berufsfeld.** `hauptberuf` is the occupation on a listing
 (`alleBerufe` lists every one); `berufsfeld` (occupational field) is a broader

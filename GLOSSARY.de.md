@@ -87,6 +87,9 @@ Stellenangebot ist die Entfernung in km vom gesuchten Ort, vorhanden, wenn `wo` 
 
 **firma / arbeitgeber.** Die im Stellenangebot genannte einstellende Organisation
 (`firma`); `arbeitgeber` ist der Suchfilter (`--arbeitgeber`) und die Arbeitgeber-Facette.
+Der Filter vergleicht den registrierten Namen exakt und unter Beachtung der Groß- und
+Kleinschreibung (live geprüft: `"Siemens AG"` 72 Stellenangebote, `"Siemens"` und
+`"siemens ag"` keine); die Schlüssel der Facette sind genau diese Namen.
 
 **hauptberuf / berufsfeld.** `hauptberuf` ist der Beruf eines Stellenangebots (`alleBerufe`
 nennt alle); `berufsfeld` ist eine übergeordnete Kategorie, die sich als Suchfilter nutzen

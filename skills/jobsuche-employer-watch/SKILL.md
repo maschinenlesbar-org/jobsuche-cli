@@ -97,10 +97,13 @@ places), `entfernung` (km, a number, only with `--wo`),
 `eintrittszeitraum.von`, `externeURL`.
 
 > **Traps.**
-> - `--arbeitgeber` is name-matched and can be **fuzzy/partial** — it may pull in
->   sibling entities or miss a posting filed under a slightly different name.
->   Sanity-check the `firma` values in the results and report the matched
->   spellings.
+> - `--arbeitgeber` is matched **exactly and case-sensitively** against the
+>   registered name: `"Siemens AG"` finds the listings, `"Siemens"` and
+>   `"siemens ag"` find none. No partial match, so it misses sibling entities and
+>   postings filed under another spelling. **Zero hits on a short or lower-case
+>   name is a spelling problem, not proof the employer has no openings** — resolve
+>   the name as in Step 1 and retry before reporting "no openings". Report the
+>   exact name(s) you searched.
 > - **No matches ⇒ the `ergebnisliste` key is absent** (not `[]`), and no
 >   `facetten`. Report "no open listings for that employer/scope" — broaden or
 >   re-check the spelling — rather than erroring on a missing key.
