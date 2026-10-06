@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RequestEngine } from "../src/client/engine.js";
+import { RequestEngine, cleartextCredentialsProblem, cleartextProblem } from "../src/client/engine.js";
 import {
   JobsucheApiError,
   JobsucheNetworkError,
@@ -311,4 +311,20 @@ test("getJson decodes the body by its declared charset and drops a BOM", async (
   assert.deepEqual(await new RequestEngine({ transport: bom.transport }).getJson("/x"), text);
   const unknown = makeMockTransport(() => rawResponse("{}", "application/json; charset=x-no-such"));
   await assert.rejects(new RequestEngine({ transport: unknown.transport }).getJson("/x"), (e: unknown) => e instanceof JobsucheParseError && /x-no-such/.test(e.message));
+});
+
+test("cleartextProblem names the host and each secret, never its value; the deprecated alias keeps its shape", () => {
+  assert.equal(cleartextProblem("http://[::1]:8080"), undefined);
+  assert.equal(cleartextProblem("http://127.1"), undefined);
+  assert.equal(cleartextProblem("not a url"), undefined);
+  assert.equal(
+    cleartextProblem("http://u:pw@mirror.example:8080", ["the API key"]),
+    "the API key and the base URL's credentials are sent unencrypted to mirror.example:8080 (http:, not https:)",
+  );
+  assert.equal(cleartextProblem("http://mirror.example", ["the API key"]), "the API key is sent unencrypted to mirror.example (http:, not https:)");
+  assert.equal(cleartextCredentialsProblem("http://mirror.example", false), undefined);
+  assert.equal(
+    cleartextCredentialsProblem("http://mirror.example", true),
+    "The API key is sent unencrypted to mirror.example (http:, not https:).",
+  );
 });

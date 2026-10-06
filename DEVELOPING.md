@@ -310,8 +310,12 @@ as a `JobsucheNetworkError` (`followedElsewhere`) instead of being trusted; a
 transport that follows redirects and reports nothing cannot be detected, so pass
 `redirect` through. A non-http(s) `Location` (`file:`, `data:`) is never followed.
 `obtainKey()` applies the same rules to its source (same-origin redirects only).
-The CLI warns on stderr when a key or userinfo would go to a plain-`http` host
-other than loopback (`cleartextCredentialsProblem`).
+A base URL on plain `http:` to a host other than loopback (`localhost`, `127.0.0.0/8`,
+`::1`) gets one stderr warning per run, before the first request (`cleartextProblem`,
+exported): `warning: requests to <host> are sent unencrypted (http:, not https:)`, or naming
+"the API key" / "the base URL's credentials" when they travel — never their value. Help,
+version and usage errors never warn; `cleartextCredentialsProblem` stays as a deprecated
+alias.
 `test/conformance-p3-redirect-credentials.test.ts` is the shared check.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
@@ -441,7 +445,9 @@ copied as is and differs only in its adapter block at the top:
 - `p6-retry-policy` — `Retry-After`, never a zero-delay burst;
 - `p7-pipes-exit-codes` — closed pipes (spawns the built bin);
 - `p8-p9-p13-responses-and-errors` — charset, response shapes, wrong-typed input;
-- `p10-strict-filters` — unknown parameters and repeated options.
+- `p10-strict-filters` — unknown parameters and repeated options;
+- `p20-cleartext-warning` — one stderr warning for a plain-`http:` base URL (follow-up round
+  2026-10-06).
 
 Cases that don't apply here are skipped in the adapter with the reason (no
 base-URL environment variable; `obtain-key` does not verify the key).

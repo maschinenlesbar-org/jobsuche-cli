@@ -236,15 +236,29 @@ export function followedElsewhere(method: string, url: string, reported: unknown
   );
 }
 
+/** The phrase for the API key in `cleartextProblem`'s sentence (as the CLI passes it). */
+export const API_KEY_PHRASE = "the API key";
+
+/** The phrase `cleartextProblem` uses for a base URL's `user:password@`. */
+const USERINFO_PHRASE = "the base URL's credentials";
+
 /**
- * Why a configured base URL would send credentials unencrypted, or `undefined`: it is
- * plain `http:` to a host other than the loopback interface, and an API key or a
- * `user:password@` would be sent to it. Not an error (a proxy on a trusted network
- * is a legitimate setup), so the CLI prints it as a warning; a missing "s" is an easy
- * slip, and the BA gateway only answers plain http with a redirect to https, which
- * then arrives without the key.
+ * Why requests to `baseUrl` would cross the network unencrypted, or `undefined`.
+ *
+ * Returns `undefined` for an `https:` URL, for one that does not parse, and for the
+ * loopback interface (`localhost`, `127.0.0.0/8`, `::1`). For any other plain `http:`
+ * URL it returns one sentence (no `warning: ` prefix) naming the host (`url.host`: host
+ * and port, never the userinfo) and what secret travels with the requests: `secrets`
+ * are noun phrases such as `"the API key"`, and a `user:password@` in the URL adds
+ * "the base URL's credentials". The secrets themselves are never in the sentence. Not
+ * an error (a mirror on a trusted network is a legitimate setup), so the CLI prints it
+ * as a warning on stderr, once per run.
+ *
+ * - `requests to <host> are sent unencrypted (http:, not https:)`
+ * - `the base URL's credentials are sent unencrypted to <host> (http:, not https:)`
+ * - `the API key and the base URL's credentials are sent unencrypted to <host> (http:, not https:)`
  */
-export function cleartextCredentialsProblem(baseUrl: string, hasKey: boolean): string | undefined {
+export function cleartextProblem(baseUrl: string, secrets: readonly string[] = []): string | undefined {
   let url: URL;
   try {
     url = new URL(baseUrl);
@@ -253,16 +267,27 @@ export function cleartextCredentialsProblem(baseUrl: string, hasKey: boolean): s
   }
   if (url.protocol !== "http:") return undefined;
   const host = url.hostname.replace(/^\[|\]$/g, "");
-  if (host === "localhost" || host === "::1" || /^127\./.test(host)) return undefined;
-  const userinfo = url.username !== "" || url.password !== "";
-  if (!hasKey && !userinfo) return undefined;
-  const what =
-    hasKey && userinfo
-      ? "The API key and the base URL's credentials are"
-      : hasKey
-        ? "The API key is"
-        : "The base URL's credentials are";
-  return `${what} sent unencrypted to ${url.host} (http:, not https:).`;
+  // The WHATWG parser normalises IPv4 (`127.1`, `0x7f.0.0.1`) to dotted decimal.
+  if (host === "localhost" || host === "::1" || /^127\.\d+\.\d+\.\d+$/.test(host)) return undefined;
+  const named = [...secrets];
+  if (url.username !== "" || url.password !== "") named.push(USERINFO_PHRASE);
+  if (named.length === 0) return `requests to ${url.host} are sent unencrypted (http:, not https:)`;
+  const subject =
+    named.length === 1 ? named[0]! : `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]!}`;
+  const verb = named.length === 1 && named[0] !== USERINFO_PHRASE ? "is" : "are";
+  return `${subject} ${verb} sent unencrypted to ${url.host} (http:, not https:)`;
+}
+
+/**
+ * @deprecated Use {@link cleartextProblem}, which also warns when no secret is sent.
+ * Kept for library callers: the same check with {@link API_KEY_PHRASE} as the secret
+ * when `hasKey`, in the old shape (capitalised, ending in "."), and still `undefined`
+ * when neither a key nor a `user:password@` would be sent.
+ */
+export function cleartextCredentialsProblem(baseUrl: string, hasKey: boolean): string | undefined {
+  const problem = cleartextProblem(baseUrl, hasKey ? [API_KEY_PHRASE] : []);
+  if (problem === undefined || problem.startsWith("requests to ")) return undefined;
+  return `${problem.charAt(0).toUpperCase()}${problem.slice(1)}.`;
 }
 
 /**
