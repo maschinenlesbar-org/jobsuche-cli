@@ -3,10 +3,17 @@
 
 import type { JobsucheClient, JobsucheClientOptions } from "../client/client.js";
 import type { Transport } from "../client/http.js";
+import { JobsucheError } from "../client/errors.js";
+import type { CredentialStore } from "./credentials.js";
 
 export interface CliIO {
   out(text: string): void;
   err(text: string): void;
+  /**
+   * Read a secret for `jobsuche config set`: typed at a prompt without echo, or piped in.
+   * Optional: without it, `config set` refuses rather than reading the command line.
+   */
+  readSecret?(prompt: string): Promise<string>;
 }
 
 export interface CliDeps {
@@ -24,6 +31,12 @@ export interface CliDeps {
    * Defaults to the built-in node:http/https transport.
    */
   transport?: Transport;
+  /**
+   * The credentials file (`jobsuche config`), consulted for the API key when neither
+   * `--api-key` nor `JOBSUCHE_API_KEY` gives one. Optional: deps without it — every test
+   * that does not ask for it — never read a credentials file, the user's least of all.
+   */
+  credentials?: () => CredentialStore;
 }
 
 /** The two process streams, as far as `handleOutputErrors` needs them. */
@@ -70,4 +83,48 @@ function readerGone(err: NodeJS.ErrnoException): boolean {
 export const defaultIO: CliIO = {
   out: (text) => process.stdout.write(text + "\n"),
   err: (text) => process.stderr.write(text + "\n"),
+  readSecret: (prompt) => readSecretFrom(process.stdin, process.stderr, prompt),
 };
+
+/**
+ * `CliIO.readSecret` over real streams. From a pipe or a file (`< key.txt`,
+ * `jobsuche obtain-key | jobsuche config set api-key`) the whole input, one trailing
+ * newline dropped. On a terminal the input is read in raw mode, so nothing is echoed:
+ * Enter ends it, Backspace takes a character back, Ctrl-C stops (nothing stored) and
+ * Ctrl-D ends it like Enter.
+ */
+export async function readSecretFrom(
+  stdin: NodeJS.ReadStream | NodeJS.ReadableStream,
+  stderr: Pick<NodeJS.WriteStream, "write">,
+  prompt: string,
+): Promise<string> {
+  const tty = stdin as NodeJS.ReadStream;
+  if (tty.isTTY !== true || typeof tty.setRawMode !== "function") {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stdin) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+    return Buffer.concat(chunks).toString("utf8").replace(/\r?\n$/, "");
+  }
+  stderr.write(prompt);
+  return new Promise((resolve, reject) => {
+    let value = "";
+    const finish = (error?: Error): void => {
+      tty.removeListener("data", onData);
+      tty.setRawMode(false);
+      tty.pause();
+      stderr.write("\n");
+      if (error === undefined) resolve(value);
+      else reject(error);
+    };
+    const onData = (chunk: Buffer | string): void => {
+      for (const ch of chunk.toString()) {
+        if (ch === "\r" || ch === "\n" || ch === "\u0004") return finish();
+        if (ch === "\u0003") return finish(new JobsucheError("Interrupted; nothing was stored."));
+        if (ch === "\u007f" || ch === "\b") value = value.slice(0, -1);
+        else if (ch >= " ") value += ch;
+      }
+    };
+    tty.setRawMode(true);
+    tty.resume();
+    tty.on("data", onData);
+  });
+}

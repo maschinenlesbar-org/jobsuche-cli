@@ -25,7 +25,19 @@ examples below:
 
 ```bash
 eval "$(jobsuche obtain-key --export)"    # sets JOBSUCHE_API_KEY
+
+# Or stored once in a credentials file (typed without echo, or piped in)
+jobsuche config set api-key
+jobsuche obtain-key | jobsuche config set api-key
 ```
+
+Precedence is `--api-key` > `JOBSUCHE_API_KEY` > the credentials file > none.
+`jobsuche config` keeps the key in `$XDG_CONFIG_HOME/jobsuche/credentials` (else
+`~/.config/jobsuche/credentials`), mode 0600, written atomically; `config set` reads
+the value from a prompt without echo or from stdin, never from the command line;
+`config get` shows it masked (`--reveal` prints it whole); `config list` and `config
+unset` do what they say. A file that others can read is refused, and only when it is
+needed.
 
 Without a key the header is left out and the API answers `401`/`403` (exit code
 `3`).
@@ -191,7 +203,7 @@ These apply to every command and may be given before or after the command name
 | Option | Description |
 | --- | --- |
 | `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`; http(s), a path prefix is fine, no `?query` or `#fragment`, no surrounding or inner whitespace; a `%` in a `user:password@` part must be an escape, `%25` for a literal one). A `user:password@` part is sent but shown as `***@` in everything the CLI prints, usage errors included. Plain `http:` to a host other than loopback (`localhost`, `127.0.0.0/8`, `::1`) prints one `warning: … sent unencrypted to <host> (http:, not https:)` line on stderr per run, naming the API key and the base URL's credentials when they travel (never their value); stdout and the exit code are unchanged |
-| `--api-key <key>` | the `X-API-Key` to send (env `JOBSUCHE_API_KEY`; no key is bundled, see `obtain-key`); blank/whitespace is ignored and the env var is used, else no key is sent; a key that can't be sent as a header is a usage error (exit `2`) that never repeats the key |
+| `--api-key <key>` | the `X-API-Key` to send (env `JOBSUCHE_API_KEY`, else the key stored with `jobsuche config set api-key`; no key is bundled, see `obtain-key`); blank/whitespace is ignored and the env var or the stored key is used, else no key is sent; a key that can't be sent as a header is a usage error (exit `2`) that never repeats the key |
 | `--timeout <ms>` | time limit per request in milliseconds, reading the whole response included (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters or characters above U+00FF, which a header cannot carry) |
 | `--max-retries <n>` | retries for transient `429`/`503` responses (`0`–`10`, default `2`); each waits the server's `Retry-After` (up to 30 s; a longer one is not retried, and the error names it) or else backs off linearly |

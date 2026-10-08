@@ -145,14 +145,28 @@ run them up front.
 
 The API requires a static, publicly-documented `X-API-Key` (`jobboerse-jobsuche`)
 on every request. The key is **not bundled** — pass it via `apiKey` (library),
-`--api-key` (CLI), or the `JOBSUCHE_API_KEY` env var. Precedence is
-**`--api-key` > env var**; a blank/whitespace key is treated as absent (header
+`--api-key` (CLI), the `JOBSUCHE_API_KEY` env var, or the CLI's credentials file.
+Precedence is **`--api-key` > env var > the credentials file > none**; a
+blank/whitespace key is treated as absent (header
 omitted), and the API then answers `401`/`403`. The `JobsucheClient` constructor
 owns the key's normalisation: it trims the key (a key read from a file keeps its
 trailing newline), checks the trimmed key with `headerValueProblem` and sends it,
 so `apiKey`, `--api-key` and `JOBSUCHE_API_KEY` give the same `X-API-Key` header or
 the same `JobsucheValidationError` (CLI exit `2`). The CLI only resolves the
 precedence.
+
+The credentials file is the CLI's, not the library's: `src/cli/credentials.ts`
+(`CredentialStore`, the same mechanism as openka-cli's `ka config`) and `jobsuche config`
+(`src/cli/commands/config.ts`). The file is `$XDG_CONFIG_HOME/jobsuche/credentials`, else
+`~/.config/jobsuche/credentials`: JSON, mode 0600 in a 0700 directory, replaced atomically;
+a link, another user's file or one others can read is refused with a `JobsucheError`
+naming the fix (exit `1`). It reaches the CLI through `CliDeps.credentials`, which only
+`defaultDeps` sets, so a test that does not ask for one never reads the user's file;
+`action()` (`src/cli/shared.ts`) reads it only when neither the flag nor the env var gave
+a key, so `obtain-key` never reads it and a problem with it never blocks a key given
+another way. `config set` reads through `CliIO.readSecret` (`readSecretFrom`: raw mode
+without echo on a terminal, the whole input from a pipe), never from argv, and checks the
+value with `credentialValueProblem` and the client's `headerValueProblem`.
 
 Prefer the `JOBSUCHE_API_KEY` env var over `--api-key`: a value passed on the
 command line is visible to other local users through the process table (`ps`) and
@@ -217,9 +231,10 @@ src/
     errors.ts    # JobsucheError / JobsucheApiError / JobsucheNetworkError / JobsucheParseError / JobsucheValidationError
     client.ts    # JobsucheClient — search + details over the engine (injects X-API-Key)
   cli/
-    io.ts        # injectable I/O seam (stdout/stderr) + injectable env
+    io.ts        # injectable I/O seam (stdout/stderr, secret prompt) + injectable env + credentials file
+    credentials.ts # CredentialStore — the credentials file behind `jobsuche config`
     shared.ts    # option parsers, global-option resolver (incl. --api-key), JSON renderer
-    commands/    # search / details
+    commands/    # search / details, obtain-key, config
     program.ts   # assembles the commander program from injectable deps
     run.ts       # parses argv -> exit code (no process.exit; testable)
     index.ts     # #! bin shim
@@ -385,7 +400,8 @@ as `true`/`false`, dates as ISO-8601, and encodes spaces as `%20` (not `+`).
 
 **CliDeps / CliIO.** The dependency-injection seam for the CLI
 ([`io.ts`](src/cli/io.ts)): a client factory plus an I/O object (`out`/`err`)
-and an injectable `env` (for `JOBSUCHE_API_KEY`). Lets the whole CLI run in
+an injectable `env` (for `JOBSUCHE_API_KEY`) and an optional `credentials` store
+(`jobsuche config`; only `defaultDeps` sets it). Lets the whole CLI run in
 tests with a mocked client and captured output — no subprocess.
 
 **Closed pipes.** The bin shim installs `handleOutputErrors()` (in `io.ts`) before
@@ -432,6 +448,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`validate.test.ts`** — `assertValid`, the exit-2 mapping of `JobsucheValidationError`, and the CLI ↔ library parity tests. `parity()` in `test/helpers.ts` runs one input through `run()` and through the library on one recording mock transport; a parity test asserts both reject without a request, or both send the identical request.
 - **`obtain-key.test.ts`** — the key source parser (the documented key format, placeholders, conflicting keys), redirects, limits and the `--export` line.
 - **`io.test.ts`** — `handleOutputErrors` (EPIPE on stdout and stderr).
+- **`config.test.ts`** — `jobsuche config` and the credentials file in a temporary directory: set/get/list/unset, no value from argv, flag > env > file precedence, a file others can read refused only when needed, links, invalid JSON, `readSecretFrom` on a pipe.
 
 The **conformance tests** (`test/conformance-p*.test.ts`) are shared across the
 `*-cli` repos (`.reviews/2026-10-06-fix-patterns.md` in the workspace); each is

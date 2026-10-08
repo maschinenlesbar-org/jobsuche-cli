@@ -43,7 +43,24 @@ package** — you supply it once via the `JOBSUCHE_API_KEY` environment variable
 or per-call via `--api-key`. With no key the header is omitted and the API
 answers `401`/`403` (exit code `3`).
 
-Precedence is `--api-key` > `JOBSUCHE_API_KEY` env var. A blank/whitespace key
+**Or store it once**, in a credentials file of its own (the same mechanism as
+[openka-cli](https://github.com/maschinenlesbar-org/openka-cli)'s `ka config`):
+
+```bash
+jobsuche config set api-key                             # typed at a prompt, without echo
+jobsuche obtain-key | jobsuche config set api-key       # or the published key, piped in
+jobsuche config get api-key                             # masked: jobb…uche (--reveal prints it whole)
+jobsuche config list                                    # what is stored, and where
+jobsuche config unset api-key
+```
+
+The value is never taken from the command line, so it reaches neither shell history
+nor `ps`. The file is `$XDG_CONFIG_HOME/jobsuche/credentials` (else
+`~/.config/jobsuche/credentials`): mode 0600 in a directory of mode 0700, replaced
+atomically, and not read at all while anyone else could read it. It is consulted only
+when neither `--api-key` nor `JOBSUCHE_API_KEY` gives a key.
+
+Precedence is `--api-key` > `JOBSUCHE_API_KEY` env var > the credentials file > none. A blank/whitespace key
 is ignored (no header sent), and surrounding whitespace such as a trailing newline
 is trimmed, the same from the flag, the env var and the library. A key with an
 inner control character is a usage error (exit `2`). You do not have to go and find the key yourself —
@@ -219,7 +236,8 @@ same thing.
   the directory itself), or run via
   `npx @maschinenlesbar.org/jobsuche-cli …`.
 - **Exit `3` / "request rejected"** — the API declined the request. Check that
-  `JOBSUCHE_API_KEY` is set and non-empty, or pass `--api-key` explicitly —
+  `JOBSUCHE_API_KEY` is set and non-empty, that a key is stored
+  (`jobsuche config get api-key`), or pass `--api-key` explicitly —
   `jobsuche obtain-key` gives you the current public value (see
   [Obtain key](#obtain-key)). A `403` with an empty body is ambiguous: the gateway
   sends the same response for a wrong key, for a network it refuses, and now and
@@ -246,7 +264,7 @@ These apply to every command and may be given before *or* after it:
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `--api-key <key>` | Override or supply the `X-API-Key` (env `JOBSUCHE_API_KEY`). A key with control characters or characters above U+00FF is a usage error (exit `2`) that never repeats the key, from the flag or the env var |
+| `--api-key <key>` | Override or supply the `X-API-Key` (env `JOBSUCHE_API_KEY`, else the key stored with `jobsuche config set api-key`). A key with control characters or characters above U+00FF is a usage error (exit `2`) that never repeats the key, from the flag or the env var |
 | `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`; http(s), a path prefix is fine, no `?query` or `#fragment`, no surrounding or inner whitespace; a `%` in a `user:password@` part must be an escape, `%25` for a literal one). A `user:password@` part is sent but shown as `***@` in everything the CLI prints, usage errors included. Plain `http:` to a host other than loopback (`localhost`, `127.0.0.0/8`, `::1`) prints one `warning: … sent unencrypted to <host> (http:, not https:)` line on stderr per run, naming the API key and the base URL's credentials when they travel (never their value); stdout and the exit code are unchanged |
 | `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters or characters above U+00FF, which a header cannot carry) |

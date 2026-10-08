@@ -35,7 +35,8 @@ carries) so Claude doesn't have to rediscover them each time.
   eval "$(jobsuche obtain-key --export)"        # this shell
   jobsuche obtain-key --export >> ~/.zshrc      # or keep it for later
   ```
-  You can also supply it yourself via `JOBSUCHE_API_KEY` or `--api-key`.
+  You can also supply it yourself via `JOBSUCHE_API_KEY` or `--api-key`, or store it once
+  with `jobsuche config set api-key` (typed without echo, or piped in from `obtain-key`).
   With no key the API answers `401`/`403` and the CLI exits `3`. An empty-body `403`
   looks the same for a wrong key and for a network the service refuses, so if the key
   matches the bundesAPI README, try from another network.

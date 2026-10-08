@@ -10,6 +10,19 @@ import { API_KEY_ENV_VAR } from "../client/obtain-key.js";
 import { API_KEY_PHRASE, DEFAULT_BASE_URL, cleartextProblem, isBidiControl } from "../client/engine.js";
 import { baseUrlProblem, headerValueProblem, intRangeProblem, nonBlankProblem } from "../client/validate.js";
 
+/** The name the API key is stored under in the credentials file (`jobsuche config set api-key`). */
+export const API_KEY_CREDENTIAL = "api-key";
+
+/**
+ * The API key kept in the credentials file (`jobsuche config set api-key`), or
+ * undefined when none is stored or `deps` carry no credentials file. Reading it may
+ * throw a JobsucheError (a file others can read, a link, invalid JSON), so it is read
+ * only when neither `--api-key` nor `JOBSUCHE_API_KEY` gave a key.
+ */
+export function storedApiKey(deps: CliDeps): string | undefined {
+  return deps.credentials?.().get(API_KEY_CREDENTIAL);
+}
+
 /**
  * commander value-parser: a non-negative decimal integer.
  *
@@ -147,8 +160,9 @@ export interface GlobalOptions {
  * `env` (defaulting to `process.env`) supplies the `JOBSUCHE_API_KEY` fallback; a
  * value there that cannot be sent is a JobsucheValidationError naming the variable.
  * Precedence: a non-blank `--api-key` (in `global.apiKey`) wins; otherwise a
- * non-blank `JOBSUCHE_API_KEY` seeds the key; otherwise no key is set and the
- * `X-API-Key` header is omitted (the API then answers 401/403). No key is
+ * non-blank `JOBSUCHE_API_KEY` seeds the key; otherwise no key is set here — `action()`
+ * then reads the credentials file (`jobsuche config set api-key`) — and without one
+ * there either the `X-API-Key` header is omitted (the API then answers 401/403). No key is
  * bundled — obtain the public one via the `obtain-key` command. A blank/whitespace
  * `--api-key` is ignored (mirrors the env path) rather than forwarded. Only the
  * precedence is resolved here: the key is passed as given, and the client trims
@@ -249,6 +263,13 @@ export function action(
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
     const options = toEngineOptions(global, deps.env ?? process.env);
+    // flag > JOBSUCHE_API_KEY > the credentials file (`jobsuche config set api-key`) >
+    // none. The file is read only here, when no key came from the first two, so a
+    // problem with it never stands in the way of a key given another way.
+    if (options.apiKey === undefined) {
+      const stored = storedApiKey(deps);
+      if (stored !== undefined) options.apiKey = stored;
+    }
     const client = deps.createClient(options);
     // Built first, so a key the client rejects is a usage error before any warning. One
     // warning per run, before the first request, when the base URL is plain http: to a host

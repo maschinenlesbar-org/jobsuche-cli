@@ -13,7 +13,8 @@ compatibility: >
   Requires the `jobsuche` CLI (npm package @maschinenlesbar.org/jobsuche-cli) on
   PATH, installed by the user; the skill never installs it. Uses jq for JSON
   filtering. Network access to rest.arbeitsagentur.de. Needs the public API key
-  via --api-key or JOBSUCHE_API_KEY (`jobsuche obtain-key` prints it).
+  via --api-key, JOBSUCHE_API_KEY or a key stored with `jobsuche config set
+  api-key` (`jobsuche obtain-key` prints it).
 ---
 
 # Jobsuche Market Scan
@@ -31,8 +32,9 @@ This skill also filters JSON with `jq`. **Validate it too** — run `command -v 
 
 **API key — obtain it once, then reuse it.** The API needs a static `X-API-Key`. **None is
 bundled**, and it is **not a secret**: one public value, the same for everyone. Finding it is
-not the user's job either. If `JOBSUCHE_API_KEY` is already set in the environment, use that;
-otherwise obtain it with the CLI's own command:
+not the user's job either. If `JOBSUCHE_API_KEY` is already set in the environment, or a key
+is stored (`jobsuche config get api-key` exits 0), use that and skip `obtain-key`; the CLI
+reads a stored key by itself. Otherwise obtain it with the CLI's own command:
 
 ```bash
 jobsuche obtain-key

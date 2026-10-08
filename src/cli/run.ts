@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
-import { toEngineOptions, type GlobalOptions } from "./shared.js";
+import { storedApiKey, toEngineOptions, type GlobalOptions } from "./shared.js";
 import { sanitizeServerText } from "../client/engine.js";
 import {
   JobsucheApiError,
@@ -153,6 +153,19 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
   };
 }
 
+/**
+ * Whether the credentials file holds a key — for the 403 hint, when neither the flag
+ * nor the env var gave one. The run already read the file, so it reads again; a file
+ * that has changed into one that cannot be read counts as no key.
+ */
+function hasStoredKey(deps: CliDeps): boolean {
+  try {
+    return storedApiKey(deps) !== undefined;
+  } catch {
+    return false;
+  }
+}
+
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
   deps = withRedactedOutput(deps, argv);
   const program = buildProgram(deps);
@@ -205,23 +218,26 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
         const reason = err.detail ? `: ${err.detail}` : "";
         deps.io.err(
           `Error: request rejected (HTTP ${err.status})${reason}. ` +
-            `If this is an auth problem, check --api-key or the ` +
-            `JOBSUCHE_API_KEY environment variable.`,
+            `If this is an auth problem, check --api-key, the ` +
+            `JOBSUCHE_API_KEY environment variable or the key stored with ` +
+            "`jobsuche config set api-key`.",
         );
         // The rest.arbeitsagentur.de gateway answers a wrong or missing key with
         // the same detail-less 403 (text/plain, one-space body) that it uses when
         // it refuses the caller's network, and now and then for a valid key too,
         // so the response can't tell them apart. Say whether a key was sent.
         if (err.status === 403 && !err.detail) {
-          const sentKey = toEngineOptions(program.opts() as GlobalOptions, deps.env ?? process.env).apiKey !== undefined;
+          const sentKey =
+            toEngineOptions(program.opts() as GlobalOptions, deps.env ?? process.env).apiKey !== undefined ||
+            hasStoredKey(deps);
           deps.io.err(
             sentKey
               ? "Hint: an empty 403 looks the same for a wrong key, a refused network and a " +
                   "passing refusal the gateway sometimes sends for a valid key. Check the key " +
                   "against `jobsuche obtain-key`; if it matches, retry once, then try from " +
                   "another network."
-              : "Hint: no X-API-Key was sent. Pass --api-key or set JOBSUCHE_API_KEY " +
-                  "(`jobsuche obtain-key` prints the published key).",
+              : "Hint: no X-API-Key was sent. Pass --api-key, set JOBSUCHE_API_KEY or store it " +
+                  "with `jobsuche config set api-key` (`jobsuche obtain-key` prints the published key).",
           );
         }
         return 3;

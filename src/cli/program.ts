@@ -13,6 +13,8 @@ import { MAX_RETRIES } from "../client/engine.js";
 import { onceOnly, parseApiKey, parseBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg } from "./shared.js";
 import { registerJobCommands } from "./commands/jobs.js";
 import { registerObtainKeyCommands } from "./commands/obtain-key.js";
+import { registerConfigCommands } from "./commands/config.js";
+import { CredentialStore } from "./credentials.js";
 import { nodeHttpTransport } from "../client/http.js";
 
 /**
@@ -38,6 +40,7 @@ export const defaultDeps: CliDeps = {
   io: defaultIO,
   createClient: (options) => new JobsucheClient(options),
   transport: nodeHttpTransport,
+  credentials: () => CredentialStore.fromEnv(process.env),
 };
 
 export function buildProgram(deps: CliDeps = defaultDeps): Command {
@@ -51,15 +54,16 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .description(
       "CLI for the Bundesagentur für Arbeit Jobsuche API " +
         "(rest.arbeitsagentur.de/jobboerse/jobsuche-service). Requires an X-API-Key: " +
-        "pass --api-key or set JOBSUCHE_API_KEY. No key is bundled — run " +
+        "pass --api-key, set JOBSUCHE_API_KEY, or store it once with " +
+        "`jobsuche config set api-key`. No key is bundled — run " +
         "`jobsuche obtain-key` to fetch the published public one.",
     )
     .version(VERSION)
     .option("--base-url <url>", "API base URL", once("--base-url", parseBaseUrl), "https://rest.arbeitsagentur.de")
     .option(
       "--api-key <key>",
-      "X-API-Key header value. Prefer JOBSUCHE_API_KEY: an --api-key argument is " +
-        "visible to other local users via the process table and shell history.",
+      "X-API-Key header value. Prefer JOBSUCHE_API_KEY or `jobsuche config set api-key`: " +
+        "an --api-key argument is visible to other local users via the process table and shell history.",
       once("--api-key", parseApiKey),
     )
     .option("--timeout <ms>", "per-request timeout in milliseconds", once("--timeout", parseBoundedInt(0, MAX_TIMEOUT_MS)))
@@ -77,12 +81,14 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .option("--compact", "print JSON on a single line instead of pretty-printed")
     .showHelpAfterError();
 
-  // The API key may also come from the JOBSUCHE_API_KEY environment variable.
-  // That fallback is resolved at action time in toEngineOptions() (reading
-  // deps.env), so an explicit --api-key always overrides it and the env path
-  // stays injectable/testable.
+  // The API key may also come from the JOBSUCHE_API_KEY environment variable or the
+  // credentials file. Both fallbacks are resolved at action time — the env var in
+  // toEngineOptions() (reading deps.env), the file in action() (reading
+  // deps.credentials) — so precedence is --api-key > JOBSUCHE_API_KEY > the
+  // credentials file > none, and both paths stay injectable/testable.
 
   registerObtainKeyCommands(program, deps);
+  registerConfigCommands(program, deps);
   registerJobCommands(program, deps);
 
   return program;
