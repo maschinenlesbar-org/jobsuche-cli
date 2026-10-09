@@ -190,10 +190,10 @@ exposure is low, but the env var is the recommended path and the `--help` text
 says so. The key is only ever carried as a request header — never placed in a URL,
 log line, error message, or output — and is stripped on a cross-origin redirect.
 
-**Secrets in the CLI's output** (`withRedactedOutput` and `usageErrorMask` in
-`run.ts`). Commander echoes a rejected value in its usage errors and names an
-unknown command, surplus argument or unknown option as typed, so `run()` wraps
-`deps.io` first. The userinfo of every URL-like argument (`credentialsIn`, which
+**Secrets in the CLI's output** (`redactionFor`, `withRedactedOutput` and
+`usageErrorMask` in `run.ts`). Commander echoes a rejected value in its usage errors
+and names an unknown command, surplus argument or unknown option as typed, so `run()`
+wraps `deps.io` first and gives the log the stderr redactor, applied to each message. The userinfo of every URL-like argument (`credentialsIn`, which
 finds it whether the value parses or not, then `redactCredentials`) becomes `***@`
 on stdout and stderr; the `--api-key` value and the `JOBSUCHE_API_KEY` value become
 `***` on stderr (`redactSecrets`) — not on stdout, where `obtain-key` prints the
@@ -554,7 +554,10 @@ with `io.err` directly. `run()` builds the logger from argv before commander par
 (`logFormatFromArgv`: the first `--log-format`, the value of an option that takes one
 skipped, used only for the records of a parse error; a `preAction` hook then sets the
 format commander parsed, so `--user-agent --log-format=jsonl` logs text),
-so commander's own usage errors are records too, and on top of the redacted `io.err`, so
-a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps
+so commander's own usage errors are records too. The logger replaces the secrets of the
+run (`redactionFor`) in each record's message before the record is cut and escaped, and
+writes to the raw stderr, so a secret is kept out of the log in either format and the
+frame (time, level, topic) is never touched — a key equal to `jobsuche`, a year or
+`ERROR` cannot corrupt it. `CliDeps.now` makes the timestamps
 testable. stdout carries data only. Conformance test P23 checks all of this, and its
 body is shared across the *-cli repos.

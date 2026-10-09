@@ -120,9 +120,20 @@ export interface Logger {
   info(area: string, msg: string): void;
 }
 
-/** A logger that writes each record, formatted, to `write` (stderr: `CliIO.err`). */
-export function createLogger(options: { format: LogFormat; write: (line: string) => void; now?: () => Date }): Logger {
+/**
+ * A logger that writes each record, formatted, to `write` (stderr). `redact` replaces the
+ * secrets of the run in the message, before it is cut and escaped: the frame (time,
+ * level, topic) is never touched, so a secret equal to a year or a topic cannot corrupt
+ * it, and a secret holding DEL, C1 or bidi characters is found in its raw form.
+ */
+export function createLogger(options: {
+  format: LogFormat;
+  write: (line: string) => void;
+  now?: () => Date;
+  redact?: (text: string) => string;
+}): Logger {
   const now = options.now ?? (() => new Date());
+  const redact = options.redact ?? ((text: string) => text);
   const logger: Logger = {
     format: options.format,
     error: (area, msg) => log("ERROR", area, msg),
@@ -130,7 +141,7 @@ export function createLogger(options: { format: LogFormat; write: (line: string)
     info: (area, msg) => log("INFO", area, msg),
   };
   const log = (level: LogLevel, area: string, msg: string): void =>
-    options.write(formatLogRecord({ ts: now().toISOString(), level, topic: `${LOG_PROGRAM}.${area}`, msg }, logger.format));
+    options.write(formatLogRecord({ ts: now().toISOString(), level, topic: `${LOG_PROGRAM}.${area}`, msg: redact(msg) }, logger.format));
   return logger;
 }
 

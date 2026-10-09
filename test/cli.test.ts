@@ -511,3 +511,25 @@ test("a transport message that ends in a newline (OpenSSL's EPROTO) stays one re
     assert.match(http, /could not reach the API \(.*tlsany_meth\.c:78:\\n.*\)\./, `${format}: ${http}`);
   }
 });
+
+test("a key equal to a part of the record's frame is replaced in the message only (02-3)", async () => {
+  const notFound = () => jsonResponse({ detail: "not here" }, 404);
+  for (const [env, argv] of [
+    [{ JOBSUCHE_API_KEY: "jobsuche" }, ["--log-format", "jsonl", "details", "10001-1"]],
+    [{}, ["--api-key", "2026", "details", "10001-1"]],
+    [{}, ["--api-key", "ERROR", "details", "10001-1"]],
+  ] as const) {
+    const cli = makeCli(notFound, { ...env });
+    const fixed = { ...cli.deps, now: () => new Date("2026-10-09T04:01:39.375Z") };
+    assert.equal(await run([...argv], fixed), 4);
+    for (const line of cli.err) {
+      if (argv[0] === "--log-format") {
+        const record = JSON.parse(line) as Record<string, unknown>;
+        assert.equal(record["topic"], "jobsuche.api", line);
+        assert.equal(record["ts"], "2026-10-09T04:01:39.375Z", line);
+      } else {
+        assert.match(line, /^2026-10-09T04:01:39\.375Z ERROR \[jobsuche\.api\] /, line);
+      }
+    }
+  }
+});
