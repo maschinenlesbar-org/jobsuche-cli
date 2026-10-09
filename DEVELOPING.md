@@ -440,8 +440,9 @@ tests with a mocked client and captured output — no subprocess.
 **Closed pipes.** The bin shim installs `handleOutputErrors()` (in `io.ts`) before
 `run()`. An EPIPE on stdout (`| head`, `| jq` exiting early) exits `0` at once,
 quietly; an EPIPE on stderr is ignored, so a failed run keeps its exit code — a
-usage error piped through `2>&1 | head` still exits `2`. Any other write error
-exits `1`. `test/conformance-p7-pipes-exit-codes.test.ts` spawns the built bin to
+usage error piped through `2>&1 | head` still exits `2`. Any other stdout write error
+is an ERROR record of `jobsuche.output` (`Could not write to stdout: …`, in the format
+argv asks for: `processLogger`) and exits `1`; any other stderr write error exits `1`. `test/conformance-p7-pipes-exit-codes.test.ts` spawns the built bin to
 check both.
 
 **Input validation.** [`validate.ts`](src/client/validate.ts) — the library owns
@@ -560,7 +561,7 @@ controls as `\uXXXX`, so no text that reaches a record, by whatever path, can sp
 forge another one or steer the terminal. Before that a lone surrogate (half a
 character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`),
 and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
-code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning), `http` (the connection, the cleartext warning), `config` and `obtain-key`. The no-echo prompt of `config set` and the `Output error:` line `handleOutputErrors` writes when stdout itself fails stay plain. Code logs through `logOf(deps)` and never writes diagnostics
+code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning), `http` (the connection, the cleartext warning), `config`, `obtain-key` and `output` (a stdout write error). The no-echo prompt of `config set` stays plain. Code logs through `logOf(deps)` and never writes diagnostics
 with `io.err` directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`: the first `--log-format`, the value of an option that takes one
 skipped, used only for the records of a parse error; a `preAction` hook then sets the

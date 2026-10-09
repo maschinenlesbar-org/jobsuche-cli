@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { logOf, type CliDeps } from "./io.js";
-import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat } from "./log.js";
+import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat, type Logger } from "./log.js";
 import type { GlobalOptions } from "./shared.js";
 import { sanitizeServerText } from "../client/engine.js";
 import {
@@ -294,6 +294,20 @@ function keySource(program: Command, deps: CliDeps): string | undefined {
   if ((program.opts() as GlobalOptions).apiKey?.trim()) return "the key from --api-key";
   if ((deps.env ?? process.env)[API_KEY_ENV_VAR]?.trim()) return `the key from the ${API_KEY_ENV_VAR} environment variable`;
   return undefined;
+}
+
+/**
+ * The log for what happens outside `run()`, in the bin shim: a stdout write error
+ * (`handleOutputErrors`) and Node's process warnings. Its format is the one argv asks
+ * for (`logFormatFromArgv`), and it replaces the secrets of argv and `env` like the
+ * run's own log; it writes to the raw stderr.
+ */
+export function processLogger(argv: readonly string[], env: Record<string, string | undefined> = process.env): Logger {
+  return createLogger({
+    format: logFormatFromArgv(argv),
+    write: (line) => process.stderr.write(line + "\n"),
+    redact: redactionFor(argv, env).err,
+  });
 }
 
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
