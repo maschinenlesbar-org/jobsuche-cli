@@ -14,18 +14,6 @@ import { baseUrlProblem, headerValueProblem, intRangeProblem, nonBlankProblem } 
 export const API_KEY_CREDENTIAL = "api-key";
 
 /**
- * The API key kept in the credentials file (`jobsuche config set api-key`), trimmed, or
- * undefined when none is stored or `deps` carry no credentials file. Reading it may
- * throw a JobsucheError (a file others can read, a link, invalid JSON, or a stored
- * value `config set` would refuse — `CredentialStore.usable`, naming the file, never
- * repeating the value), so it is read only when neither `--api-key` nor
- * `JOBSUCHE_API_KEY` gave a key.
- */
-export function storedApiKey(deps: CliDeps): string | undefined {
-  return deps.credentials?.().usable(API_KEY_CREDENTIAL);
-}
-
-/**
  * commander value-parser: a non-negative decimal integer.
  *
  * Only a plain run of ASCII digits is accepted. `Number()` would otherwise
@@ -267,10 +255,17 @@ export function action(
     const options = toEngineOptions(global, deps.env ?? process.env);
     // flag > JOBSUCHE_API_KEY > the credentials file (`jobsuche config set api-key`) >
     // none. The file is read only here, when no key came from the first two, so a
-    // problem with it never stands in the way of a key given another way.
-    if (options.apiKey === undefined) {
-      const stored = storedApiKey(deps);
-      if (stored !== undefined) options.apiKey = stored;
+    // problem with it never stands in the way of a key given another way. A stored value
+    // `config set` would refuse (the file edited by hand) is a JobsucheError naming the
+    // file, never repeating the value (`CredentialStore.usable`).
+    if (options.apiKey === undefined && deps.credentials !== undefined) {
+      const store = deps.credentials();
+      const stored = store.usable(API_KEY_CREDENTIAL);
+      if (stored !== undefined) {
+        options.apiKey = stored;
+        // The 401/403 hint in run.ts names the file the rejected key came from.
+        deps.storedKeyPath = store.path;
+      }
     }
     const client = deps.createClient(options);
     // Built first, so a key the client rejects is a usage error before any warning. One

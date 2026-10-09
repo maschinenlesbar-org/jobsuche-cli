@@ -168,7 +168,10 @@ another way. It reads through `CredentialStore.usable` (trimmed; a hand-edited v
 `config set` would refuse — `credentialProblem`: blank, whitespace or control characters
 inside, or what the library's header rule refuses — is an error naming the file, exit
 `1`), and `config get`/`config list` read through the same check (`config list` also
-refuses a name that is not a credential name, `usableNames`). `config set` reads through `CliIO.readSecret` (`readSecretFrom`: raw mode
+refuses a name that is not a credential name, `usableNames`). When the key comes from
+the file, `action()` records the file's path in `CliDeps.storedKeyPath`, so the 401/403
+ERROR names the source of the key that was sent — the file by its path, `JOBSUCHE_API_KEY`
+or `--api-key` — and the empty-403 hint knows a key was sent. `config set` reads through `CliIO.readSecret` (`readSecretFrom`: raw mode
 without echo on a terminal, the whole input from a pipe), never from argv, and checks the
 value with `credentialProblem` (`credentialValueProblem` and the client's
 `headerValueProblem`).

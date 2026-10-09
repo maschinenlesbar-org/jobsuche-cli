@@ -260,7 +260,10 @@ same thing.
   [Obtain key](#obtain-key)). A `403` with an empty body is ambiguous: the gateway
   sends the same response for a wrong key, for a network it refuses, and now and
   then for a valid key. If the key matches what `obtain-key` returns, retry once,
-  then try from another network. (When no key was sent at all, the hint says so.)
+  then try from another network. The ERROR names where the rejected key came from
+  (`--api-key`, `JOBSUCHE_API_KEY`, or the credentials file by its path, with
+  `jobsuche obtain-key | jobsuche config set api-key` to store the current one); when
+  no key was sent at all, the hint says so.
 - **Exit `3` / "… use an https base URL"** — `--base-url` starts with `http://`;
   the gateway redirects to `https://`, and the key is not sent across that change
   of scheme, so the request arrived without it. The key is fine: use the `https://`

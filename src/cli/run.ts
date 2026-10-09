@@ -6,7 +6,7 @@ import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { logOf, type CliDeps } from "./io.js";
 import { createLogger, logFormatFromArgv } from "./log.js";
-import { storedApiKey, toEngineOptions, type GlobalOptions } from "./shared.js";
+import type { GlobalOptions } from "./shared.js";
 import { sanitizeServerText } from "../client/engine.js";
 import {
   JobsucheApiError,
@@ -163,16 +163,21 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
 }
 
 /**
- * Whether the credentials file holds a key — for the 403 hint, when neither the flag
- * nor the env var gave one. The run already read the file, so it reads again; a file
- * that has changed into one that cannot be read counts as no key.
+ * Where the key this run sent came from, as the 401/403 hint names it, or undefined
+ * when none was sent. The precedence is `toEngineOptions`'s and `action()`'s: a
+ * non-blank `--api-key`, then a non-blank `JOBSUCHE_API_KEY`, then the credentials file
+ * (`deps.storedKeyPath`, set only when its key was used).
  */
-function hasStoredKey(deps: CliDeps): boolean {
-  try {
-    return storedApiKey(deps) !== undefined;
-  } catch {
-    return false;
+function keySource(program: Command, deps: CliDeps): string | undefined {
+  if (deps.storedKeyPath !== undefined) {
+    return (
+      `the API key stored in ${deps.storedKeyPath}: \`jobsuche obtain-key | jobsuche config set api-key\` ` +
+      `stores the current one (--api-key and ${API_KEY_ENV_VAR} take precedence over the file)`
+    );
   }
+  if ((program.opts() as GlobalOptions).apiKey?.trim()) return "the key from --api-key";
+  if ((deps.env ?? process.env)[API_KEY_ENV_VAR]?.trim()) return `the key from the ${API_KEY_ENV_VAR} environment variable`;
+  return undefined;
 }
 
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
@@ -233,24 +238,25 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
         // `detail` when present instead of unconditionally blaming the key, and
         // always append the actionable key hint.
         const reason = err.detail ? `: ${err.detail}` : "";
+        // Name where the key that was sent came from, so the user checks that one and not
+        // one of three candidates; without a key, every way to supply one.
+        const source = keySource(program, deps);
         log.error(
           "api",
-          `request rejected (HTTP ${err.status})${reason}. ` +
-            `If this is an auth problem, check --api-key, the ` +
-            `JOBSUCHE_API_KEY environment variable or the key stored with ` +
-            "`jobsuche config set api-key`.",
+          `request rejected (HTTP ${err.status})${reason}. If this is an auth problem, check ` +
+            (source !== undefined
+              ? `${source}.`
+              : `--api-key, the ${API_KEY_ENV_VAR} environment variable or the key stored with ` +
+                "`jobsuche config set api-key`."),
         );
         // The rest.arbeitsagentur.de gateway answers a wrong or missing key with
         // the same detail-less 403 (text/plain, one-space body) that it uses when
         // it refuses the caller's network, and now and then for a valid key too,
         // so the response can't tell them apart. Say whether a key was sent.
         if (err.status === 403 && !err.detail) {
-          const sentKey =
-            toEngineOptions(program.opts() as GlobalOptions, deps.env ?? process.env).apiKey !== undefined ||
-            hasStoredKey(deps);
           log.info(
             "api",
-            sentKey
+            source !== undefined
               ? "an empty 403 looks the same for a wrong key, a refused network and a " +
                   "passing refusal the gateway sometimes sends for a valid key. Check the key " +
                   "against `jobsuche obtain-key`; if it matches, retry once, then try from " +

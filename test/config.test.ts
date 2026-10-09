@@ -151,6 +151,30 @@ test("an empty 403 with a stored key gets the wrong-key hint, not the no-key one
   }
 });
 
+test("a 401/403 names the source of the rejected key: the credentials file, the env var or the flag", async () => {
+  const cli = makeCli({ responder: () => rawResponse(" ", "text/plain", 403) });
+  try {
+    cli.store.set("api-key", KEY);
+    assert.equal(await run(["search", "--was", "x"], cli.deps), 3);
+    const hint = untimed(cli.err.join("\n"));
+    assert.match(hint, /ERROR \[jobsuche\.api\] request rejected \(HTTP 403\)\. If this is an auth problem, check the API key stored in .*credentials: `jobsuche obtain-key \| jobsuche config set api-key` stores the current one \(--api-key and JOBSUCHE_API_KEY take precedence over the file\)\./);
+    // With a key in JOBSUCHE_API_KEY too, that one was sent: the hint names it, not the file.
+    cli.err.length = 0;
+    const viaEnv = { ...cli.deps, env: { JOBSUCHE_API_KEY: "envkey-1234567" } };
+    assert.equal(await run(["search", "--was", "x"], viaEnv), 3);
+    assert.equal(cli.mt.last().headers?.["X-API-Key"], "envkey-1234567");
+    assert.match(cli.err.join("\n"), /check the key from the JOBSUCHE_API_KEY environment variable\./);
+    assert.doesNotMatch(cli.err.join("\n"), /stored/);
+    // And a key from the flag: the hint names the flag.
+    cli.err.length = 0;
+    assert.equal(await run(["--api-key", "flagkey-1234567", "search", "--was", "x"], viaEnv), 3);
+    assert.match(cli.err.join("\n"), /check the key from --api-key\./);
+    assert.doesNotMatch(cli.err.join("\n"), /stored|JOBSUCHE_API_KEY environment/);
+  } finally {
+    cli.cleanup();
+  }
+});
+
 test("deps without a credentials store never read a credentials file", async () => {
   const cli = makeCli({ credentials: false, env: { XDG_CONFIG_HOME: "/nonexistent" } });
   try {
