@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -236,8 +236,9 @@ test("an unwritable config location names the credentials file, for set and for 
     assert.equal(await run(["config", "unset", "api-key"], cli.deps), 1);
     assert.match(cli.err.join("\n"), /Could not write the credentials file .*credentials: EACCES/);
     assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
-    // The path once, in the sentence; not again in the system's reason (rm repeated it twice).
-    assert.equal(cli.err.join("\n").split(cli.store.path).length - 1, 1, cli.err.join("\n"));
+    // The path once, in the sentence; not again in the system's reason (rm repeated it
+    // twice). The lock beside it, which cannot be created there, is another file.
+    assert.equal(cli.err.join("\n").split(`${cli.store.path}.lock`).join("").split(cli.store.path).length - 1, 1, cli.err.join("\n"));
     chmodSync(parent, 0o700);
     assert.equal(cli.store.get("api-key"), KEY, "nothing was lost");
   } finally {
@@ -439,5 +440,48 @@ test("the prompt drops escape sequences and keeps what was typed (C1)", async ()
 test("the prompt refuses a paste with more after its first line break (C1)", async () => {
   for (const read of ["key\nsecondline\n", "key\rsecondline\r", "key\r\nmore", "first-half-1234\nsecond-half-5678\r"]) {
     await assert.rejects(typed(read), /The value holds a line break; nothing was stored\./, JSON.stringify(read));
+  }
+});
+
+test("set and unset take credentials.lock: a held lock fails after 2 s, a stale one is taken over (C8)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jobsuche-lock-"));
+  try {
+    let clock = 1_000_000;
+    const waits: number[] = [];
+    const options = { now: () => clock, sleep: (ms: number) => { waits.push(ms); clock += ms; } };
+    const path = join(dir, "jobsuche", "credentials");
+    const store = new CredentialStore(path, options);
+    store.set("api-key", KEY);
+    assert.equal(existsSync(`${path}.lock`), false, "the lock is released");
+
+    // Another writer holds the lock: retried for 2 s, then refused, nothing changed.
+    writeFileSync(`${path}.lock`, "4242");
+    utimesSync(`${path}.lock`, clock / 1000, clock / 1000);
+    assert.throws(() => store.set("api-key", "other-key-abcdefghijklmnopqrstuvwxyz"), /Another jobsuche config is writing .*credentials; try again\./);
+    assert.ok(waits.length > 1 && waits.reduce((a, b) => a + b, 0) >= 2000, `waited ${waits.join(",")}`);
+    assert.throws(() => store.unset("api-key"), /Another jobsuche config is writing/);
+    assert.equal(store.get("api-key"), KEY);
+
+    // A lock older than 30 s is left over from a crash: taken over.
+    clock += 31_000;
+    store.set("api-key", "other-key-abcdefghijklmnopqrstuvwxyz");
+    assert.equal(store.get("api-key"), "other-key-abcdefghijklmnopqrstuvwxyz");
+    assert.equal(existsSync(`${path}.lock`), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a held lock fails config set with exit 1 and the stored value kept (C8)", async () => {
+  const cli = makeCli({ secret: "other-key-abcdefghijklmnopqrstuvwxyz" });
+  try {
+    cli.store.set("api-key", KEY);
+    writeFileSync(`${cli.store.path}.lock`, "4242");
+    const store = new CredentialStore(cli.store.path, { sleep: () => undefined, now: (() => { let t = Date.now(); return () => (t += 500); })() });
+    assert.equal(await run(["config", "set", "api-key"], { ...cli.deps, credentials: () => store }), 1);
+    assert.match(cli.err.join("\n"), /ERROR \[jobsuche\.cli\] Another jobsuche config is writing/);
+    assert.equal(cli.store.get("api-key"), KEY);
+  } finally {
+    cli.cleanup();
   }
 });

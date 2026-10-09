@@ -171,7 +171,9 @@ inside, or what the library's header rule refuses — is an error naming the fil
 refuses a name that is not a credential name, `usableNames`). When the key comes from
 the file, `action()` records the file's path in `CliDeps.storedKeyPath`, so the 401/403
 ERROR names the source of the key that was sent — the file by its path, `JOBSUCHE_API_KEY`
-or `--api-key` — and the empty-403 hint knows a key was sent. `config set` reads
+or `--api-key` — and the empty-403 hint knows a key was sent. `config set` and `config
+unset` change the file by one writer at a time (`credentials.lock` beside it, created
+exclusively, waited for up to 2 s, taken over after 30 s). `config set` reads
 through `CliIO.readSecret` (`readSecretFrom`: raw mode without echo on a terminal, the
 whole input from a pipe, at most 64 KiB either way, `MAX_SECRET_BYTES`), never from
 argv — on a terminal it drops escape sequences (arrow keys, bracketed-paste markers),

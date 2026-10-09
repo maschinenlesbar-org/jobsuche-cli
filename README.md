@@ -57,7 +57,7 @@ jobsuche config unset api-key
 The value is never taken from the command line, so it reaches neither shell history
 nor `ps`. The file is `$XDG_CONFIG_HOME/jobsuche/credentials` (else
 `~/.config/jobsuche/credentials`): mode 0600 in a directory of mode 0700, replaced
-atomically, and not read at all while anyone else could read it. It is consulted only
+atomically by one writer at a time (`credentials.lock` beside it), and not read at all while anyone else could read it. It is consulted only
 when neither `--api-key` nor `JOBSUCHE_API_KEY` gives a key. A value edited into the
 file by hand that `config set` would refuse (blank, whitespace inside, a line break, an
 escape sequence, a character no header can carry) is refused when it is read — by the
