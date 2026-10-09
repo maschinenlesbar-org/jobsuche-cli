@@ -35,7 +35,8 @@ Precedence is `--api-key` > `JOBSUCHE_API_KEY` > the credentials file > none.
 `jobsuche config` keeps the key in `$XDG_CONFIG_HOME/jobsuche/credentials` (else
 `~/.config/jobsuche/credentials`), mode 0600, written atomically; `config set` reads
 the value from a prompt without echo or from stdin, never from the command line;
-`config get` shows it masked (`--reveal` prints it whole); `config list` and `config
+`config get` shows it masked (`abcd…wxyz`; `****` below 20 characters, so for the
+published key; `--reveal` prints it whole); `config list` and `config
 unset` do what they say. A file that others can read is refused, and only when it is
 needed. So is a hand-edited value `config set` would refuse (blank, whitespace inside, a
 control character), naming the file (exit `1`; `config get` and `config list` refuse it

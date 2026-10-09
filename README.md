@@ -49,7 +49,7 @@ answers `401`/`403` (exit code `3`).
 ```bash
 jobsuche config set api-key                             # typed at a prompt, without echo
 jobsuche obtain-key | jobsuche config set api-key       # or the published key, piped in
-jobsuche config get api-key                             # masked: jobb…uche (--reveal prints it whole)
+jobsuche config get api-key                             # masked: **** (abcd…wxyz from 20 characters; --reveal prints it whole)
 jobsuche config list                                    # what is stored, and where
 jobsuche config unset api-key
 ```
