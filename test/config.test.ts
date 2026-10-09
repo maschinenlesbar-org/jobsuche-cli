@@ -485,3 +485,20 @@ test("a held lock fails config set with exit 1 and the stored value kept (C8)", 
     cli.cleanup();
   }
 });
+
+test("a config directory that is a symbolic link is refused, and its target's mode is left alone (01-3)", async (t) => {
+  if (process.platform === "win32") return t.skip("needs POSIX permissions and symlinks");
+  const cli = makeCli({ secret: KEY });
+  try {
+    const shared = join(cli.dir, "shared");
+    mkdirSync(shared, { mode: 0o755 });
+    chmodSync(shared, 0o755);
+    symlinkSync(shared, join(cli.dir, "jobsuche"));
+    assert.equal(await run(["config", "set", "api-key"], cli.deps), 1);
+    assert.match(untimed(cli.err.join("\n")), /ERROR .*Could not write the credentials file .*credentials: .*jobsuche is a symbolic link; .*replace the link with a directory/);
+    assert.equal(statSync(shared).mode & 0o777, 0o755, "the link target's mode is unchanged");
+    assert.equal(existsSync(join(shared, "credentials")), false, "nothing was stored there");
+  } finally {
+    cli.cleanup();
+  }
+});

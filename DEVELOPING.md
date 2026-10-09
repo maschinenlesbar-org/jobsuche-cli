@@ -160,7 +160,8 @@ The credentials file is the CLI's, not the library's: `src/cli/credentials.ts`
 (`src/cli/commands/config.ts`). The file is `$XDG_CONFIG_HOME/jobsuche/credentials`, else
 `~/.config/jobsuche/credentials`: JSON, mode 0600 in a 0700 directory, replaced atomically;
 a link, another user's file or one others can read is refused with a `JobsucheError`
-naming the fix (exit `1`). It reaches the CLI through `CliDeps.credentials`, which only
+naming the fix (exit `1`), and `set`/`unset` refuse a `jobsuche/` directory that is a
+link, whose target the chmod to 0700 would change. It reaches the CLI through `CliDeps.credentials`, which only
 `defaultDeps` sets, so a test that does not ask for one never reads the user's file;
 `action()` (`src/cli/shared.ts`) reads it only when neither the flag nor the env var gave
 a key, so `obtain-key` never reads it and a problem with it never blocks a key given

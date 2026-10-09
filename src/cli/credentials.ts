@@ -238,9 +238,25 @@ export class CredentialStore {
     }
   }
 
-  /** The file's directory, created with mode 0700, and tightened to it when others could read it. */
+  /**
+   * The file's directory, created with mode 0700, and tightened to it when others could
+   * read it. A directory that is a symbolic link is refused, as a linked file is: the
+   * chmod would change the mode of whatever the link points to (a dotfiles or shared
+   * directory), silently.
+   */
   private ensureDirectory(): void {
     const dir = dirname(this.path);
+    let linked = false;
+    try {
+      linked = lstatSync(dir).isSymbolicLink();
+    } catch (err) {
+      if ((err as { code?: unknown }).code !== "ENOENT") throw err;
+    }
+    if (linked) {
+      throw new JobsucheError(
+        `${dir} is a symbolic link; the credentials file is kept only in a real directory, whose mode is set to 0700 — replace the link with a directory.`,
+      );
+    }
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     if (process.platform !== "win32" && (statSync(dir).mode & 0o077) !== 0) chmodSync(dir, 0o700);
   }
