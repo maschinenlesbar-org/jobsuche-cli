@@ -13,7 +13,7 @@ import type { CliDeps } from "../src/cli/io.js";
 import { readSecretFrom } from "../src/cli/io.js";
 import { CredentialStore, maskCredential, resolveCredentialsPath } from "../src/cli/credentials.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { makeMockTransport, okResponse, rawResponse } from "./helpers.js";
+import { makeMockTransport, okResponse, rawResponse, untimed } from "./helpers.js";
 
 const KEY = "jobboerse-jobsuche-0123456789";
 
@@ -51,7 +51,7 @@ test("config set stores the key from the prompt, mode 0600 in a 0700 directory, 
     assert.equal(cli.store.get("api-key"), KEY);
     assert.equal(statSync(cli.store.path).mode & 0o777, 0o600);
     assert.equal(statSync(join(cli.dir, "jobsuche")).mode & 0o777, 0o700);
-    assert.match(cli.err.join("\n"), /Stored api-key \(jobb…6789\) in /);
+    assert.match(untimed(cli.err.join("\n")), /^INFO  \[jobsuche\.config\] Stored api-key \(jobb…6789\) in /);
     assert.doesNotMatch(cli.err.join("\n") + cli.out.join("\n"), new RegExp(KEY));
 
     cli.out.length = 0;
@@ -64,7 +64,7 @@ test("config set stores the key from the prompt, mode 0600 in a 0700 directory, 
     cli.err.length = 0;
     assert.equal(await run(["config", "list"], cli.deps), 0);
     assert.deepEqual(cli.out, ["api-key  jobb…6789"]);
-    assert.deepEqual(cli.err, [`Credentials file: ${cli.store.path}`]);
+    assert.deepEqual(cli.err.map(untimed), [`INFO  [jobsuche.config] Credentials file: ${cli.store.path}`]);
 
     assert.equal(await run(["config", "unset", "api-key"], cli.deps), 0);
     assert.equal(cli.store.get("api-key"), undefined);

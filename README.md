@@ -143,7 +143,7 @@ details  <refnr>        full details for one listing
 | Flag | Meaning |
 | --- | --- |
 | `--was <text>` | job title / keyword (*was*) |
-| `--wo <text>` | location (*wo*). The API never rejects a place: when it searched around another one (`woOutput.bereinigterOrt`) or did not recognise it (`suchmodus` `UNGUELTIG`), a `warning:` on stderr says so (exit `0`) |
+| `--wo <text>` | location (*wo*). The API never rejects a place: when it searched around another one (`woOutput.bereinigterOrt`) or did not recognise it (`suchmodus` `UNGUELTIG`), a `WARN` record on stderr says so (exit `0`) |
 | `--umkreis <km>` | radius in km around `--wo` (*Umkreis*; `0`–`200`, the API rejects a larger one) |
 | `--berufsfeld <text>` | occupational field (*Berufsfeld*) |
 | `--arbeitgeber <text>` | employer name (*Arbeitgeber*), matched exactly and case-sensitively against the registered name (`"Siemens AG"`, not `"Siemens"`) |
@@ -194,6 +194,21 @@ jobsuche search --arbeitgeber "Deutsche Bahn AG" --wo Frankfurt --umkreis 30
 
 Every command prints **pretty JSON to stdout**. Errors and diagnostics go to
 stderr, so piping stdout into `jq` stays clean.
+
+Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
+`INFO`) and a topic, the program and the area it comes from (`jobsuche.cli` for usage
+errors, `jobsuche.api` for the API's answers, `jobsuche.http` for the connection,
+`jobsuche.config`, `jobsuche.obtain-key`). By default it is written log4j style;
+`--log-format jsonl` writes one JSON object per line instead:
+
+```text
+2026-10-09T14:03:12.481Z WARN  [jobsuche.http] requests to mirror.test are sent unencrypted (http:, not https:)
+2026-10-09T14:03:12.902Z ERROR [jobsuche.api] HTTP 404 for GET https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/jobdetails/…
+```
+
+```bash
+jobsuche --log-format jsonl details 10001-0000000000-S 2>log.jsonl   # {"ts":"…","level":"ERROR","topic":"jobsuche.api","msg":"HTTP 404 …"}
+```
 
 ```bash
 # How many total matches for a query?
@@ -249,7 +264,7 @@ same thing.
   URL the message names.
 - **Exit `4` / "not found"** — the listing no longer exists. Listings expire;
   re-run a fresh `search` to get current `referenznummer` values.
-- **Exit `1` / "Network error"** — connectivity, DNS, or a timeout. Try again
+- **Exit `1` / "could not reach the API"** — connectivity, DNS, or a timeout. Try again
   or raise the limit with `--timeout 60000`.
 - **No `ergebnisliste` in the result** — the search matched nothing (the key is
   left out rather than sent empty, and so is `facetten`); broaden `--was`, widen
@@ -264,8 +279,9 @@ These apply to every command and may be given before *or* after it:
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
+| `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [jobsuche.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
 | `--api-key <key>` | Override or supply the `X-API-Key` (env `JOBSUCHE_API_KEY`, else the key stored with `jobsuche config set api-key`). A key with control characters or characters above U+00FF is a usage error (exit `2`) that never repeats the key, from the flag or the env var |
-| `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`; http(s), a path prefix is fine, no `?query` or `#fragment`, no surrounding or inner whitespace; a `%` in a `user:password@` part must be an escape, `%25` for a literal one). A `user:password@` part is sent but shown as `***@` in everything the CLI prints, usage errors included. Plain `http:` to a host other than loopback (`localhost`, `127.0.0.0/8`, `::1`) prints one `warning: … sent unencrypted to <host> (http:, not https:)` line on stderr per run, naming the API key and the base URL's credentials when they travel (never their value); stdout and the exit code are unchanged |
+| `--base-url <url>` | API base URL (default `https://rest.arbeitsagentur.de`; http(s), a path prefix is fine, no `?query` or `#fragment`, no surrounding or inner whitespace; a `%` in a `user:password@` part must be an escape, `%25` for a literal one). A `user:password@` part is sent but shown as `***@` in everything the CLI prints, usage errors included. Plain `http:` to a host other than loopback (`localhost`, `127.0.0.0/8`, `::1`) logs one `WARN` record of `jobsuche.http` (`… sent unencrypted to <host> (http:, not https:)`) on stderr per run, naming the API key and the base URL's credentials when they travel (never their value); stdout and the exit code are unchanged |
 | `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters or characters above U+00FF, which a header cannot carry) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, at most `10`). Each retry waits the server's `Retry-After` (up to 30 s; a longer one is not retried, and the error names it) or else backs off linearly |

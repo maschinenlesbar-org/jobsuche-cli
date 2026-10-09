@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import type { CliDeps } from "../io.js";
+import { logOf, type CliDeps } from "../io.js";
 import { API_KEY_ENV_VAR, KEY_SOURCE_URL, obtainKey, shellQuoteSingle } from "../../client/obtain-key.js";
 import type { GlobalOptions } from "../shared.js";
 
@@ -28,7 +28,7 @@ export function registerObtainKeyCommands(program: Command, deps: CliDeps): void
         ...(global.maxResponseBytes !== undefined ? { maxResponseBytes: global.maxResponseBytes } : {}),
         ...(global.userAgent !== undefined ? { userAgent: global.userAgent } : {}),
       });
-      deps.io.err(`Obtained the public key from ${sourceUrl}`);
+      logOf(deps).info("obtain-key", `Obtained the public key from ${sourceUrl}`);
       deps.io.out(
         command.opts()["export"] ? `export ${API_KEY_ENV_VAR}=${shellQuoteSingle(key)}` : key,
       );

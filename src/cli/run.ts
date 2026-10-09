@@ -4,7 +4,8 @@
 
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
-import type { CliDeps } from "./io.js";
+import { logOf, type CliDeps } from "./io.js";
+import { createLogger, logFormatFromArgv } from "./log.js";
 import { storedApiKey, toEngineOptions, type GlobalOptions } from "./shared.js";
 import { sanitizeServerText } from "../client/engine.js";
 import {
@@ -29,7 +30,15 @@ function configureTree(command: Command, deps: CliDeps, mask: (text: string) => 
   command.exitOverride();
   command.configureOutput({
     writeOut: (str) => deps.io.out(str.replace(/\n$/, "")),
-    writeErr: (str) => deps.io.err(str.replace(/\n$/, "")),
+    // commander's own messages are log records too: its "error: …" an ERROR, the help it
+    // shows after one an INFO.
+    writeErr: (str) => {
+      const text = str.replace(/\n$/, "");
+      // The blank line commander writes between an error and the help it shows after.
+      if (text === "") return;
+      if (text.startsWith("error: ")) logOf(deps).error("cli", text.slice("error: ".length));
+      else logOf(deps).info("cli", text);
+    },
     // Commander's own errors echo what was typed: an unknown command, surplus
     // arguments, an unknown option, a rejected option value. Mask what may be a secret.
     outputError: (str, write) => write(mask(str)),
@@ -168,6 +177,13 @@ function hasStoredKey(deps: CliDeps): boolean {
 
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
   deps = withRedactedOutput(deps, argv);
+  // Every record goes through the redacted `io.err`, so a secret is kept out of the
+  // log in either format.
+  const redacted = deps;
+  deps = {
+    ...deps,
+    log: createLogger({ format: logFormatFromArgv(argv), write: (line) => redacted.io.err(line), ...(deps.now === undefined ? {} : { now: deps.now }) }),
+  };
   const program = buildProgram(deps);
   configureTree(program, deps, usageErrorMask(argv));
 
@@ -175,6 +191,7 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     await program.parseAsync(argv, { from: "user" });
     return 0;
   } catch (err) {
+    const log = logOf(deps);
     if (err instanceof CommanderError) {
       // An explicit --help / --version request is a success.
       if (err.code === "commander.helpDisplayed" || err.code === "commander.version") {
@@ -187,7 +204,7 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // Treat it as a usage error with an explicit diagnostic so scripts get a
       // distinct, documented exit code (2) rather than a bare, message-less 1.
       if (err.code === "commander.help") {
-        deps.io.err("error: missing command (see usage above).");
+        log.error("cli", "missing command (see usage above).");
         return 2;
       }
       // Genuine parse / usage errors (unknown option, bad value, missing
@@ -198,7 +215,7 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     if (err instanceof JobsucheValidationError) {
       // An input the library rejected before any request (a search parameter or a
       // client option): the same usage-error exit code as a rejected flag value.
-      deps.io.err(`Error: ${err.message}`);
+      log.error("cli", err.message);
       return 2;
     }
     if (err instanceof JobsucheApiError) {
@@ -208,7 +225,7 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
         // usual case) dropped the key: the message says so and what to do, and the
         // key itself is fine, so no key hint.
         if (err.credentialsDropped !== undefined) {
-          deps.io.err(`Error: request rejected (HTTP ${err.status}): ${err.message.replace(/^HTTP \d+ for \S+ \S+: /, "")}.`);
+          log.error("api", `request rejected (HTTP ${err.status}): ${err.message.replace(/^HTTP \d+ for \S+ \S+: /, "")}.`);
           return 3;
         }
         // 401/403 is usually a key problem, but a resource-level forbidden or a
@@ -216,8 +233,9 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
         // `detail` when present instead of unconditionally blaming the key, and
         // always append the actionable key hint.
         const reason = err.detail ? `: ${err.detail}` : "";
-        deps.io.err(
-          `Error: request rejected (HTTP ${err.status})${reason}. ` +
+        log.error(
+          "api",
+          `request rejected (HTTP ${err.status})${reason}. ` +
             `If this is an auth problem, check --api-key, the ` +
             `JOBSUCHE_API_KEY environment variable or the key stored with ` +
             "`jobsuche config set api-key`.",
@@ -230,26 +248,27 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
           const sentKey =
             toEngineOptions(program.opts() as GlobalOptions, deps.env ?? process.env).apiKey !== undefined ||
             hasStoredKey(deps);
-          deps.io.err(
+          log.info(
+            "api",
             sentKey
-              ? "Hint: an empty 403 looks the same for a wrong key, a refused network and a " +
+              ? "an empty 403 looks the same for a wrong key, a refused network and a " +
                   "passing refusal the gateway sometimes sends for a valid key. Check the key " +
                   "against `jobsuche obtain-key`; if it matches, retry once, then try from " +
                   "another network."
-              : "Hint: no X-API-Key was sent. Pass --api-key, set JOBSUCHE_API_KEY or store it " +
+              : "no X-API-Key was sent. Pass --api-key, set JOBSUCHE_API_KEY or store it " +
                   "with `jobsuche config set api-key` (`jobsuche obtain-key` prints the published key).",
           );
         }
         return 3;
       }
-      deps.io.err(`Error: ${err.message}`);
+      log.error("api", err.message);
       if (err.status === 404) return 4;
       return 1;
     }
     if (err instanceof JobsucheNetworkError) {
       // Transport-level failure (DNS, refused connection, timeout, body cap).
       // Frame it as a connectivity problem rather than a bare libuv string.
-      deps.io.err(`Network error: could not reach the API (${err.message}).`);
+      log.error("http", `could not reach the API (${err.message}).`);
       return 1;
     }
     if (err instanceof JobsucheParseError) {
@@ -259,14 +278,14 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // control characters before it reaches the terminal.
       const cause = err.cause instanceof Error ? err.cause.message : err.cause;
       const causePart = cause ? ` (${sanitizeServerText(String(cause))})` : "";
-      deps.io.err(`Error: ${err.message}${causePart}`);
+      log.error("cli", `${err.message}${causePart}`);
       return 1;
     }
     if (err instanceof JobsucheError) {
-      deps.io.err(`Error: ${err.message}`);
+      log.error("cli", err.message);
       return 1;
     }
-    deps.io.err(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+    log.error("cli", `Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
   }
 }

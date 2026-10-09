@@ -4,7 +4,7 @@ import { run } from "../src/cli/run.js";
 import { JobsucheClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { makeMockTransport, jsonResponse, okResponse, rawResponse } from "./helpers.js";
+import { makeMockTransport, jsonResponse, okResponse, rawResponse, untimed } from "./helpers.js";
 import { V6_SEARCH } from "./fixtures.js";
 
 const SERVICE = "/jobboerse/jobsuche-service";
@@ -390,7 +390,7 @@ test("an unsendable JOBSUCHE_API_KEY is a usage error, as from --api-key", async
   const cli = makeCli(() => jsonResponse({ maxErgebnisse: 0, ergebnisliste: [] }), { JOBSUCHE_API_KEY: "a\nb" });
   assert.equal(await run(["search", "--was", "x"], cli.deps), 2);
   assert.equal(cli.mt.calls.length, 0);
-  assert.match(cli.err.join("\n"), /^Error: Invalid JOBSUCHE_API_KEY: Value contains control characters\./);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[jobsuche\.cli\] Invalid JOBSUCHE_API_KEY: Value contains control characters\./);
 });
 
 // A 100 000-deep body parsed fine but overflowed JSON.stringify:
@@ -401,14 +401,14 @@ test("a deeply nested response gives a clear error instead of a stack overflow",
   const body = `{"maxErgebnisse":0,"facetten":{"x":${"[".repeat(depth)}${"]".repeat(depth)}}}`;
   const pretty = makeCli(() => rawResponse(body, "application/json"));
   assert.equal(await run(["search", "--was", "x"], pretty.deps), 1);
-  assert.equal(pretty.err.join("\n"), "Error: The response is nested too deeply to pretty-print; try --compact.");
+  assert.equal(untimed(pretty.err.join("\n")), "ERROR [jobsuche.cli] The response is nested too deeply to pretty-print; try --compact.");
 
   const compact = makeCli(() => rawResponse(body, "application/json"));
   const code = await run(["--compact", "search", "--was", "x"], compact.deps);
   // Compact output may still fit the stack; if not, the message is the compact one.
   if (code !== 0) {
     assert.equal(code, 1);
-    assert.equal(compact.err.join("\n"), "Error: The response is nested too deeply to print.");
+    assert.equal(untimed(compact.err.join("\n")), "ERROR [jobsuche.cli] The response is nested too deeply to print.");
   }
 });
 
@@ -460,7 +460,7 @@ test("--zeitarbeit with --no-zeitarbeit, or a repeated option, is a usage error"
 test("search warns on stderr when the API did not search the --wo asked for, exit 0", async () => {
   const cli = makeCli(() => jsonResponse({ maxErgebnisse: 307, page: 1, size: 1, woOutput: { bereinigterOrt: "Tackesdorf-Nord", suchmodus: "UMKREISSUCHE" } }));
   assert.equal(await run(["search", "--was", "Pflege", "--wo", "Hambrugxx Nord"], cli.deps), 0);
-  assert.match(cli.err.join("\n"), /^warning: the API searched around "Tackesdorf-Nord" for --wo "Hambrugxx Nord"/);
+  assert.match(untimed(cli.err.join("\n")), /^WARN  \[jobsuche\.api\] the API searched around "Tackesdorf-Nord" for --wo "Hambrugxx Nord"/);
   assert.equal(JSON.parse(cli.out.join("\n")).maxErgebnisse, 307);
   const ok = makeCli(() => jsonResponse(V6_SEARCH));
   assert.equal(await run(["search", "--wo", "Berlin"], ok.deps), 0);

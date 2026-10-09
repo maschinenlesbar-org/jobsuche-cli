@@ -231,7 +231,8 @@ src/
     errors.ts    # JobsucheError / JobsucheApiError / JobsucheNetworkError / JobsucheParseError / JobsucheValidationError
     client.ts    # JobsucheClient — search + details over the engine (injects X-API-Key)
   cli/
-    io.ts        # injectable I/O seam (stdout/stderr, secret prompt) + injectable env + credentials file
+    io.ts        # injectable I/O seam (stdout/stderr, secret prompt) + injectable env + credentials file, the logger and the clock
+    log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     credentials.ts # CredentialStore — the credentials file behind `jobsuche config`
     shared.ts    # option parsers, global-option resolver (incl. --api-key), JSON renderer
     commands/    # search / details, obtain-key, config
@@ -327,7 +328,7 @@ transport that follows redirects and reports nothing cannot be detected, so pass
 `obtainKey()` applies the same rules to its source (same-origin redirects only).
 A base URL on plain `http:` to a host other than loopback (`localhost`, `127.0.0.0/8`,
 `::1`) gets one stderr warning per run, before the first request (`cleartextProblem`,
-exported): `warning: requests to <host> are sent unencrypted (http:, not https:)`, or naming
+exported), a `WARN` record of `jobsuche.http`: `requests to <host> are sent unencrypted (http:, not https:)`, or naming
 "the API key" / "the base URL's credentials" when they travel — never their value. Help,
 version and usage errors never warn; `cleartextCredentialsProblem` stays as a deprecated
 alias.
@@ -360,7 +361,7 @@ typo, may resolve a garbled name to another town, or answers `suchmodus:
 `client.ts`, exported) returns a sentence when the place used
 (`woOutput.bereinigterOrt`) neither contains nor is contained in the `wo` asked
 for (NFC, case-insensitive, blanks collapsed), or when it was not recognised; the
-`search` command prints it as `warning: …` on stderr and keeps exit `0`.
+`search` command logs it as a `WARN` record of `jobsuche.api` on stderr and keeps exit `0`.
 
 **Response shape.** `search()` and `details()` check a 2xx body before returning
 it (`searchResultProblem`, `jobDetailsProblem` in `validate.ts`): a search
@@ -419,7 +420,7 @@ every rule about what a request may contain. A rule is a pure, exported
 methods check their input before any request, and a method that returns a promise
 rejects rather than throwing synchronously. The CLI's value-parsers call the same
 functions, and `run.ts` maps a `JobsucheValidationError` to exit `2`
-(`Error: <message>`), so CLI and library accept and reject the same inputs.
+(an `ERROR` record of `jobsuche.cli`), so CLI and library accept and reject the same inputs.
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `JobsucheApiError`
 (non-2xx, carries `status`/`detail`/`url`/`body`, with an `isRetryable` getter
@@ -466,7 +467,9 @@ copied as is and differs only in its adapter block at the top:
 - `p20-cleartext-warning` — one stderr warning for a plain-`http:` base URL (follow-up round
   2026-10-06);
 - `p21-readme-links` — a relative README link points only at a file `files` ships (npmjs.com
-  shows the README); every other document is linked by its absolute GitHub URL.
+  shows the README); every other document is linked by its absolute GitHub URL;
+- `p23-log-format` — every stderr line is a log record (timestamp, level, topic),
+  `--log-format text|jsonl`.
 
 Cases that don't apply here are skipped in the adapter with the reason (no
 base-URL environment variable; `obtain-key` does not verify the key).
@@ -509,3 +512,16 @@ npm run serve                        # http://127.0.0.1:4000/jobsuche-cli/
 Dual-licensed under **[AGPL-3.0-or-later](LICENSE)** or a commercial license — see
 **[LICENSING.md](LICENSING.md)**. This project does **not** accept external code
 contributions; see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
+## The log on stderr
+
+Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+(`ERROR`, `WARN`, `INFO`) and a topic, `jobsuche.<area>`. `--log-format text` (the default)
+writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
+`--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
+and `msg`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning), `http` (the connection, the cleartext warning), `config` and `obtain-key`. The no-echo prompt of `config set` and the `Output error:` line `handleOutputErrors` writes when stdout itself fails stay plain. Code logs through `logOf(deps)` and never writes diagnostics
+with `io.err` directly. `run()` builds the logger from argv before commander parses it,
+so commander's own usage errors are records too, and on top of the redacted `io.err`, so
+a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps
+testable. stdout carries data only. Conformance test P23 checks all of this, and its
+body is shared across the *-cli repos.

@@ -6,7 +6,7 @@ import * as lib from "../src/index.js";
 import { run } from "../src/cli/run.js";
 import type { JobsucheClient } from "../src/client/client.js";
 import type { HttpResponse } from "../src/client/http.js";
-import { parity } from "./helpers.js";
+import { parity, untimed } from "./helpers.js";
 
 const notBlank: Problem = (v) => (v.trim() === "" ? "Must not be blank." : undefined);
 
@@ -30,7 +30,7 @@ test("the validation layer is exported from the package root", () => {
   assert.equal(lib.JobsucheValidationError, JobsucheValidationError);
 });
 
-test("run() maps a JobsucheValidationError from an action to exit 2 with 'Error: <message>'", async () => {
+test("run() maps a JobsucheValidationError from an action to exit 2 and an ERROR record", async () => {
   const out: string[] = [];
   const err: string[] = [];
   const fake = {
@@ -42,7 +42,7 @@ test("run() maps a JobsucheValidationError from an action to exit 2 with 'Error:
     env: {},
   });
   assert.equal(code, 2);
-  assert.deepEqual(err, ["Error: Invalid was: Must not be blank."]);
+  assert.deepEqual(err.map(untimed), ["ERROR [jobsuche.cli] Invalid was: Must not be blank."]);
   assert.deepEqual(out, []);
 });
 
@@ -56,7 +56,7 @@ test("run() maps a JobsucheValidationError from the client constructor to exit 2
     env: {},
   });
   assert.equal(code, 2);
-  assert.deepEqual(err, ["Error: Invalid timeoutMs: Expected a non-negative integer."]);
+  assert.deepEqual(err.map(untimed), ["ERROR [jobsuche.cli] Invalid timeoutMs: Expected a non-negative integer."]);
 });
 
 test("parity() drives the same input through the CLI and the library on one transport", async () => {
@@ -358,7 +358,7 @@ test("parity: an API key with an inner newline is rejected from flag, env and li
   const viaEnv = await parity(["search", "--was", "Dev"], libCall, { env: { JOBSUCHE_API_KEY: "a\nb" } });
   for (const r of [viaFlag, viaEnv]) assertBothReject(r, "Invalid apiKey: Value contains control characters.");
   // The CLI names the variable the key came from; the library its option.
-  assert.equal(viaEnv.cli.err, "Error: Invalid JOBSUCHE_API_KEY: Value contains control characters.");
+  assert.equal(viaEnv.cli.err, "ERROR [jobsuche.cli] Invalid JOBSUCHE_API_KEY: Value contains control characters.");
 });
 
 test("a blank API key is no key on every path", async () => {

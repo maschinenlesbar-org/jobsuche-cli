@@ -1,5 +1,5 @@
 import { InvalidArgumentError, type Command } from "commander";
-import type { CliDeps } from "../io.js";
+import { logOf, type CliDeps } from "../io.js";
 import { action, onceOnly, parseBoundedInt, parseIntArg, parseNonBlank, parseTextArg, renderJson } from "../shared.js";
 import type { JobSearchParams } from "../../client/types.js";
 import { woNote } from "../../client/client.js";
@@ -92,7 +92,7 @@ export function registerJobCommands(program: Command, deps: CliDeps): void {
         // The API answers an unknown or garbled --wo with exit-0 data about another
         // town, or with nothing; say so (stderr, exit code unchanged).
         const note = woNote(params.wo, result);
-        if (note !== undefined) deps.io.err(`warning: ${note}`);
+        if (note !== undefined) logOf(deps).warn("api", note);
       }),
     );
 

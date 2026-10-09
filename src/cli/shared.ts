@@ -3,7 +3,7 @@
 
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import type { CliDeps } from "./io.js";
+import { logOf, type CliDeps } from "./io.js";
 import type { JobsucheClientOptions } from "../client/client.js";
 import { JobsucheError, JobsucheValidationError } from "../client/errors.js";
 import { API_KEY_ENV_VAR } from "../client/obtain-key.js";
@@ -278,7 +278,7 @@ export function action(
       options.baseUrl ?? DEFAULT_BASE_URL,
       options.apiKey !== undefined ? [API_KEY_PHRASE] : [],
     );
-    if (cleartext !== undefined) deps.io.err(`warning: ${cleartext}`);
+    if (cleartext !== undefined) logOf(deps).warn("http", cleartext);
     await fn({ client, global, opts: command.opts() }, positionals);
   };
 }
