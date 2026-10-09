@@ -221,3 +221,73 @@ test("an unwritable config location names the credentials file, for set and for 
     cli.cleanup();
   }
 });
+
+/** Write the credentials file by hand, as a user editing it would. */
+function handEdit(store: CredentialStore, content: Record<string, string>): void {
+  mkdirSync(join(store.path, ".."), { recursive: true, mode: 0o700 });
+  writeFileSync(store.path, JSON.stringify(content), { mode: 0o600 });
+}
+
+test("a hand-edited value config set would refuse is refused on read, naming the file (02-1, 02-2)", async () => {
+  for (const value of ["", "   ", "abc\u001b[31mRED-ghijklmnop", "abcd\nX-Evil: 1", "abcdefg\rhijklmn", "ab\tcdefghijklm", "abc def ghi jkl", "abc\u202edefghijkl", "schlüssel€-abcdefghijkl"]) {
+    const cli = makeCli({ responder: () => rawResponse(" ", "text/plain", 403) });
+    try {
+      handEdit(cli.store, { "api-key": value });
+      const label = JSON.stringify(value);
+      // A request: no key sent, no "the API key is sent" warning, no usage error, no
+      // "a key was sent" hint after an empty 403 (none is sent).
+      assert.equal(await run(["--base-url", "http://192.0.2.10", "search", "--was", "x"], cli.deps), 1, label);
+      assert.equal(cli.mt.calls.length, 0, `${label}: no request`);
+      const err = untimed(cli.err.join("\n"));
+      assert.match(err, /ERROR \[jobsuche\.cli\] The api-key stored in .*credentials cannot be used: .* jobsuche config set api-key replaces it\./, label);
+      assert.doesNotMatch(err, /Invalid apiKey|sent unencrypted|Check the key/, label);
+      // config get and config list: the same refusal, nothing raw on stdout — so the skills'
+      // check (`config get api-key` exits 0) means a usable key is stored.
+      for (const argv of [["config", "get", "api-key"], ["config", "get", "api-key", "--reveal"], ["config", "list"]]) {
+        cli.out.length = 0;
+        assert.equal(await run(argv, cli.deps), 1, `${label} ${argv.join(" ")}`);
+        assert.deepEqual(cli.out, [], `${label} ${argv.join(" ")}`);
+      }
+      // set and unset still repair it.
+      assert.equal(await run(["config", "unset", "api-key"], cli.deps), 0, label);
+    } finally {
+      cli.cleanup();
+    }
+  }
+});
+
+test("a hand-edited value with surrounding spaces is used trimmed", async () => {
+  const cli = makeCli();
+  try {
+    handEdit(cli.store, { "api-key": `  ${KEY}  ` });
+    assert.equal(await run(["search", "--was", "x"], cli.deps), 0);
+    assert.equal(cli.mt.last().headers?.["X-API-Key"], KEY);
+  } finally {
+    cli.cleanup();
+  }
+});
+
+test("config list refuses a hand-edited name that is not a credential name (01-4)", async () => {
+  const cli = makeCli();
+  try {
+    handEdit(cli.store, { "api-key": KEY, "\u001b[31mred": "abcdefghijklmnop" });
+    assert.equal(await run(["config", "list"], cli.deps), 1);
+    assert.deepEqual(cli.out, []);
+    assert.match(cli.err.join("\n"), /holds "\\u001b\[31mred", which is not a credential name/);
+    assert.ok(!cli.err.join("\n").includes("\u001b"), "nothing raw on stderr");
+  } finally {
+    cli.cleanup();
+  }
+});
+
+test("config list refuses a hand-edited value with control characters under any name", async () => {
+  const cli = makeCli();
+  try {
+    handEdit(cli.store, { "api-key": KEY, zzz: "\u001b]0;pwned\u0007tail" });
+    assert.equal(await run(["config", "list"], cli.deps), 1);
+    assert.deepEqual(cli.out, []);
+    assert.ok(!cli.err.join("\n").includes("\u001b"), "nothing raw on stderr");
+  } finally {
+    cli.cleanup();
+  }
+});

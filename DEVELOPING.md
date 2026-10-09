@@ -164,9 +164,14 @@ naming the fix (exit `1`). It reaches the CLI through `CliDeps.credentials`, whi
 `defaultDeps` sets, so a test that does not ask for one never reads the user's file;
 `action()` (`src/cli/shared.ts`) reads it only when neither the flag nor the env var gave
 a key, so `obtain-key` never reads it and a problem with it never blocks a key given
-another way. `config set` reads through `CliIO.readSecret` (`readSecretFrom`: raw mode
+another way. It reads through `CredentialStore.usable` (trimmed; a hand-edited value
+`config set` would refuse — `credentialProblem`: blank, whitespace or control characters
+inside, or what the library's header rule refuses — is an error naming the file, exit
+`1`), and `config get`/`config list` read through the same check (`config list` also
+refuses a name that is not a credential name, `usableNames`). `config set` reads through `CliIO.readSecret` (`readSecretFrom`: raw mode
 without echo on a terminal, the whole input from a pipe), never from argv, and checks the
-value with `credentialValueProblem` and the client's `headerValueProblem`.
+value with `credentialProblem` (`credentialValueProblem` and the client's
+`headerValueProblem`).
 
 Prefer the `JOBSUCHE_API_KEY` env var over `--api-key`: a value passed on the
 command line is visible to other local users through the process table (`ps`) and

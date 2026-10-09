@@ -14,13 +14,15 @@ import { baseUrlProblem, headerValueProblem, intRangeProblem, nonBlankProblem } 
 export const API_KEY_CREDENTIAL = "api-key";
 
 /**
- * The API key kept in the credentials file (`jobsuche config set api-key`), or
+ * The API key kept in the credentials file (`jobsuche config set api-key`), trimmed, or
  * undefined when none is stored or `deps` carry no credentials file. Reading it may
- * throw a JobsucheError (a file others can read, a link, invalid JSON), so it is read
- * only when neither `--api-key` nor `JOBSUCHE_API_KEY` gave a key.
+ * throw a JobsucheError (a file others can read, a link, invalid JSON, or a stored
+ * value `config set` would refuse — `CredentialStore.usable`, naming the file, never
+ * repeating the value), so it is read only when neither `--api-key` nor
+ * `JOBSUCHE_API_KEY` gave a key.
  */
 export function storedApiKey(deps: CliDeps): string | undefined {
-  return deps.credentials?.().get(API_KEY_CREDENTIAL);
+  return deps.credentials?.().usable(API_KEY_CREDENTIAL);
 }
 
 /**

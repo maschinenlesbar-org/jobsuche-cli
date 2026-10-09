@@ -37,7 +37,9 @@ Precedence is `--api-key` > `JOBSUCHE_API_KEY` > the credentials file > none.
 the value from a prompt without echo or from stdin, never from the command line;
 `config get` shows it masked (`--reveal` prints it whole); `config list` and `config
 unset` do what they say. A file that others can read is refused, and only when it is
-needed.
+needed. So is a hand-edited value `config set` would refuse (blank, whitespace inside, a
+control character), naming the file (exit `1`; `config get` and `config list` refuse it
+too, so `config get api-key` exits 0 only for a usable key).
 
 Without a key the header is left out and the API answers `401`/`403` (exit code
 `3`).

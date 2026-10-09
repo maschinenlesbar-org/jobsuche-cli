@@ -15,6 +15,8 @@ import { chmodSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, stat
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { JobsucheError, JobsucheValidationError } from "../client/errors.js";
+import { headerValueProblem } from "../client/validate.js";
+import { API_KEY_CREDENTIAL } from "./shared.js";
 
 /** The directory under `$XDG_CONFIG_HOME` (or `~/.config`) this program keeps its credentials in. */
 export const CONFIG_DIR_NAME = "jobsuche";
@@ -36,6 +38,17 @@ export function credentialValueProblem(value: string): string | undefined {
   if (value.trim() === "") return "The value is empty.";
   if (/[\s\u0000-\u001f\u007f-\u009f]/.test(value)) return "The value holds whitespace or control characters; a key is one token.";
   return undefined;
+}
+
+/**
+ * Why `value` cannot be used as the credential `name`, or undefined:
+ * `credentialValueProblem`, and for the API key also what an HTTP header cannot carry
+ * (the library's `headerValueProblem`, the rule the client applies). `config set`
+ * refuses such a value, and a value read from the file is checked the same way
+ * (`CredentialStore.usable`).
+ */
+export function credentialProblem(name: string, value: string): string | undefined {
+  return credentialValueProblem(value) ?? (name === API_KEY_CREDENTIAL ? headerValueProblem(value) : undefined);
 }
 
 /**
@@ -79,9 +92,42 @@ export class CredentialStore {
     return this.read()[name];
   }
 
+  /**
+   * The value of `name` for use: trimmed, and a value `config set` would refuse (the
+   * file was edited by hand: blank, whitespace inside, a line break, an escape sequence,
+   * a character no header can carry) is a `JobsucheError` naming the file and the
+   * fix. Without the check a blank value sent no key while `config get` exited 0 and the
+   * empty-403 hint said a key was sent, a value with a line break was "Invalid apiKey",
+   * and `config get` and `config list` printed control characters raw.
+   */
+  usable(name: string): string | undefined {
+    const raw = this.get(name);
+    if (raw === undefined) return undefined;
+    const value = raw.trim();
+    const reason = credentialProblem(name, value);
+    if (reason !== undefined) {
+      throw new JobsucheError(`The ${name} stored in ${this.path} cannot be used: ${reason} jobsuche config set ${name} replaces it.`);
+    }
+    return value;
+  }
+
   /** Every stored name, sorted. */
   names(): string[] {
     return Object.keys(this.read()).sort();
+  }
+
+  /**
+   * Every stored name, sorted, each a credential name: a hand-edited name that is not
+   * one (it may hold control characters) is a `JobsucheError` naming the file.
+   */
+  usableNames(): string[] {
+    const names = this.names();
+    for (const name of names) {
+      if (credentialNameProblem(name) !== undefined) {
+        throw new JobsucheError(`The credentials file ${this.path} holds ${JSON.stringify(name)}, which is not a credential name; remove it by hand.`);
+      }
+    }
+    return names;
   }
 
   set(name: string, value: string): void {
