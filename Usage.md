@@ -34,7 +34,10 @@ jobsuche obtain-key | jobsuche config set api-key
 Precedence is `--api-key` > `JOBSUCHE_API_KEY` > the credentials file > none.
 `jobsuche config` keeps the key in `$XDG_CONFIG_HOME/jobsuche/credentials` (else
 `~/.config/jobsuche/credentials`), mode 0600, written atomically; `config set` reads
-the value from a prompt without echo or from stdin, never from the command line;
+the value from a prompt without echo or from stdin, never from the command line (an
+extra argument is a usage error, exit 2, and is not repeated; so is a mistyped name or a
+surplus argument to any `config` command — the error names the valid names, never what
+was typed);
 `config get` shows it masked (`abcd…wxyz`; `****` below 20 characters, so for the
 published key; `--reveal` prints it whole); `config list` and `config
 unset` do what they say. A file that others can read is refused, and only when it is
