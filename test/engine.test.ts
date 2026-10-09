@@ -376,3 +376,17 @@ test("the --wo note quotes the place asked for and the place used at most 200 ch
   assert.match(note, /searched around "Bonny+…" for --wo "Heidelbergx+…"/);
   assert.ok(note.length < 600, `${note.length}`);
 });
+
+test("credentials a server echoes are scrubbed from the error: Basic, user:password, password (L13)", async () => {
+  const basic = Buffer.from("alice:pa ss-pw", "latin1").toString("base64");
+  const body = JSON.stringify({ detail: `no: Basic ${basic} / alice:pa ss-pw / pa ss-pw` });
+  const engine = new RequestEngine({
+    baseUrl: "https://alice:pa%20ss-pw@mirror.test",
+    transport: async () => ({ status: 401, headers: { "content-type": "application/json" }, body: Buffer.from(body) }),
+  });
+  await assert.rejects(engine.getJson("/x"), (err: JobsucheApiError) => {
+    for (const form of [basic, "alice:pa ss-pw", "pa ss-pw"]) assert.ok(!err.message.includes(form), err.message);
+    assert.match(err.message, /no: Basic \*\*\* \/ \*\*\* \/ \*\*\*/);
+    return true;
+  });
+});

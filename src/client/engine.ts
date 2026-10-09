@@ -28,6 +28,7 @@ import {
   credentialsIn,
   cutForMessage,
   cutText,
+  echoedCredentialForms,
   redactCredentials,
   redactSecrets,
   redactUrl,
@@ -674,9 +675,14 @@ export class RequestEngine {
       assertValid(`header ${name}`, value, headerValueProblem);
     }
     // The secret part of a credential header (`X-API-Key: <key>`, `Bearer <token>`).
+    // And the forms a server echoes a base URL's userinfo in: the Basic value, the
+    // decoded `user:password`, the password alone.
     const secrets = Object.entries(this.#defaultHeaders)
       .filter(([name]) => CREDENTIAL_HEADERS.has(name.toLowerCase()))
-      .map(([, value]) => value.replace(/^\S+\s+(?=\S)/, "").trim());
+      .map(([, value]) => value.replace(/^\S+\s+(?=\S)/, "").trim())
+      .concat(credentialsIn(this.#baseUrl).flatMap(echoedCredentialForms))
+      // Longest first, so a password never leaves half of the user:password around it.
+      .sort((a, b) => b.length - a.length);
     this.#scrub = secretScrubber(credentialsIn(this.#baseUrl), secrets);
     // Range-checked, not only by the CLI. A timeout above MAX_TIMEOUT_MS stays
     // allowed: the transport caps the timer at MAX_TIMEOUT_MS (documented).

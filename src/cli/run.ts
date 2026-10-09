@@ -15,6 +15,7 @@ import {
   JobsucheParseError,
   JobsucheValidationError,
   credentialsIn,
+  echoedCredentialForms,
   redactCredentials,
   redactSecrets,
   redactUrl,
@@ -143,7 +144,9 @@ export interface Redaction {
  *
  * - the userinfo of every URL-like argument, `--opt=value` value and of the key
  *   variable (as `credentialsIn` finds it, parseable or not) becomes `***@`, on
- *   stdout and stderr;
+ *   stdout and stderr, and so do the forms a server echoes it back in: the `Basic`
+ *   value and the decoded `user:password` (`echoedCredentialForms`) become `***`, the
+ *   password alone (4 characters or more) on stderr only, as it may occur in the data;
  * - the value of `--api-key` (both forms) and the `JOBSUCHE_API_KEY` value become
  *   `***` on stderr. Not on stdout: `obtain-key` prints the key there, and it may
  *   well be the one already in `JOBSUCHE_API_KEY`.
@@ -159,6 +162,7 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   const envKey = env[API_KEY_ENV_VAR] ?? "";
   const userinfo = new Set<string>();
   const encodedUserinfo = new Set<string>();
+  const passwords = new Set<string>();
   const keys = new Set<string>();
   for (const source of [...argv, ...values, envKey]) {
     for (const secret of credentialsIn(source)) {
@@ -166,6 +170,12 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
       userinfo.add(JSON.stringify(secret).slice(1, -1));
       const encoded = encodeURIComponent(secret);
       if (encoded !== secret) encodedUserinfo.add(encoded);
+      // What a server echoes back: the Basic value and the decoded user:password on
+      // stdout and stderr, the password alone (it may well occur in the data) on stderr.
+      const [basic, pair, password] = echoedCredentialForms(secret);
+      if (basic !== undefined) encodedUserinfo.add(basic);
+      if (pair !== undefined) for (const form of [pair, JSON.stringify(pair).slice(1, -1)]) encodedUserinfo.add(form);
+      if (password !== undefined) passwords.add(password);
     }
   }
   const addKey = (value: string | undefined): void => {
@@ -176,6 +186,7 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
     }
   };
   addKey(envKey);
+  for (const password of passwords) addKey(password);
   argv.forEach((token, i) => {
     if (SECRET_FLAGS.includes(token)) addKey(argv[i + 1]);
     const eq = token.indexOf("=");
@@ -185,7 +196,8 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   // Longest first, so a key is never left half-replaced by one of its own substrings.
   const sortedKeys = (): string[] => [...keys].sort((a, b) => b.length - a.length);
   let keyList = sortedKeys();
-  const encodedList = [...encodedUserinfo];
+  // Longest first too: a pair is replaced before a shorter form inside it.
+  const encodedList = [...encodedUserinfo].sort((a, b) => b.length - a.length);
   const out = (text: string): string => redactSecrets(redactCredentials(text, urlList), encodedList);
   return {
     out,

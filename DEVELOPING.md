@@ -197,7 +197,10 @@ wraps `deps.io` first and gives the log the stderr redactor, applied to each mes
 finds it whether the value parses or not, then `redactCredentials`) becomes `***@`
 on stdout and stderr; the `--api-key` value and the `JOBSUCHE_API_KEY` value become
 `***` on stderr (`redactSecrets`) — not on stdout, where `obtain-key` prints the
-key. A key read from the credentials file becomes a secret of the run the moment it is
+key. The forms a server echoes a userinfo back in are replaced too: the `Basic` value
+and the decoded `user:password` on stdout and stderr, the password alone (4 characters
+or more) on stderr only, since it may well occur in the data. A key read from the
+credentials file becomes a secret of the run the moment it is
 read (`deps.addSecret`, by `action()`, `config get` and `config set`), like the flag and
 the env value. `config get --reveal` alone writes through the unredacted stdout
 (`io.outRaw`): the value as stored is what was asked for, and the run's redaction (a
@@ -316,7 +319,9 @@ response shapes and the wrong-typed inputs.
 default headers (the `X-API-Key`) in real `#private` fields, so `console.log`,
 `util.inspect` and `JSON.stringify` of a client never show the key or a
 base-URL password. Server and transport text is scrubbed of them before it
-reaches an error (`secretScrubber`, `scrubCause`): an error body that echoes the
+reaches an error (`secretScrubber`, `scrubCause`), together with the forms a server
+echoes a userinfo back in (the `Basic` value, the decoded `user:password`, the
+password alone from 4 characters: `echoedCredentialForms`): an error body that echoes the
 request, a transport message such as fetch's "Request cannot be constructed from
 a URL that includes credentials: http://user:pw@…", and the `cause` chain. URLs
 in messages go through `redactUrl`, which also cuts the userinfo out of a value
