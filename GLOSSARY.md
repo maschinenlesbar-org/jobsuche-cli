@@ -193,7 +193,7 @@ answers `401`/`403`, the error says the redirect dropped the key (for `http:` â†
 `--log-format jsonl` as one JSON object per line. The areas: `cli` (usage errors,
 commander's messages, unexpected errors), `api` (the API's answers: an error status, the
 401/403 hints, the `--wo` warning, and a malformed answer â€” bad JSON, the wrong shape or
-content type), `http` (the connection, the cleartext warning), `config` (the credentials
+content type), `http` (the connection, the cleartext warning, one WARN per retry before it waits), `config` (the credentials
 file), `obtain-key` and `output` (stdout failures). A record is always one line; control
 characters in it are escaped.
 

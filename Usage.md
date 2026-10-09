@@ -212,7 +212,7 @@ These apply to every command and may be given before or after the command name
 | `--api-key <key>` | the `X-API-Key` to send (env `JOBSUCHE_API_KEY`, else the key stored with `jobsuche config set api-key`; no key is bundled, see `obtain-key`); blank/whitespace is ignored and the env var or the stored key is used, else no key is sent; a key that can't be sent as a header is a usage error (exit `2`) that never repeats the key |
 | `--timeout <ms>` | time limit per request in milliseconds, reading the whole response included (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters or characters above U+00FF, which a header cannot carry) |
-| `--max-retries <n>` | retries for transient `429`/`503` responses (`0`–`10`, default `2`); each waits the server's `Retry-After` (up to 30 s; a longer one is not retried, and the error names it) or else backs off linearly |
+| `--max-retries <n>` | retries for transient `429`/`503` responses (`0`–`10`, default `2`); each waits the server's `Retry-After` (up to 30 s; a longer one is not retried, and the error names it) or else backs off linearly. Each retry logs one WARN record of `jobsuche.http` before it waits (`HTTP 503 from host: retry 1 of 3 in 2 s`) |
 | `--max-response-bytes <n>` | cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | print JSON on a single line instead of pretty-printed |
 | `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [jobsuche.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |

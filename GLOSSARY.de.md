@@ -196,7 +196,7 @@ Text (im Stil von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Z
 Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die
 Antworten der API: ein Fehlerstatus, die Hinweise zu 401/403, die `--wo`-Warnung und eine
 fehlerhafte Antwort — ungültiges JSON, die falsche Form oder der falsche Content-Type),
-`http` (die Verbindung, die Klartext-Warnung), `config` (die Datei mit den Zugangsdaten),
+`http` (die Verbindung, die Klartext-Warnung, je Wiederholung eine WARN-Zeile vor dem Warten), `config` (die Datei mit den Zugangsdaten),
 `obtain-key` und `output` (Schreibfehler auf stdout). Ein Eintrag ist immer eine Zeile;
 Steuerzeichen darin werden maskiert.
 

@@ -311,6 +311,12 @@ test double), not only the built-in one:
   `UND_ERR_SOCKET`, anywhere in the `cause` chain; `isTransientNetworkError`) is
   retried like a 503 for a GET, within `maxRetries`. A refused connection, a DNS
   failure or a timeout is not.
+- Each retry is announced: the engine option `onRetry(event: RetryEvent)` (exported type:
+  `{ retry` (1-based), `maxRetries`, `delayMs`, `status?` (absent for a reset), `url` (userinfo
+  redacted) `}`) is called once per retry right before the sleep, never when there is none, and
+  a throw in it is swallowed. The CLI's `action()` sets it to log one `WARN` record of
+  `jobsuche.http`, `HTTP 503 from <host>: retry 1 of 3 in 2 s` (`retryMessage`; host only, whole
+  seconds, ms under 1 s). Tests: `test/engine.test.ts`, `test/retry-log.test.ts`.
 - `transport` and `sleep` must be functions (else `JobsucheValidationError`).
 
 `test/conformance-p5-transport-contract.test.ts` is the shared check;
@@ -566,7 +572,7 @@ controls as `\uXXXX`, so no text that reaches a record, by whatever path, can sp
 forge another one or steer the terminal. Before that a lone surrogate (half a
 character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`),
 and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
-code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning, and a malformed answer, a `JobsucheParseError`: bad JSON, the wrong shape or content type, an unknown charset), `http` (the connection, the cleartext warning), `config` (the credentials file and the `config` commands: what they stored or removed, and every failure of the file — `CredentialsError` —, whichever command read it; a usage error of a `config` command stays `cli`), `obtain-key` and `output` (a stdout write error). The no-echo prompt of `config set` stays plain. Code logs through `logOf(deps)` and never writes diagnostics
+code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning, and a malformed answer, a `JobsucheParseError`: bad JSON, the wrong shape or content type, an unknown charset), `http` (the connection, the cleartext warning, one WARN per retry before it waits), `config` (the credentials file and the `config` commands: what they stored or removed, and every failure of the file — `CredentialsError` —, whichever command read it; a usage error of a `config` command stays `cli`), `obtain-key` and `output` (a stdout write error). The no-echo prompt of `config set` stays plain. Code logs through `logOf(deps)` and never writes diagnostics
 with `io.err` directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`: the first `--log-format`, the value of one of the program's own value options
 skipped, used only for the records of a parse error; a `preAction` hook then sets the
