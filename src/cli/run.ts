@@ -419,7 +419,9 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // control characters before it reaches the terminal.
       const cause = err.cause instanceof Error ? err.cause.message : err.cause;
       const causePart = cause ? ` (${sanitizeServerText(String(cause))})` : "";
-      log.error("cli", `${err.message}${causePart}`);
+      // A malformed answer (bad JSON, the wrong shape or content type, an unknown
+      // charset) is the API's answer as much as an error status is.
+      log.error("api", `${err.message}${causePart}`);
       return 1;
     }
     if (err instanceof JobsucheError) {

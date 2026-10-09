@@ -201,7 +201,7 @@ stderr, so piping stdout into `jq` stays clean.
 
 Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
 `INFO`) and a topic, the program and the area it comes from (`jobsuche.cli` for usage
-errors, `jobsuche.api` for the API's answers, `jobsuche.http` for the connection,
+errors, `jobsuche.api` for the API's answers, a malformed one included, `jobsuche.http` for the connection,
 `jobsuche.config` for the credentials file, its failures included, `jobsuche.obtain-key`,
 `jobsuche.output` for a stdout write error).
 By default it is written log4j style;

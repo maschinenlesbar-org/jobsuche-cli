@@ -190,6 +190,16 @@ erhalten. Antwortet das Ziel dann mit `401`/`403`, sagt die Fehlermeldung, dass 
 Weiterleitung den Key verworfen hat (bei `http:` → `https:`: „use an https base URL“), statt
 den Key zu beschuldigen.
 
+**Log-Eintrag (log record).** Jede Diagnosezeile, die die CLI nach stderr schreibt: ein
+Zeitstempel, eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `jobsuche.<Bereich>`, als
+Text (im Stil von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Zeile. Die
+Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die
+Antworten der API: ein Fehlerstatus, die Hinweise zu 401/403, die `--wo`-Warnung und eine
+fehlerhafte Antwort — ungültiges JSON, die falsche Form oder der falsche Content-Type),
+`http` (die Verbindung, die Klartext-Warnung), `config` (die Datei mit den Zugangsdaten),
+`obtain-key` und `output` (Schreibfehler auf stdout). Ein Eintrag ist immer eine Zeile;
+Steuerzeichen darin werden maskiert.
+
 ---
 
 > **Bibliothek und Interna.** Begriffe zum TypeScript-Client und seinen Interna –

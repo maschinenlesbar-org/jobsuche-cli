@@ -188,6 +188,15 @@ leak to a third-party host. Same-origin redirects keep them. If the target then
 answers `401`/`403`, the error says the redirect dropped the key (for `http:` →
 `https:`: "use an https base URL") instead of blaming the key.
 
+**Log record.** Every diagnostic line the CLI writes to stderr: a timestamp, a level
+(`ERROR`, `WARN`, `INFO`) and a topic `jobsuche.<area>`, as text (log4j style) or with
+`--log-format jsonl` as one JSON object per line. The areas: `cli` (usage errors,
+commander's messages, unexpected errors), `api` (the API's answers: an error status, the
+401/403 hints, the `--wo` warning, and a malformed answer — bad JSON, the wrong shape or
+content type), `http` (the connection, the cleartext warning), `config` (the credentials
+file), `obtain-key` and `output` (stdout failures). A record is always one line; control
+characters in it are escaped.
+
 ---
 
 > **Library & internals.** Terms for the TypeScript client and its internals —
