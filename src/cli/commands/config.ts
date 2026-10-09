@@ -78,7 +78,10 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
       const value = store.usable(name);
       if (value === undefined) throw new JobsucheError(`No ${name} is stored in ${store.path}; jobsuche config set ${name} stores one.`);
       deps.addSecret?.(value);
-      deps.io.out(options.reveal === true ? value : maskCredential(value, name));
+      // --reveal prints the value as stored: the run's redaction (a credential from a flag
+      // that happens to occur in it) would hand a script a wrong value with exit 0.
+      if (options.reveal === true) (deps.io.outRaw ?? deps.io.out)(value);
+      else deps.io.out(maskCredential(value, name));
     });
 
   config

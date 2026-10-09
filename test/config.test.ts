@@ -526,3 +526,15 @@ test("the stored key is a secret of the run the moment it is read: no record sho
     cli.cleanup();
   }
 });
+
+test("config get --reveal prints the value as stored, untouched by the run's redaction (C9)", async () => {
+  const stored = "alice:s3cret-pw@mirror.test";
+  const cli = makeCli();
+  try {
+    cli.store.set("api-key", stored);
+    assert.equal(await run(["--base-url", "https://alice:s3cret-pw@mirror.test", "config", "get", "api-key", "--reveal"], cli.deps), 0);
+    assert.deepEqual(cli.out, [stored]);
+  } finally {
+    cli.cleanup();
+  }
+});

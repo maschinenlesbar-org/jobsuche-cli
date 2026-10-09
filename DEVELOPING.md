@@ -199,7 +199,9 @@ on stdout and stderr; the `--api-key` value and the `JOBSUCHE_API_KEY` value bec
 `***` on stderr (`redactSecrets`) — not on stdout, where `obtain-key` prints the
 key. A key read from the credentials file becomes a secret of the run the moment it is
 read (`deps.addSecret`, by `action()`, `config get` and `config set`), like the flag and
-the env value. Commander's own error text additionally masks every argv token that is not a
+the env value. `config get --reveal` alone writes through the unredacted stdout
+(`io.outRaw`): the value as stored is what was asked for, and the run's redaction (a
+credential from a flag that happens to occur in it) would hand a script a wrong value. Commander's own error text additionally masks every argv token that is not a
 short value, a lower-case word or an option name (`OrgKey-55` → `Org…`, a URL →
 the URL without userinfo), so a key pasted where a command belongs is never
 echoed; an `--api-key` value there is `***`. The value of `--log-format`, a format
