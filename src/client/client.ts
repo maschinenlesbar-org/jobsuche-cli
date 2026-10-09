@@ -14,7 +14,7 @@
 // answers an empty 403 since 2026-09), details /pc/v4/jobdetails.
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
-import { JobsucheParseError, JobsucheValidationError } from "./errors.js";
+import { JobsucheParseError, JobsucheValidationError, cutForMessage } from "./errors.js";
 import { sanitizeServerText } from "./engine.js";
 import {
   assertValid,
@@ -201,7 +201,7 @@ export function woNote(wo: string | undefined, result: JobSearchResult): string 
   const asked = sanitizeServerText(wo);
   if (out?.suchmodus === "UNGUELTIG") {
     return (
-      `the API did not recognise the place "${asked}" (woOutput.suchmodus UNGUELTIG), so nothing ` +
+      `the API did not recognise the place "${cutForMessage(asked)}" (woOutput.suchmodus UNGUELTIG), so nothing ` +
       `was searched there: an empty result does not mean "no jobs". Check the spelling or use a postcode.`
     );
   }
@@ -211,7 +211,7 @@ export function woNote(wo: string | undefined, result: JobSearchResult): string 
   const b = placeKey(resolved);
   if (a.includes(b) || b.includes(a)) return undefined;
   return (
-    `the API searched around "${resolved}" for --wo "${asked}" (woOutput.bereinigterOrt); ` +
+    `the API searched around "${cutForMessage(resolved)}" for --wo "${cutForMessage(asked)}" (woOutput.bereinigterOrt); ` +
     `distances (entfernung) are from there. Check that this is the place you meant.`
   );
 }

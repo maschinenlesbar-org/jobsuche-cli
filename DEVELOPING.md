@@ -369,7 +369,11 @@ again inside the window it named.
 
 **Server text in messages** (an error `detail`) is stripped of control characters
 and cut at 500 characters ("…"; a quoted error envelope or body snippet at 200), never
-inside a surrogate pair (`cutText`), so the message stays well-formed, and so a hostile or buggy body cannot flood stderr or
+inside a surrogate pair (`cutText`), so the message stays well-formed; any other value
+an own message quotes from a server answer or the user's input (a redirect target, a
+charset or Content-Type, a search parameter name, a base URL, the places of the `--wo`
+note) is cut at `MAX_QUOTED_LENGTH` (200, `cutForMessage`), so `err.message` stays
+bounded for a library caller, and so a hostile or buggy body cannot flood stderr or
 a CI log; `JobsucheApiError.body` keeps the full text.
 
 **What the API did with `wo`.** The API never fails on a place: it corrects a
@@ -543,8 +547,9 @@ the message (text) or the whole JSON object (jsonl), which writes CR and LF as `
 every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
 controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
 forge another one or steer the terminal. Before that a lone surrogate (half a
-character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`).
-The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning), `http` (the connection, the cleartext warning), `config` and `obtain-key`. The no-echo prompt of `config set` and the `Output error:` line `handleOutputErrors` writes when stdout itself fails stay plain. Code logs through `logOf(deps)` and never writes diagnostics
+character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`),
+and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
+code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning), `http` (the connection, the cleartext warning), `config` and `obtain-key`. The no-echo prompt of `config set` and the `Output error:` line `handleOutputErrors` writes when stdout itself fails stay plain. Code logs through `logOf(deps)` and never writes diagnostics
 with `io.err` directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`: the first `--log-format`, the value of an option that takes one
 skipped, used only for the records of a parse error; a `preAction` hook then sets the

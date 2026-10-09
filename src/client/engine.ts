@@ -26,6 +26,7 @@ import {
   JobsucheParseError,
   JobsucheValidationError,
   credentialsIn,
+  cutForMessage,
   cutText,
   redactCredentials,
   redactSecrets,
@@ -327,7 +328,7 @@ const MAX_DETAIL_LENGTH = 500;
 /** sanitizeServerText, then cut at MAX_DETAIL_LENGTH characters (never inside a surrogate pair). */
 function cleanDetail(text: string): string {
   const clean = sanitizeServerText(text);
-  return clean.length > MAX_DETAIL_LENGTH ? `${cutText(clean, MAX_DETAIL_LENGTH)}…` : clean;
+  return cutForMessage(clean, MAX_DETAIL_LENGTH);
 }
 
 /**
@@ -838,7 +839,7 @@ export class RequestEngine {
       // cannot inject terminal escape sequences via the parse-error message.
       const snippet = sanitizeServerText(this.#scrub(cutText(text, 200)));
       throw new JobsucheParseError(
-        `Expected a JSON response from ${path} but got Content-Type "${sanitizeServerText(res.contentType)}"`,
+        `Expected a JSON response from ${path} but got Content-Type "${cutForMessage(sanitizeServerText(res.contentType))}"`,
         { cause: snippet ? new Error(snippet) : undefined },
       );
     }
@@ -912,7 +913,7 @@ export function decodeBody(body: Buffer, contentType: string, where: string): st
   try {
     decoder = new TextDecoder(charset);
   } catch {
-    throw new JobsucheParseError(`Unsupported response charset "${sanitizeServerText(charset)}" from ${where}.`);
+    throw new JobsucheParseError(`Unsupported response charset "${cutForMessage(sanitizeServerText(charset))}" from ${where}.`);
   }
   return decoder.decode(body);
 }

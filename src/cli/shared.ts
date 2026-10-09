@@ -5,7 +5,7 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import { logOf, type CliDeps } from "./io.js";
 import type { JobsucheClientOptions } from "../client/client.js";
-import { JobsucheError, JobsucheValidationError } from "../client/errors.js";
+import { JobsucheError, JobsucheValidationError, cutForMessage } from "../client/errors.js";
 import { API_KEY_ENV_VAR } from "../client/obtain-key.js";
 import { API_KEY_PHRASE, DEFAULT_BASE_URL, cleartextProblem, isBidiControl } from "../client/engine.js";
 import { baseUrlProblem, headerValueProblem, intRangeProblem, nonBlankProblem } from "../client/validate.js";
@@ -68,7 +68,7 @@ export function parseTextArg(value: string): string {
   if (blank !== undefined) throw new InvalidArgumentError(blank);
   if (/^--?[^\s]/.test(value)) {
     throw new InvalidArgumentError(
-      `looks like a missing value — "${value}" is the next option, consumed because ` +
+      `looks like a missing value — "${cutForMessage(value)}" is the next option, consumed because ` +
         "this one was left without a value. Supply the intended search term.",
     );
   }

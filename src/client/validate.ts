@@ -5,7 +5,7 @@
 // value-parsers call the same function and turn the reason into a usage error, so
 // the rule exists exactly once.
 
-import { JobsucheValidationError, cutText, redactUrl } from "./errors.js";
+import { JobsucheValidationError, cutForMessage, cutText, redactUrl } from "./errors.js";
 import type { JobSearchParams } from "./types.js";
 
 /** Why `value` is invalid, or `undefined` if it is valid. */
@@ -134,10 +134,10 @@ export const httpUrlProblem: Problem = (value) => {
   try {
     url = new URL(value);
   } catch {
-    return `Invalid URL: "${redactUrl(value)}".`;
+    return `Invalid URL: "${cutForMessage(redactUrl(value))}".`;
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return `Unsupported protocol "${url.protocol}" (use http: or https:).`;
+    return `Unsupported protocol "${cutForMessage(url.protocol)}" (use http: or https:).`;
   }
   // The userinfo is decoded for the Authorization header; a "%" that isn't an escape
   // would only fail at request time ("URI malformed"), as a network error.
@@ -201,10 +201,10 @@ export interface SearchOptions {
  */
 export function searchParamKeyProblem(key: string, allowUnknown = false): string | undefined {
   if ((SEARCH_PARAMS as readonly string[]).includes(key)) return undefined;
-  if (key === "__proto__" || key === "constructor" || key === "prototype") return `"${key}" is not a search parameter.`;
+  if (key === "__proto__" || key === "constructor" || key === "prototype") return `"${cutForMessage(key)}" is not a search parameter.`;
   if (allowUnknown) return undefined;
   return (
-    `Unknown search parameter "${key}" (the API ignores it and returns the unfiltered set). ` +
+    `Unknown search parameter "${cutForMessage(key)}" (the API ignores it and returns the unfiltered set). ` +
     `Known: ${SEARCH_PARAMS.join(", ")}; pass { allowUnknownParams: true } to send it anyway.`
   );
 }

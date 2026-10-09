@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RequestEngine, cleartextCredentialsProblem, cleartextProblem } from "../src/client/engine.js";
+import { JobsucheClient, woNote } from "../src/client/client.js";
 import {
   JobsucheApiError,
   JobsucheNetworkError,
@@ -356,4 +357,22 @@ test("an error envelope's text cut at 200 characters keeps the parse error well-
     assert.equal(toWellFormed(cause), cause);
     return true;
   });
+});
+
+test("own messages quote a server or user value at most 200 characters long (L3)", async () => {
+  const long = "x".repeat(5000);
+  const redirect = new RequestEngine({ maxRedirects: 0, transport: async () => ({ status: 302, headers: { location: `https://other.example/${long}` }, body: Buffer.alloc(0) }) });
+  await assert.rejects(redirect.getJson("/x"), (err: Error) => err.message.length < 400 && /redirect to https:\/\/other\.example\/x+… not followed/.test(err.message));
+  const html = new RequestEngine({ transport: async () => ({ status: 200, headers: { "content-type": `text/${long}` }, body: Buffer.from("<html>") }) });
+  await assert.rejects(html.getJson("/x"), (err: Error) => err.message.length < 400 && /Content-Type "text\/x+…"/.test(err.message));
+  const charset = new RequestEngine({ transport: async () => ({ status: 200, headers: { "content-type": `application/json; charset=${long}` }, body: Buffer.from("{}") }) });
+  await assert.rejects(charset.getJson("/x"), (err: Error) => err.message.length < 400 && /charset "x+…"/.test(err.message));
+  const client = new JobsucheClient({ transport: async () => ({ status: 200, headers: {}, body: Buffer.from("{}") }) });
+  await assert.rejects(client.search({ [long]: "1" } as never), (err: Error) => err.message.length < 600 && /Unknown search parameter "x+…"/.test(err.message));
+});
+
+test("the --wo note quotes the place asked for and the place used at most 200 characters long (L3)", () => {
+  const note = woNote("Heidelberg" + "x".repeat(5000), { maxErgebnisse: 0, woOutput: { bereinigterOrt: "Bonn" + "y".repeat(5000) } } as never) ?? "";
+  assert.match(note, /searched around "Bonny+…" for --wo "Heidelbergx+…"/);
+  assert.ok(note.length < 600, `${note.length}`);
 });

@@ -207,7 +207,8 @@ errors, `jobsuche.api` for the API's answers, `jobsuche.http` for the connection
 line: a line break, a control character or a bidi control in a message (a server's
 text, a value you typed, a transport error) is written as an escape (`\n`, `\u001b`,
 `\u202e`), so it can neither split a record nor forge another one, nor steer the
-terminal:
+terminal; a message longer than 4000 characters is cut and ends in
+`… (N more characters)`:
 
 ```text
 2026-10-09T14:03:12.481Z WARN  [jobsuche.http] requests to mirror.test are sent unencrypted (http:, not https:)
