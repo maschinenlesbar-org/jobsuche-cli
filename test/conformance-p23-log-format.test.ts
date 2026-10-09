@@ -24,6 +24,8 @@ const SIMPLE_COMMAND = ["search"];
 const okBody = V6_SEARCH;
 /** The exit code of a usage error. */
 const USAGE_EXIT = 2;
+/** The option that writes the output to a file and logs where, or undefined if the CLI has none (jobsuche has no -o). */
+const OUTPUT_OPTION: string | undefined = undefined;
 /**
  * An option that takes a value and validates it: a rejected value is echoed in the record.
  * Not --timeout here: commander's usage errors show an argv token that may be a key typed
@@ -218,5 +220,16 @@ test("P23: credentials a server echoes back are replaced in the record (Basic, u
     for (const form of [basic.slice("Basic ".length), "alice:s3cret-pw", "s3cret-pw"]) {
       assert.ok(!all.includes(form), `${format}: ${form} printed:\n${all}`);
     }
+  }
+});
+
+test("P23: a value shaped like a:b@c that is no URL is not taken for a credential", async () => {
+  const typed = await cli([VALUE_OPTION, "run:2026-10-09@x", ...SIMPLE_COMMAND]);
+  assert.equal(typed.code, USAGE_EXIT);
+  assert.ok(typed.err.some((line) => line.includes("run:2026-10-09@x")), typed.err.join("\n"));
+  if (OUTPUT_OPTION !== undefined) {
+    const written = await cli([OUTPUT_OPTION, "run:2026-10-09@x.json", ...SIMPLE_COMMAND]);
+    assert.equal(written.code, 0, written.err.join("\n"));
+    assert.ok(written.err.some((line) => line.includes("run:2026-10-09@x.json")), written.err.join("\n"));
   }
 });

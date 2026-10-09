@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { run } from "../src/cli/run.js";
 import { JobsucheClient } from "../src/client/client.js";
-import { JobsucheNetworkError } from "../src/client/errors.js";
+import { JobsucheNetworkError, credentialsIn } from "../src/client/errors.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, okResponse, rawResponse, untimed } from "./helpers.js";
@@ -532,4 +532,18 @@ test("a key equal to a part of the record's frame is replaced in the message onl
       }
     }
   }
+});
+
+test("an a:b@c argument (here a User-Agent) is neither a credential in the log nor rewritten in the JSON on stdout (L14)", async () => {
+  const listing = { ...V6_SEARCH, ergebnisliste: [{ referenznummer: "10001-1", titel: "run:2026-10-09@x" }] };
+  const cli = makeCli(() => jsonResponse(listing));
+  assert.equal(await run(["--user-agent", "run:2026-10-09@x", "search"], cli.deps), 0);
+  assert.match(cli.out.join("\n"), /"titel": "run:2026-10-09@x"/);
+  assert.deepEqual(credentialsIn("run:2026-10-09@x"), []);
+  assert.deepEqual(credentialsIn("https://alice:pw@host"), ["alice:pw"]);
+  // A search text of that shape is data too.
+  const text = makeCli(() => jsonResponse(listing));
+  assert.equal(await run(["search", "--was", "dev:ops@berlin"], text.deps), 0);
+  assert.equal(new URL(text.mt.last().url).searchParams.get("was"), "dev:ops@berlin");
+  assert.match(text.out.join("\n"), /"titel": "run:2026-10-09@x"/);
 });

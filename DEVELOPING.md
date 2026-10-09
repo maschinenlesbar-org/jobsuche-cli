@@ -193,9 +193,11 @@ log line, error message, or output — and is stripped on a cross-origin redirec
 **Secrets in the CLI's output** (`redactionFor`, `withRedactedOutput` and
 `usageErrorMask` in `run.ts`). Commander echoes a rejected value in its usage errors
 and names an unknown command, surplus argument or unknown option as typed, so `run()`
-wraps `deps.io` first and gives the log the stderr redactor, applied to each message. The userinfo of every URL-like argument (`credentialsIn`, which
-finds it whether the value parses or not, then `redactCredentials`) becomes `***@`
-on stdout and stderr; the `--api-key` value and the `JOBSUCHE_API_KEY` value become
+wraps `deps.io` first and gives the log the stderr redactor, applied to each message.
+The userinfo of every URL argument (`credentialsIn`, which finds it whether the value
+parses or not, then `redactCredentials`) becomes `***@` on stdout and stderr. Only a
+value that starts with a scheme counts (a bare `a:b@c` is a search text, a place or a
+User-Agent as often as a credential), except as the `--base-url` value; the `--api-key` value and the `JOBSUCHE_API_KEY` value become
 `***` on stderr (`redactSecrets`) — not on stdout, where `obtain-key` prints the
 key. The forms a server echoes a userinfo back in are replaced too: the `Basic` value
 and the decoded `user:password` on stdout and stderr, the password alone (4 characters
