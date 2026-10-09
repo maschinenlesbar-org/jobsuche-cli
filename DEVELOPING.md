@@ -574,6 +574,9 @@ ERROR record (`writeCommanderErr`). The logger replaces the secrets of the
 run (`redactionFor`) in each record's message before the record is cut and escaped, and
 writes to the raw stderr, so a secret is kept out of the log in either format and the
 frame (time, level, topic) is never touched — a key equal to `jobsuche`, a year or
-`ERROR` cannot corrupt it. `CliDeps.now` makes the timestamps
+`ERROR` cannot corrupt it. Node's own process warnings (`NODE_TLS_REJECT_UNAUTHORIZED=0`)
+are WARN records of `jobsuche.cli` too: the bin shim installs `installWarningLog`, which
+removes Node's default `warning` listener and logs `(node) <name>: <message>` through
+`processLogger(argv)`. `CliDeps.now` makes the timestamps
 testable. stdout carries data only. Conformance test P23 checks all of this, and its
 body is shared across the *-cli repos.
