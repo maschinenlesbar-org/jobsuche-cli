@@ -6,6 +6,8 @@ import {
   JobsucheNetworkError,
   JobsucheParseError,
   JobsucheValidationError,
+  cutText,
+  toWellFormed,
 } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
@@ -327,4 +329,31 @@ test("cleartextProblem names the host and each secret, never its value; the depr
     cleartextCredentialsProblem("http://mirror.example", true),
     "The API key is sent unencrypted to mirror.example (http:, not https:).",
   );
+});
+
+test("cutText never cuts inside a surrogate pair; toWellFormed replaces half a character", () => {
+  assert.equal(cutText("ab\u{1f600}cd", 3), "ab");
+  assert.equal(cutText("ab\u{1f600}cd", 4), "ab\u{1f600}");
+  assert.equal(cutText("short", 10), "short");
+  assert.equal(toWellFormed("a\ud83d b\ude00 \u{1f600}"), "a\ufffd b\ufffd \u{1f600}");
+});
+
+test("a server detail cut at 500 characters keeps the message well-formed", async () => {
+  const detail = "a" + "\u{1f600}".repeat(400);
+  const engine = new RequestEngine({ transport: async () => ({ status: 500, headers: { "content-type": "application/json" }, body: Buffer.from(JSON.stringify({ detail })) }) });
+  await assert.rejects(engine.getJson("/x"), (err: Error) => {
+    assert.equal(toWellFormed(err.message), err.message);
+    assert.match(err.message, /…$/);
+    return true;
+  });
+});
+
+test("an error envelope's text cut at 200 characters keeps the parse error well-formed", async () => {
+  const message = "a" + "\u{1f600}".repeat(400);
+  const engine = new RequestEngine({ transport: async () => ({ status: 200, headers: { "content-type": "text/html" }, body: Buffer.from(message) }) });
+  await assert.rejects(engine.getJson("/x"), (err: Error) => {
+    const cause = (err.cause as Error).message;
+    assert.equal(toWellFormed(cause), cause);
+    return true;
+  });
 });

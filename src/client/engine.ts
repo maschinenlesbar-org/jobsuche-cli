@@ -26,6 +26,7 @@ import {
   JobsucheParseError,
   JobsucheValidationError,
   credentialsIn,
+  cutText,
   redactCredentials,
   redactSecrets,
   redactUrl,
@@ -323,10 +324,10 @@ export function sanitizeServerText(text: string): string {
  */
 const MAX_DETAIL_LENGTH = 500;
 
-/** sanitizeServerText, then cut at MAX_DETAIL_LENGTH characters. */
+/** sanitizeServerText, then cut at MAX_DETAIL_LENGTH characters (never inside a surrogate pair). */
 function cleanDetail(text: string): string {
   const clean = sanitizeServerText(text);
-  return clean.length > MAX_DETAIL_LENGTH ? `${clean.slice(0, MAX_DETAIL_LENGTH)}…` : clean;
+  return clean.length > MAX_DETAIL_LENGTH ? `${cutText(clean, MAX_DETAIL_LENGTH)}…` : clean;
 }
 
 /**
@@ -835,7 +836,7 @@ export class RequestEngine {
       // Both the echoed Content-Type and the body snippet are server-controlled and
       // are printed to stderr by run.ts; strip control chars so a hostile endpoint
       // cannot inject terminal escape sequences via the parse-error message.
-      const snippet = sanitizeServerText(this.#scrub(text.slice(0, 200)));
+      const snippet = sanitizeServerText(this.#scrub(cutText(text, 200)));
       throw new JobsucheParseError(
         `Expected a JSON response from ${path} but got Content-Type "${sanitizeServerText(res.contentType)}"`,
         { cause: snippet ? new Error(snippet) : undefined },

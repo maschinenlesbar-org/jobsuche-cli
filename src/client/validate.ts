@@ -5,7 +5,7 @@
 // value-parsers call the same function and turn the reason into a usage error, so
 // the rule exists exactly once.
 
-import { JobsucheValidationError, redactUrl } from "./errors.js";
+import { JobsucheValidationError, cutText, redactUrl } from "./errors.js";
 import type { JobSearchParams } from "./types.js";
 
 /** Why `value` is invalid, or `undefined` if it is valid. */
@@ -262,20 +262,20 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
 
 /**
  * The text an error envelope carries (`message`, `error`, `detail`, or the gateway's
- * `messages[].detail`), cut to 200 characters, for a parse error to quote; undefined
+ * `messages[].detail`), cut to 200 characters (never inside a surrogate pair), for a parse error to quote; undefined
  * when there is none. Server text: control characters are stripped by the caller.
  */
 function envelopeText(value: Record<string, unknown>): string | undefined {
   for (const key of ["message", "error", "detail"]) {
     const v = value[key];
-    if (typeof v === "string" && v.trim() !== "") return v.trim().slice(0, 200);
+    if (typeof v === "string" && v.trim() !== "") return cutText(v.trim(), 200);
   }
   const messages = value["messages"];
   if (Array.isArray(messages)) {
     const texts = messages
       .map((m) => (isPlainObject(m) && typeof m["detail"] === "string" ? m["detail"] : undefined))
       .filter((t): t is string => t !== undefined && t.trim() !== "");
-    if (texts.length > 0) return texts.join("; ").slice(0, 200);
+    if (texts.length > 0) return cutText(texts.join("; "), 200);
   }
   return undefined;
 }
