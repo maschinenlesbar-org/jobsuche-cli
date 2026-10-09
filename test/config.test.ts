@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -211,10 +211,13 @@ test("an unwritable config location names the credentials file, for set and for 
     assert.equal(await run(["config", "unset", "api-key"], cli.deps), 1);
     assert.match(cli.err.join("\n"), /Could not write the credentials file .*credentials: EACCES/);
     assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
+    // The path once, in the sentence; not again in the system's reason (rm repeated it twice).
+    assert.equal(cli.err.join("\n").split(cli.store.path).length - 1, 1, cli.err.join("\n"));
     chmodSync(parent, 0o700);
     assert.equal(cli.store.get("api-key"), KEY, "nothing was lost");
   } finally {
     chmodSync(cli.dir, 0o700);
+    if (existsSync(join(cli.dir, "jobsuche"))) chmodSync(join(cli.dir, "jobsuche"), 0o700);
     cli.cleanup();
   }
 });

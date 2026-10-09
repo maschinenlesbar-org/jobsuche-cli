@@ -11,7 +11,7 @@
 // containers it is usually locked or missing, and this file is what such a setup
 // would fall back to anyway. The same mechanism as openka-cli's `ka config`.
 
-import { chmodSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { JobsucheError, JobsucheValidationError } from "../client/errors.js";
@@ -99,9 +99,10 @@ export class CredentialStore {
     delete all[name];
     if (Object.keys(all).length === 0) {
       try {
-        rmSync(this.path, { force: true });
+        unlinkSync(this.path);
       } catch (err) {
-        throw this.writeError(err);
+        // Gone already (another run removed it): what was asked for holds.
+        if ((err as { code?: unknown }).code !== "ENOENT") throw this.writeError(err);
       }
       return true;
     }
@@ -166,8 +167,15 @@ export class CredentialStore {
     }
   }
 
-  /** "Could not write the credentials file <path>: <reason>", the cause kept. */
+  /**
+   * "Could not write the credentials file <path>: <reason>", the cause kept. A system
+   * error about the file itself (`EACCES: permission denied, unlink '<path>'`) has the
+   * path cut from its reason, so the message names it once.
+   */
   private writeError(err: unknown): JobsucheError {
-    return new JobsucheError(`Could not write the credentials file ${this.path}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+    let reason = err instanceof Error ? err.message : String(err);
+    const { path, dest } = err as { path?: unknown; dest?: unknown };
+    if (path === this.path && dest === undefined) reason = reason.split(` '${this.path}'`).join("");
+    return new JobsucheError(`Could not write the credentials file ${this.path}: ${reason}`, { cause: err });
   }
 }
