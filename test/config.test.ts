@@ -353,3 +353,31 @@ test("a key typed in place of the name is never echoed, by any config command (C
     cli.cleanup();
   }
 });
+
+test("an unknown option to a config command is refused without repeating it (C2)", async () => {
+  const cli = makeCli({ secret: KEY });
+  try {
+    for (const value of ["topSECRETvalue99", "jobboerse-jobsuche"]) {
+      for (const argv of [
+        ["config", "set", "api-key", `--value=${value}`],
+        ["config", "set", `--value=${value}`, "api-key"],
+        ["config", "get", "api-key", `--value=${value}`],
+        ["config", "unset", "api-key", `--value=${value}`],
+        ["config", "list", `--value=${value}`],
+      ]) {
+        cli.err.length = 0;
+        assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+        const err = cli.err.join("\n");
+        assert.ok(!err.includes(value), `${argv.join(" ")}:\n${err}`);
+        assert.match(err, /ERROR.*jobsuche\.cli/, argv.join(" "));
+      }
+    }
+    assert.equal(cli.store.get("api-key"), undefined, "nothing was stored");
+    // Global options after the subcommand are still parsed.
+    cli.err.length = 0;
+    assert.equal(await run(["config", "list", "--log-format", "jsonl"], cli.deps), 0);
+    assert.match(cli.err.join("\n"), /^\{"ts":/);
+  } finally {
+    cli.cleanup();
+  }
+});

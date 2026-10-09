@@ -43,8 +43,10 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
     .command("set")
     .description("store a credential: typed at a prompt without echo, or piped in (jobsuche obtain-key | jobsuche config set api-key) — never given as an argument")
     .argument("<name>", names)
-    // Commander's own "too many arguments" error repeats them — here, the secret.
+    // Commander's own "too many arguments" and "unknown option" errors repeat them —
+    // here, the secret (`--value=…`). They land in command.args and are refused below.
     .allowExcessArguments(true)
+    .allowUnknownOption(true)
     .action(async (_name: string, _options: unknown, command: Command) => {
       if (command.args.length > 1) {
         throw new JobsucheValidationError(
@@ -67,6 +69,7 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
     .description("show a stored credential, masked (abcd…wxyz, or **** below 20 characters) unless --reveal")
     .argument("<name>", names)
     .allowExcessArguments(true)
+    .allowUnknownOption(true)
     .option("--reveal", "print the whole value, for a script that passes it on — it then is on your screen or in its log")
     .action(async (_name: string, options: { reveal?: boolean }, command: Command) => {
       const name = credentialNameArg(command, "jobsuche config get");
@@ -81,6 +84,7 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
     .description("remove a stored credential")
     .argument("<name>", names)
     .allowExcessArguments(true)
+    .allowUnknownOption(true)
     .action(async (_name: string, _options: unknown, command: Command) => {
       const name = credentialNameArg(command, "jobsuche config unset");
       const store = storeOf(deps);
@@ -92,6 +96,7 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
     .command("list")
     .description("every stored credential, masked, and where the file is")
     .allowExcessArguments(true)
+    .allowUnknownOption(true)
     .action(async (_options: unknown, command: Command) => {
       if (command.args.length > 0) throw new JobsucheValidationError("jobsuche config list takes no arguments.");
       const store = storeOf(deps);
