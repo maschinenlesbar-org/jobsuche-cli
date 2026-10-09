@@ -466,3 +466,25 @@ test("search warns on stderr when the API did not search the --wo asked for, exi
   assert.equal(await run(["search", "--wo", "Berlin"], ok.deps), 0);
   assert.deepEqual(ok.err, []);
 });
+
+test("the log format is the one commander parsed: an option's value that looks like --log-format, a repeated flag", async () => {
+  const boom = () => jsonResponse({ detail: "boom" }, 500);
+  // commander takes "--log-format=jsonl" as the User-Agent: the log stays text.
+  const ua = makeCli(boom);
+  assert.equal(await run(["--user-agent", "--log-format=jsonl", "search"], ua.deps), 1);
+  assert.match(ua.err[0] ?? "", /^\S+ ERROR \[jobsuche\.api\] /);
+  // commander takes "--" as the User-Agent and then parses --log-format jsonl.
+  const dashes = makeCli(boom);
+  assert.equal(await run(["--user-agent", "--", "--log-format", "jsonl", "search"], dashes.deps), 1);
+  assert.equal((JSON.parse(dashes.err[0] ?? "") as Record<string, unknown>)["topic"], "jobsuche.api");
+  // A parse error: --user-agent takes "--log-format" as its value; "jsonl" is then an unknown command, logged in text.
+  const parse = makeCli(okResponse);
+  assert.equal(await run(["--user-agent", "--log-format", "jsonl", "search"], parse.deps), 2);
+  assert.match(parse.err[0] ?? "", /^\S+ ERROR \[jobsuche\.cli\] unknown command 'jsonl'/);
+  // A repeated --log-format is refused; the refusal is in the first one's format.
+  const twice = makeCli(okResponse);
+  assert.equal(await run(["--log-format", "jsonl", "--log-format", "text", "search"], twice.deps), 2);
+  const record = JSON.parse(twice.err[0] ?? "") as Record<string, unknown>;
+  assert.equal(record["topic"], "jobsuche.cli");
+  assert.match(record["msg"] as string, /--log-format is given more than once/);
+});

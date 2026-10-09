@@ -535,7 +535,10 @@ Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp,
 writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
 and `msg`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning), `http` (the connection, the cleartext warning), `config` and `obtain-key`. The no-echo prompt of `config set` and the `Output error:` line `handleOutputErrors` writes when stdout itself fails stay plain. Code logs through `logOf(deps)` and never writes diagnostics
-with `io.err` directly. `run()` builds the logger from argv before commander parses it,
+with `io.err` directly. `run()` builds the logger from argv before commander parses it
+(`logFormatFromArgv`: the first `--log-format`, the value of an option that takes one
+skipped, used only for the records of a parse error; a `preAction` hook then sets the
+format commander parsed, so `--user-agent --log-format=jsonl` logs text),
 so commander's own usage errors are records too, and on top of the redacted `io.err`, so
 a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps
 testable. stdout carries data only. Conformance test P23 checks all of this, and its

@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { logOf, type CliDeps } from "./io.js";
-import { createLogger, logFormatFromArgv } from "./log.js";
+import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat } from "./log.js";
 import type { GlobalOptions } from "./shared.js";
 import { sanitizeServerText } from "../client/engine.js";
 import {
@@ -44,6 +44,17 @@ function configureTree(command: Command, deps: CliDeps, mask: (text: string) => 
     outputError: (str, write) => write(mask(str)),
   });
   for (const child of command.commands) configureTree(child, deps, mask);
+}
+
+/** The names (long and short) of every option in the tree that requires a value. */
+function valueOptionsOf(command: Command, names: Set<string> = new Set()): Set<string> {
+  for (const option of command.options) {
+    if (!option.required) continue;
+    if (option.long !== undefined) names.add(option.long);
+    if (option.short !== undefined) names.add(option.short);
+  }
+  for (const child of command.commands) valueOptionsOf(child, names);
+  return names;
 }
 
 /** The options whose value is a secret on its own (no `@` to anchor a redaction on). */
@@ -191,6 +202,18 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
   };
   const program = buildProgram(deps);
   configureTree(program, deps, usageErrorMask(argv));
+  // For the records of a parse error: the scan of argv, now knowing which options take
+  // a value, as commander reads them.
+  const log = deps.log;
+  if (log !== undefined) log.format = logFormatFromArgv(argv, valueOptionsOf(program));
+  // One source for the format once commander has parsed argv: its value, not the scan
+  // of argv (an option's value can look like --log-format; `--` ends the scan, not
+  // commander's parse of a value). Ancestors' hooks run first, so this precedes every
+  // other preAction check.
+  program.hook("preAction", (_program, actionCommand) => {
+    const format = (actionCommand.optsWithGlobals() as { logFormat?: LogFormat }).logFormat;
+    if (log !== undefined) log.format = format ?? DEFAULT_LOG_FORMAT;
+  });
 
   try {
     await program.parseAsync(argv, { from: "user" });
