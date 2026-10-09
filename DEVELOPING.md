@@ -197,7 +197,9 @@ wraps `deps.io` first and gives the log the stderr redactor, applied to each mes
 finds it whether the value parses or not, then `redactCredentials`) becomes `***@`
 on stdout and stderr; the `--api-key` value and the `JOBSUCHE_API_KEY` value become
 `***` on stderr (`redactSecrets`) — not on stdout, where `obtain-key` prints the
-key. Commander's own error text additionally masks every argv token that is not a
+key. A key read from the credentials file becomes a secret of the run the moment it is
+read (`deps.addSecret`, by `action()`, `config get` and `config set`), like the flag and
+the env value. Commander's own error text additionally masks every argv token that is not a
 short value, a lower-case word or an option name (`OrgKey-55` → `Org…`, a URL →
 the URL without userinfo), so a key pasted where a command belongs is never
 echoed; an `--api-key` value there is `***`. The value of `--log-format`, a format

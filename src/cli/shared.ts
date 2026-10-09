@@ -260,6 +260,9 @@ export function action(
     // file, never repeating the value (`CredentialStore.usable`).
     if (options.apiKey === undefined && deps.credentials !== undefined) {
       const store = deps.credentials();
+      // A secret of the run the moment it is read, whatever happens to it next.
+      const raw = store.get(API_KEY_CREDENTIAL);
+      if (raw !== undefined) deps.addSecret?.(raw);
       const stored = store.usable(API_KEY_CREDENTIAL);
       if (stored !== undefined) {
         options.apiKey = stored;

@@ -10,11 +10,12 @@ import { Readable } from "node:stream";
 import { EventEmitter } from "node:events";
 import { run } from "../src/cli/run.js";
 import { JobsucheClient } from "../src/client/client.js";
+import { JobsucheError } from "../src/client/errors.js";
 import type { CliDeps } from "../src/cli/io.js";
 import { readSecretFrom } from "../src/cli/io.js";
 import { CredentialStore, maskCredential, resolveCredentialsPath } from "../src/cli/credentials.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { makeMockTransport, okResponse, rawResponse, untimed } from "./helpers.js";
+import { jsonResponse, makeMockTransport, okResponse, rawResponse, untimed } from "./helpers.js";
 
 const KEY = "jobboerse-jobsuche-0123456789";
 
@@ -498,6 +499,29 @@ test("a config directory that is a symbolic link is refused, and its target's mo
     assert.match(untimed(cli.err.join("\n")), /ERROR .*Could not write the credentials file .*credentials: .*jobsuche is a symbolic link; .*replace the link with a directory/);
     assert.equal(statSync(shared).mode & 0o777, 0o755, "the link target's mode is unchanged");
     assert.equal(existsSync(join(shared, "credentials")), false, "nothing was stored there");
+  } finally {
+    cli.cleanup();
+  }
+});
+
+test("the stored key is a secret of the run the moment it is read: no record shows it (C5)", async () => {
+  const personal = "secret-lower-key-0123456789";
+  const cli = makeCli({ responder: () => jsonResponse({ maxErgebnisse: 0, woOutput: { bereinigterOrt: "Bonn" } }) });
+  try {
+    cli.store.set("api-key", personal);
+    for (const format of ["text", "jsonl"]) {
+      cli.err.length = 0;
+      // The key typed as the place: the --wo note quotes it (result 02, note 5).
+      assert.equal(await run(["--log-format", format, "search", "--wo", personal], cli.deps), 0);
+      assert.match(cli.err.join("\n"), /for --wo \\?"\*\*\*\\?"/, format);
+      assert.ok(!cli.err.join("\n").includes("secret-lower"), `${format}: ${cli.err.join("\n")}`);
+      // Whatever path the key takes to a message — here a client that quotes it.
+      cli.err.length = 0;
+      const deps: CliDeps = { ...cli.deps, createClient: (opts) => { throw new JobsucheError(`could not use ${String(opts.apiKey)}`); } };
+      assert.equal(await run(["--log-format", format, "search"], deps), 1);
+      assert.match(cli.err.join("\n"), /could not use \*\*\*/, format);
+      assert.ok(!cli.err.join("\n").includes("secret-lower"), `${format}: ${cli.err.join("\n")}`);
+    }
   } finally {
     cli.cleanup();
   }
