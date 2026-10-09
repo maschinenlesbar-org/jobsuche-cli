@@ -61,6 +61,12 @@ function valueOptionsOf(command: Command, names: Set<string> = new Set()): Set<s
 const SECRET_FLAGS = ["--api-key"];
 
 /**
+ * The options whose rejected value commander's usage error shows as typed: a format
+ * name, never the place a key is typed into by mistake. The record escapes it.
+ */
+const SHOWN_FLAGS = ["--log-format"];
+
+/**
  * Whether commander may echo an argv token as typed: a short value (up to 6
  * characters), an all-lower-case word (a mistyped command such as `serach`) or an
  * option name. Anything else — a key pasted where a command belongs, a reference
@@ -83,23 +89,27 @@ function maskToken(token: string): string {
  * A function that masks the argv tokens commander's usage errors would echo: the
  * value of a secret flag (`--api-key`, both forms) becomes `***`, and every other
  * token, or `--opt=value` value, that is not `echoable` becomes `abc…` (a URL:
- * itself without userinfo). Applied to
+ * itself without userinfo), except the value of `--log-format` (`SHOWN_FLAGS`). Applied to
  * commander's error text only; help and the CLI's own messages are not touched.
  */
 export function usageErrorMask(argv: readonly string[]): (text: string) => string {
   const secrets = new Set<string>();
+  const shown = new Set<string>();
   const others = new Set<string>();
   argv.forEach((token, i) => {
     if (SECRET_FLAGS.includes(token) && argv[i + 1] !== undefined) secrets.add(argv[i + 1] as string);
+    if (SHOWN_FLAGS.includes(token) && argv[i + 1] !== undefined) shown.add(argv[i + 1] as string);
     const eq = token.indexOf("=");
     if (token.startsWith("-") && eq > 0) {
       const value = token.slice(eq + 1);
       if (SECRET_FLAGS.includes(token.slice(0, eq))) secrets.add(value);
+      else if (SHOWN_FLAGS.includes(token.slice(0, eq))) shown.add(value);
       else if (!echoable(value)) others.add(value);
     } else if (!echoable(token)) {
       others.add(token);
     }
   });
+  for (const value of shown) others.delete(value);
   for (const secret of secrets) others.delete(secret);
   const replacements = [
     ...[...secrets].filter((s) => s !== "").map((s): [string, string] => [s, "***"]),

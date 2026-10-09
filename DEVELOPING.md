@@ -200,7 +200,8 @@ on stdout and stderr; the `--api-key` value and the `JOBSUCHE_API_KEY` value bec
 key. Commander's own error text additionally masks every argv token that is not a
 short value, a lower-case word or an option name (`OrgKey-55` → `Org…`, a URL →
 the URL without userinfo), so a key pasted where a command belongs is never
-echoed; an `--api-key` value there is `***`. An invalid `JOBSUCHE_API_KEY` is
+echoed; an `--api-key` value there is `***`. The value of `--log-format`, a format
+name, is shown as typed (the record escapes it). An invalid `JOBSUCHE_API_KEY` is
 reported as `Invalid JOBSUCHE_API_KEY: <reason>`, without the value.
 `test/conformance-p1-cli-redaction.test.ts` is the shared check (ten passwords,
 seven URL shapes, every echo path, plus the key by flag, by environment and typed
@@ -464,6 +465,8 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`validate.test.ts`** — `assertValid`, the exit-2 mapping of `JobsucheValidationError`, and the CLI ↔ library parity tests. `parity()` in `test/helpers.ts` runs one input through `run()` and through the library on one recording mock transport; a parity test asserts both reject without a request, or both send the identical request.
 - **`obtain-key.test.ts`** — the key source parser (the documented key format, placeholders, conflicting keys), redirects, limits and the `--export` line.
 - **`io.test.ts`** — `handleOutputErrors` (EPIPE on stdout and stderr).
+- **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
+  (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
 - **`config.test.ts`** — `jobsuche config` and the credentials file in a temporary directory: set/get/list/unset, no value from argv, flag > env > file precedence, a file others can read refused only when needed, links, invalid JSON, `readSecretFrom` on a pipe.
 
 The **conformance tests** (`test/conformance-p*.test.ts`) are shared across the
@@ -534,7 +537,11 @@ Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp,
 (`ERROR`, `WARN`, `INFO`) and a topic, `jobsuche.<area>`. `--log-format text` (the default)
 writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
-and `msg`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning), `http` (the connection, the cleartext warning), `config` and `obtain-key`. The no-echo prompt of `config set` and the `Output error:` line `handleOutputErrors` writes when stdout itself fails stay plain. Code logs through `logOf(deps)` and never writes diagnostics
+and `msg`. A record is always one line: `formatLogRecord` runs `escapeForRecord` over
+the message (text) or the whole JSON object (jsonl), which writes CR and LF as `\r`/`\n`,
+every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
+controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
+forge another one or steer the terminal. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning), `http` (the connection, the cleartext warning), `config` and `obtain-key`. The no-echo prompt of `config set` and the `Output error:` line `handleOutputErrors` writes when stdout itself fails stay plain. Code logs through `logOf(deps)` and never writes diagnostics
 with `io.err` directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`: the first `--log-format`, the value of an option that takes one
 skipped, used only for the records of a parse error; a `preAction` hook then sets the

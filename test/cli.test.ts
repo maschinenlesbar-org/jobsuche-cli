@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { run } from "../src/cli/run.js";
 import { JobsucheClient } from "../src/client/client.js";
+import { JobsucheNetworkError } from "../src/client/errors.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, okResponse, rawResponse, untimed } from "./helpers.js";
@@ -487,4 +488,26 @@ test("the log format is the one commander parsed: an option's value that looks l
   const record = JSON.parse(twice.err[0] ?? "") as Record<string, unknown>;
   assert.equal(record["topic"], "jobsuche.cli");
   assert.match(record["msg"] as string, /--log-format is given more than once/);
+});
+
+test("a transport message that ends in a newline (OpenSSL's EPROTO) stays one record (#15)", async () => {
+  for (const format of ["text", "jsonl"]) {
+    const err: string[] = [];
+    const deps: CliDeps = {
+      io: { out: () => {}, err: (s) => err.push(s) },
+      createClient: (opts) =>
+        new JobsucheClient({
+          ...opts,
+          transport: async () => {
+            // As the default transport rejects: Node's message, passed on as it is.
+            throw new JobsucheNetworkError("write EPROTO 807F:error:0A00010B:SSL routines:tls_validate_record_header:wrong version number:tlsany_meth.c:78:\n");
+          },
+        }),
+      env: {},
+    };
+    assert.equal(await run(["--log-format", format, "--max-retries", "0", "search"], deps), 1);
+    assert.ok(err.length > 0 && err.every((line) => !line.includes("\n") && !line.includes("\r")), err.join("\n"));
+    const http = err.find((line) => line.includes("jobsuche.http")) ?? "";
+    assert.match(http, /could not reach the API \(.*tlsany_meth\.c:78:\\n.*\)\./, `${format}: ${http}`);
+  }
 });
