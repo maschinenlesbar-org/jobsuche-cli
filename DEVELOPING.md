@@ -504,10 +504,15 @@ copied as is and differs only in its adapter block at the top:
 - `p21-readme-links` — a relative README link points only at a file `files` ships (npmjs.com
   shows the README); every other document is linked by its absolute GitHub URL;
 - `p23-log-format` — every stderr line is a log record (timestamp, level, topic),
-  `--log-format text|jsonl`.
+  `--log-format text|jsonl`; since the 2026-10-09 fixes also: one line with nothing raw,
+  well-formed and bounded, the frame untouched by redaction, commander's help one record
+  per line, the format commander parsed, malformed answers under `api`, echoed
+  credentials replaced, an `a:b@c` value that is no URL left alone.
 
 Cases that don't apply here are skipped in the adapter with the reason (no
-base-URL environment variable; `obtain-key` does not verify the key).
+base-URL environment variable; `obtain-key` does not verify the key; no `-o`, so P23's
+`OUTPUT_OPTION` is undefined; P23's `VALUE_OPTION` is `--log-format`, because
+`usageErrorMask` shows any other rejected value only as its first three characters).
 
 ## Continuous integration
 
