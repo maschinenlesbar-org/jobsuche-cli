@@ -547,3 +547,19 @@ test("an a:b@c argument (here a User-Agent) is neither a credential in the log n
   assert.equal(new URL(text.mt.last().url).searchParams.get("was"), "dev:ops@berlin");
   assert.match(text.out.join("\n"), /"titel": "run:2026-10-09@x"/);
 });
+
+test("every failed run starts with an ERROR, and commander's help is one INFO record per line (#2)", async () => {
+  for (const [argv, first] of [
+    [[], /^ERROR \[jobsuche\.cli\] missing command: `jobsuche <subcommand>`$/],
+    [["config"], /^ERROR \[jobsuche\.cli\] missing command: `jobsuche config <subcommand>`$/],
+    [["help", "nope"], /^ERROR \[jobsuche\.cli\] /],
+    [["serach"], /^ERROR \[jobsuche\.cli\] unknown command 'serach' \(Did you mean search\?\)$/],
+  ] as const) {
+    const cli = makeCli(okResponse);
+    assert.equal(await run([...argv], cli.deps), 2, argv.join(" "));
+    const lines = cli.err.map(untimed);
+    assert.match(lines[0] ?? "", first, lines.join("\n"));
+    assert.ok(lines.every((line) => !line.includes("\n") && !line.includes("\\n")), lines.join("\n"));
+    assert.equal(lines.filter((line) => line.startsWith("ERROR")).length, 1, lines.join("\n"));
+  }
+});

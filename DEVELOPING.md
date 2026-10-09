@@ -565,7 +565,11 @@ with `io.err` directly. `run()` builds the logger from argv before commander par
 (`logFormatFromArgv`: the first `--log-format`, the value of an option that takes one
 skipped, used only for the records of a parse error; a `preAction` hook then sets the
 format commander parsed, so `--user-agent --log-format=jsonl` logs text),
-so commander's own usage errors are records too. The logger replaces the secrets of the
+so commander's own usage errors are records too: its `error: …` an ERROR of `cli` (a
+`(Did you mean …?)` line joined to it), the help it shows after one an INFO record per
+line, and the program or a command group run without its subcommand an ERROR "missing
+command: `jobsuche config <subcommand>`" before that help, so every failed run has an
+ERROR record (`writeCommanderErr`). The logger replaces the secrets of the
 run (`redactionFor`) in each record's message before the record is cut and escaped, and
 writes to the raw stderr, so a secret is kept out of the log in either format and the
 frame (time, level, topic) is never touched — a key equal to `jobsuche`, a year or

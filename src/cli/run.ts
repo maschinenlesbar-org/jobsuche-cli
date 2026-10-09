@@ -27,24 +27,53 @@ import { API_KEY_ENV_VAR } from "../client/obtain-key.js";
  * commander does not propagate these to subcommands, so a parse error on a
  * subcommand would otherwise call process.exit() and bypass our error handling.
  */
-function configureTree(command: Command, deps: CliDeps, mask: (text: string) => string): void {
+function configureTree(
+  command: Command,
+  deps: CliDeps,
+  mask: (text: string) => string,
+  state: { errorLogged: boolean } = { errorLogged: false },
+): void {
   command.exitOverride();
   command.configureOutput({
     writeOut: (str) => deps.io.out(str.replace(/\n$/, "")),
-    // commander's own messages are log records too: its "error: …" an ERROR, the help it
-    // shows after one an INFO.
-    writeErr: (str) => {
-      const text = str.replace(/\n$/, "");
-      // The blank line commander writes between an error and the help it shows after.
-      if (text === "") return;
-      if (text.startsWith("error: ")) logOf(deps).error("cli", text.slice("error: ".length));
-      else logOf(deps).info("cli", text);
-    },
+    writeErr: (str) => writeCommanderErr(command, deps, state, str),
     // Commander's own errors echo what was typed: an unknown command, surplus
     // arguments, an unknown option, a rejected option value. Mask what may be a secret.
     outputError: (str, write) => write(mask(str)),
   });
-  for (const child of command.commands) configureTree(child, deps, mask);
+  for (const child of command.commands) configureTree(child, deps, mask, state);
+}
+
+/** `jobsuche config`: the command's name with its parents'. */
+function commandPath(command: Command): string {
+  const names: string[] = [];
+  for (let c: Command | null = command; c !== null; c = c.parent) names.unshift(c.name());
+  return names.join(" ");
+}
+
+/**
+ * commander's stderr output as log records, one per line. Its `error: …` is an ERROR of
+ * `cli`, with a following `(Did you mean …?)` line appended to that same record; the
+ * help it shows after an error is one INFO record per non-blank line. The program or a
+ * command group run without its subcommand makes commander show the help as an error
+ * (exit 1, so 2 here) with no `error:` line: an ERROR record "missing command:
+ * `jobsuche config <subcommand>`" comes first, so every failed run has one.
+ */
+function writeCommanderErr(command: Command, deps: CliDeps, state: { errorLogged: boolean }, str: string): void {
+  const log = logOf(deps);
+  const text = str.replace(/\n$/, "");
+  // The blank line commander writes between an error and the help it shows after.
+  if (text.trim() === "") return;
+  if (text.startsWith("error: ")) {
+    state.errorLogged = true;
+    log.error("cli", text.slice("error: ".length).replace(/\n(\(Did you mean .*\?\))$/, " $1"));
+    return;
+  }
+  if (!state.errorLogged) {
+    state.errorLogged = true;
+    log.error("cli", `missing command: \`${commandPath(command)} <subcommand>\``);
+  }
+  for (const line of text.split("\n")) if (line.trim() !== "") log.info("cli", line.trimEnd());
 }
 
 /** The names (long and short) of every option in the tree that requires a value. */
@@ -298,13 +327,11 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // The `help` / `help <cmd>` subcommand also throws "commander.help", but with
       // exitCode 0; only help shown for a missing command carries exitCode 1.
       if (err.exitCode === 0) return 0;
-      // Invoked with no command at all: commander has already printed help.
-      // Treat it as a usage error with an explicit diagnostic so scripts get a
-      // distinct, documented exit code (2) rather than a bare, message-less 1.
-      if (err.code === "commander.help") {
-        log.error("cli", "missing command (see usage above).");
-        return 2;
-      }
+      // Invoked with no command at all, or a group without its subcommand: commander has
+      // already shown the help, after the "missing command" ERROR (writeCommanderErr).
+      // A usage error, so scripts get a distinct, documented exit code (2) rather than a
+      // bare, message-less 1.
+      if (err.code === "commander.help") return 2;
       // Genuine parse / usage errors (unknown option, bad value, missing
       // argument, ...) get a dedicated exit code (2) so a wrapper script can
       // tell a bad invocation from a runtime/network failure (which exit 1).
