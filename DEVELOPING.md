@@ -568,7 +568,7 @@ character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellF
 and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
 code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning, and a malformed answer, a `JobsucheParseError`: bad JSON, the wrong shape or content type, an unknown charset), `http` (the connection, the cleartext warning), `config` (the credentials file and the `config` commands: what they stored or removed, and every failure of the file — `CredentialsError` —, whichever command read it; a usage error of a `config` command stays `cli`), `obtain-key` and `output` (a stdout write error). The no-echo prompt of `config set` stays plain. Code logs through `logOf(deps)` and never writes diagnostics
 with `io.err` directly. `run()` builds the logger from argv before commander parses it
-(`logFormatFromArgv`: the first `--log-format`, the value of an option that takes one
+(`logFormatFromArgv`: the first `--log-format`, the value of one of the program's own value options
 skipped, used only for the records of a parse error; a `preAction` hook then sets the
 format commander parsed, so `--user-agent --log-format=jsonl` logs text),
 so commander's own usage errors are records too: its `error: …` an ERROR of `cli` (a
