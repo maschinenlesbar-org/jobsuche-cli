@@ -4,8 +4,8 @@
 // `ps`; it comes out masked unless asked for in full.
 
 import type { Command } from "commander";
-import { JobsucheError, JobsucheValidationError } from "../../client/errors.js";
-import { CONFIG_DIR_NAME, credentialProblem, maskCredential, type CredentialStore } from "../credentials.js";
+import { JobsucheValidationError } from "../../client/errors.js";
+import { CONFIG_DIR_NAME, CredentialsError, credentialProblem, maskCredential, type CredentialStore } from "../credentials.js";
 import { logOf, type CliDeps } from "../io.js";
 import { API_KEY_CREDENTIAL } from "../shared.js";
 
@@ -29,7 +29,7 @@ function credentialNameArg(command: Command, usage: string): string {
 }
 
 function storeOf(deps: CliDeps): CredentialStore {
-  if (deps.credentials === undefined) throw new JobsucheError("This program was built without a credentials file.");
+  if (deps.credentials === undefined) throw new CredentialsError("This program was built without a credentials file.");
   return deps.credentials();
 }
 
@@ -76,7 +76,7 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
       const name = credentialNameArg(command, "jobsuche config get");
       const store = storeOf(deps);
       const value = store.usable(name);
-      if (value === undefined) throw new JobsucheError(`No ${name} is stored in ${store.path}; jobsuche config set ${name} stores one.`);
+      if (value === undefined) throw new CredentialsError(`No ${name} is stored in ${store.path}; jobsuche config set ${name} stores one.`);
       deps.addSecret?.(value);
       // --reveal prints the value as stored: the run's redaction (a credential from a flag
       // that happens to occur in it) would hand a script a wrong value with exit 0.
@@ -93,7 +93,7 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
     .action(async (_name: string, _options: unknown, command: Command) => {
       const name = credentialNameArg(command, "jobsuche config unset");
       const store = storeOf(deps);
-      if (!store.unset(name)) throw new JobsucheError(`No ${name} is stored in ${store.path}.`);
+      if (!store.unset(name)) throw new CredentialsError(`No ${name} is stored in ${store.path}.`);
       logOf(deps).info("config", `Removed ${name} from ${store.path}.`);
     });
 

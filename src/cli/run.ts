@@ -21,6 +21,7 @@ import {
   redactUrl,
 } from "../client/errors.js";
 import { API_KEY_ENV_VAR } from "../client/obtain-key.js";
+import { CredentialsError } from "./credentials.js";
 
 /**
  * Apply exitOverride + output redirection to every command in the tree.
@@ -422,7 +423,8 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return 1;
     }
     if (err instanceof JobsucheError) {
-      log.error("cli", err.message);
+      // The credentials file and the config commands have an area of their own.
+      log.error(err instanceof CredentialsError ? "config" : "cli", err.message);
       return 1;
     }
     log.error("cli", `Unexpected error: ${err instanceof Error ? err.message : String(err)}`);

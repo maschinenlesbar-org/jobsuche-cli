@@ -266,7 +266,7 @@ test("a hand-edited value config set would refuse is refused on read, naming the
       assert.equal(await run(["--base-url", "http://192.0.2.10", "search", "--was", "x"], cli.deps), 1, label);
       assert.equal(cli.mt.calls.length, 0, `${label}: no request`);
       const err = untimed(cli.err.join("\n"));
-      assert.match(err, /ERROR \[jobsuche\.cli\] The api-key stored in .*credentials cannot be used: .* jobsuche config set api-key replaces it\./, label);
+      assert.match(err, /ERROR \[jobsuche\.config\] The api-key stored in .*credentials cannot be used: .* jobsuche config set api-key replaces it\./, label);
       assert.doesNotMatch(err, /Invalid apiKey|sent unencrypted|Check the key/, label);
       // config get and config list: the same refusal, nothing raw on stdout — so the skills'
       // check (`config get api-key` exits 0) means a usable key is stored.
@@ -480,7 +480,7 @@ test("a held lock fails config set with exit 1 and the stored value kept (C8)", 
     writeFileSync(`${cli.store.path}.lock`, "4242");
     const store = new CredentialStore(cli.store.path, { sleep: () => undefined, now: (() => { let t = Date.now(); return () => (t += 500); })() });
     assert.equal(await run(["config", "set", "api-key"], { ...cli.deps, credentials: () => store }), 1);
-    assert.match(cli.err.join("\n"), /ERROR \[jobsuche\.cli\] Another jobsuche config is writing/);
+    assert.match(cli.err.join("\n"), /ERROR \[jobsuche\.config\] Another jobsuche config is writing/);
     assert.equal(cli.store.get("api-key"), KEY);
   } finally {
     cli.cleanup();
@@ -534,6 +534,39 @@ test("config get --reveal prints the value as stored, untouched by the run's red
     cli.store.set("api-key", stored);
     assert.equal(await run(["--base-url", "https://alice:s3cret-pw@mirror.test", "config", "get", "api-key", "--reveal"], cli.deps), 0);
     assert.deepEqual(cli.out, [stored]);
+  } finally {
+    cli.cleanup();
+  }
+});
+
+test("a credentials-file failure is an ERROR record of jobsuche.config; a usage error stays jobsuche.cli (01-5)", async () => {
+  const cli = makeCli();
+  try {
+    const firstError = (): string => untimed(cli.err.find((line) => line.includes("ERROR")) ?? "");
+    assert.equal(await run(["config", "get", "api-key"], cli.deps), 1);
+    assert.match(firstError(), /^ERROR \[jobsuche\.config\] No api-key is stored in /);
+    assert.equal(await run(["config", "unset", "api-key"], cli.deps), 1);
+    assert.match(firstError(), /^ERROR \[jobsuche\.config\] No api-key is stored in /);
+    // A file others can read: for config get and for a data command that needs the key.
+    cli.store.set("api-key", KEY);
+    chmodSync(cli.store.path, 0o644);
+    for (const argv of [["config", "get", "api-key"], ["config", "list"], ["search", "--was", "x"]]) {
+      cli.err.length = 0;
+      assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
+      assert.match(firstError(), /^ERROR \[jobsuche\.config\] The credentials file .* can be read by others/, argv.join(" "));
+    }
+    // Invalid JSON and an unusable stored value.
+    for (const content of ["{ not json", JSON.stringify({ "api-key": "   " })]) {
+      writeFileSync(cli.store.path, content, { mode: 0o600 });
+      chmodSync(cli.store.path, 0o600);
+      cli.err.length = 0;
+      assert.equal(await run(["search", "--was", "x"], cli.deps), 1, content);
+      assert.match(firstError(), /^ERROR \[jobsuche\.config\] /, content);
+    }
+    // A usage error of a config command is the CLI's, exit 2.
+    cli.err.length = 0;
+    assert.equal(await run(["config", "get", "nope"], cli.deps), 2);
+    assert.match(firstError(), /^ERROR \[jobsuche\.cli\] Not a credential name/);
   } finally {
     cli.cleanup();
   }

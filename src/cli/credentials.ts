@@ -18,6 +18,14 @@ import { JobsucheError, JobsucheValidationError } from "../client/errors.js";
 import { headerValueProblem } from "../client/validate.js";
 import { API_KEY_CREDENTIAL } from "./shared.js";
 
+/**
+ * A problem with the credentials file (reading, writing, its lock, a stored value
+ * `config set` would refuse) or a `config` command's own failure: the CLI logs it as an
+ * ERROR record of `jobsuche.config`, the area of the credentials file. A usage error of
+ * a `config` command stays a `JobsucheValidationError` (`jobsuche.cli`, exit 2).
+ */
+export class CredentialsError extends JobsucheError {}
+
 /** The directory under `$XDG_CONFIG_HOME` (or `~/.config`) this program keeps its credentials in. */
 export const CONFIG_DIR_NAME = "jobsuche";
 
@@ -102,7 +110,7 @@ function blockFor(ms: number): void {
 
 /**
  * The credentials file. Reading it checks what ssh checks of a private key: a regular
- * file, owned by this user, readable by nobody else — anything else is a `JobsucheError`
+ * file, owned by this user, readable by nobody else — anything else is a `CredentialsError`
  * naming the fix, rather than a key quietly used from a file others can read.
  */
 export class CredentialStore {
@@ -128,7 +136,7 @@ export class CredentialStore {
   /**
    * The value of `name` for use: trimmed, and a value `config set` would refuse (the
    * file was edited by hand: blank, whitespace inside, a line break, an escape sequence,
-   * a character no header can carry) is a `JobsucheError` naming the file and the
+   * a character no header can carry) is a `CredentialsError` naming the file and the
    * fix. Without the check a blank value sent no key while `config get` exited 0 and the
    * empty-403 hint said a key was sent, a value with a line break was "Invalid apiKey",
    * and `config get` and `config list` printed control characters raw.
@@ -139,7 +147,7 @@ export class CredentialStore {
     const value = raw.trim();
     const reason = credentialProblem(name, value);
     if (reason !== undefined) {
-      throw new JobsucheError(`The ${name} stored in ${this.path} cannot be used: ${reason} jobsuche config set ${name} replaces it.`);
+      throw new CredentialsError(`The ${name} stored in ${this.path} cannot be used: ${reason} jobsuche config set ${name} replaces it.`);
     }
     return value;
   }
@@ -151,13 +159,13 @@ export class CredentialStore {
 
   /**
    * Every stored name, sorted, each a credential name: a hand-edited name that is not
-   * one (it may hold control characters) is a `JobsucheError` naming the file.
+   * one (it may hold control characters) is a `CredentialsError` naming the file.
    */
   usableNames(): string[] {
     const names = this.names();
     for (const name of names) {
       if (credentialNameProblem(name) !== undefined) {
-        throw new JobsucheError(`The credentials file ${this.path} holds ${JSON.stringify(name)}, which is not a credential name; remove it by hand.`);
+        throw new CredentialsError(`The credentials file ${this.path} holds ${JSON.stringify(name)}, which is not a credential name; remove it by hand.`);
       }
     }
     return names;
@@ -227,7 +235,7 @@ export class CredentialStore {
         continue;
       }
       if (this.#now() - start >= LOCK_WAIT_MS) {
-        throw new JobsucheError(`Another jobsuche config is writing ${this.path}; try again.`);
+        throw new CredentialsError(`Another jobsuche config is writing ${this.path}; try again.`);
       }
       this.#sleep(LOCK_RETRY_MS);
     }
@@ -253,7 +261,7 @@ export class CredentialStore {
       if ((err as { code?: unknown }).code !== "ENOENT") throw err;
     }
     if (linked) {
-      throw new JobsucheError(
+      throw new CredentialsError(
         `${dir} is a symbolic link; the credentials file is kept only in a real directory, whose mode is set to 0700 — replace the link with a directory.`,
       );
     }
@@ -268,15 +276,15 @@ export class CredentialStore {
       stats = lstatSync(this.path);
     } catch (err) {
       if ((err as { code?: unknown }).code === "ENOENT") return {};
-      throw new JobsucheError(`Could not read the credentials file ${this.path}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+      throw new CredentialsError(`Could not read the credentials file ${this.path}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
     }
-    if (!stats.isFile()) throw new JobsucheError(`${this.path} is not a regular file; it cannot be the credentials file.`);
+    if (!stats.isFile()) throw new CredentialsError(`${this.path} is not a regular file; it cannot be the credentials file.`);
     if (process.platform !== "win32") {
       if (typeof process.getuid === "function" && stats.uid !== process.getuid()) {
-        throw new JobsucheError(`The credentials file ${this.path} belongs to another user; it is not read.`);
+        throw new CredentialsError(`The credentials file ${this.path} belongs to another user; it is not read.`);
       }
       if ((stats.mode & 0o077) !== 0) {
-        throw new JobsucheError(
+        throw new CredentialsError(
           `The credentials file ${this.path} can be read by others (mode ${(stats.mode & 0o777).toString(8)}); ` +
             `it is not used until only you can: chmod 600 ${this.path}`,
         );
@@ -286,10 +294,10 @@ export class CredentialStore {
     try {
       parsed = JSON.parse(readFileSync(this.path, "utf8"));
     } catch (err) {
-      throw new JobsucheError(`The credentials file ${this.path} is not valid JSON; fix it, or remove it and set the values again.`, { cause: err });
+      throw new CredentialsError(`The credentials file ${this.path} is not valid JSON; fix it, or remove it and set the values again.`, { cause: err });
     }
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed) || !Object.values(parsed).every((value) => typeof value === "string")) {
-      throw new JobsucheError(`The credentials file ${this.path} is not an object of names and strings.`);
+      throw new CredentialsError(`The credentials file ${this.path} is not an object of names and strings.`);
     }
     return { ...(parsed as Record<string, string>) };
   }
@@ -321,10 +329,10 @@ export class CredentialStore {
    * error about the file itself (`EACCES: permission denied, unlink '<path>'`) has the
    * path cut from its reason, so the message names it once.
    */
-  private writeError(err: unknown): JobsucheError {
+  private writeError(err: unknown): CredentialsError {
     let reason = err instanceof Error ? err.message : String(err);
     const { path, dest } = err as { path?: unknown; dest?: unknown };
     if (path === this.path && dest === undefined) reason = reason.split(` '${this.path}'`).join("");
-    return new JobsucheError(`Could not write the credentials file ${this.path}: ${reason}`, { cause: err });
+    return new CredentialsError(`Could not write the credentials file ${this.path}: ${reason}`, { cause: err });
   }
 }

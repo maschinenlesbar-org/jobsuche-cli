@@ -3,8 +3,8 @@
 
 import type { JobsucheClient, JobsucheClientOptions } from "../client/client.js";
 import type { Transport } from "../client/http.js";
-import { JobsucheError, JobsucheValidationError } from "../client/errors.js";
-import type { CredentialStore } from "./credentials.js";
+import { JobsucheValidationError } from "../client/errors.js";
+import { CredentialsError, type CredentialStore } from "./credentials.js";
 import { createLogger, type Logger } from "./log.js";
 
 export interface CliIO {
@@ -218,7 +218,7 @@ export async function readSecretFrom(
           return finish();
         }
         if (ch === "\u0004") return finish();
-        if (ch === "\u0003") return finish(new JobsucheError("Interrupted; nothing was stored."));
+        if (ch === "\u0003") return finish(new CredentialsError("Interrupted; nothing was stored."));
         if (ch === "\u007f" || ch === "\b") value = [...value].slice(0, -1).join("");
         // Any other character is kept, a tab or a control character included, so the
         // value is refused as the same input from a pipe is, not silently changed.
