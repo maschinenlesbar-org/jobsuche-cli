@@ -174,7 +174,9 @@ ERROR names the source of the key that was sent — the file by its path, `JOBSU
 or `--api-key` — and the empty-403 hint knows a key was sent. `config set` reads
 through `CliIO.readSecret` (`readSecretFrom`: raw mode without echo on a terminal, the
 whole input from a pipe, at most 64 KiB either way, `MAX_SECRET_BYTES`), never from
-argv, and checks the
+argv — on a terminal it drops escape sequences (arrow keys, bracketed-paste markers),
+keeps every other character (so a tab is refused, as from a pipe) and refuses a paste
+with more after its first line break — and checks the
 value with `credentialProblem` (`credentialValueProblem` and the client's
 `headerValueProblem`).
 
