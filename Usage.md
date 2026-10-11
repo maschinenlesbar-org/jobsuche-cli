@@ -16,7 +16,7 @@ npm i -g @maschinenlesbar.org/jobsuche-cli
 ```
 
 The installed binary is **`jobsuche`**. Without a global install you can run the
-built CLI directly with `node dist/src/cli/index.js` (substitute that for
+built CLI directly with `node apps/cli/dist/src/cli/index.js` (substitute that for
 `jobsuche` in any example below).
 
 The API needs an `X-API-Key`. **No key is bundled**: the public one is published

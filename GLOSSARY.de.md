@@ -64,7 +64,7 @@ Kurzfassung mit `referenznummer`, `stellenangebotsTitel`, `firma`, `hauptberuf`,
 `stellenlokationen`, `entfernung`, Veröffentlichungs- und Eintrittsdatum, oft Gehalts- und
 Homeoffice-Angaben sowie optional `externeURL` – dieselben Feldnamen wie im Datensatz von
 `details`. Die vollständige Beschreibung wird separat über `details` abgerufen.
-(`Stellenangebot` in `src/client/types.ts`.)
+(`Stellenangebot` in `packages/client/src/types.ts`.)
 
 **refnr / referenznummer.** Die stabile Kennung (Referenznummer) eines Stellenangebots, die
 jedes Suchergebnis im Feld `referenznummer` liefert (in älteren API-Versionen und in der Hilfe
@@ -149,7 +149,7 @@ HTTP 400, deshalb weisen CLI und Bibliotheks-Client es zurück), `size` ist die 
 **JobSearchResult.** Die Antwort der Suche: `ergebnisliste` (das Array der
 Stellenangebote), `maxErgebnisse` (Gesamtzahl der Treffer), `page`, `size`, `facetten`
 (Aggregations-Facetten) und `woOutput` (der Ort, in dem die API tatsächlich gesucht hat).
-(`JobSearchResult` in `src/client/types.ts`.)
+(`JobSearchResult` in `packages/client/src/types.ts`.)
 
 **ergebnisliste.** Das Array der `Stellenangebot`-Kurzfassungen auf einer Ergebnisseite. Es
 fehlt (statt `[]`), wenn nichts gefunden wurde oder bei `--size 0`; ohne Treffer fehlt auch

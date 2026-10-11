@@ -64,7 +64,7 @@ is a summary carrying `referenznummer`, `stellenangebotsTitel`, `firma`,
 `hauptberuf`, `stellenlokationen`, `entfernung`, publication/entry dates, often
 salary and home-office flags, and an optional `externeURL` — the same field names
 as the `details` payload. The full description is fetched separately via
-`details`. (`Stellenangebot` in `src/client/types.ts`.)
+`details`. (`Stellenangebot` in `packages/client/src/types.ts`.)
 
 **refnr / referenznummer (reference number).** The stable identifier of a
 listing, returned in each search result's `referenznummer` field (called `refnr`
@@ -150,7 +150,7 @@ HTTP 400, so the CLI and the library client reject it), `size` is the page size
 **JobSearchResult.** The search response: `ergebnisliste` (the array of
 listings), `maxErgebnisse` (total number of matches), `page`, `size`, `facetten`
 (aggregation facets), and `woOutput` (the location the API actually searched).
-(`JobSearchResult` in `src/client/types.ts`.)
+(`JobSearchResult` in `packages/client/src/types.ts`.)
 
 **ergebnisliste.** The array of `Stellenangebot` summaries on a result page. It
 is absent (not `[]`) when nothing matched or with `--size 0`; on no match

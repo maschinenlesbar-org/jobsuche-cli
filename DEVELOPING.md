@@ -21,14 +21,14 @@ The package ships both a CLI (`jobsuche`) and a typed API client
 
 ```bash
 npm install
-npm run build        # compiles TypeScript to dist/
+npm run build        # compiles every workspace (tsc -b) to its dist/
 ```
 
 Run the locally built CLI without a global install:
 
 ```bash
-node dist/src/cli/index.js --help
-# or, after `npm link`:
+node apps/cli/dist/src/cli/index.js --help    # or: npm start -- --help
+# or, after `npm link --workspace apps/cli`:
 jobsuche --help
 ```
 
@@ -106,7 +106,7 @@ run them up front.
   or boolean; `__proto__` and `constructor` never. The CLI makes a repeated option
   (`--wo Berlin --wo Hamburg`, `onceOnly`) and `--zeitarbeit` with
   `--no-zeitarbeit` usage errors instead of "last one wins".
-  `test/conformance-p10-strict-filters.test.ts` is the shared check.
+  `apps/cli/test/conformance-p10-strict-filters.test.ts` is the shared check.
 - **Wrong-typed input.** `search()` takes an object (a string or a number used to
   run the search unfiltered); a text filter must be a string, `zeitarbeit` a
   boolean (`"false"` used to be sent as given). `details()` takes a non-blank
@@ -155,15 +155,15 @@ so `apiKey`, `--api-key` and `JOBSUCHE_API_KEY` give the same `X-API-Key` header
 the same `JobsucheValidationError` (CLI exit `2`). The CLI only resolves the
 precedence.
 
-The credentials file is the CLI's, not the library's: `src/cli/credentials.ts`
+The credentials file is the CLI's, not the library's: `apps/cli/src/cli/credentials.ts`
 (`CredentialStore`, the same mechanism as openka-cli's `ka config`) and `jobsuche config`
-(`src/cli/commands/config.ts`). The file is `$XDG_CONFIG_HOME/jobsuche/credentials`, else
+(`apps/cli/src/cli/commands/config.ts`). The file is `$XDG_CONFIG_HOME/jobsuche/credentials`, else
 `~/.config/jobsuche/credentials`: JSON, mode 0600 in a 0700 directory, replaced atomically;
 a link, another user's file or one others can read is refused with a `JobsucheError`
 naming the fix (exit `1`), and `set`/`unset` refuse a `jobsuche/` directory that is a
 link, whose target the chmod to 0700 would change. It reaches the CLI through `CliDeps.credentials`, which only
 `defaultDeps` sets, so a test that does not ask for one never reads the user's file;
-`action()` (`src/cli/shared.ts`) reads it only when neither the flag nor the env var gave
+`action()` (`apps/cli/src/cli/shared.ts`) reads it only when neither the flag nor the env var gave
 a key, so `obtain-key` never reads it and a problem with it never blocks a key given
 another way. It reads through `CredentialStore.usable` (trimmed; a hand-edited value
 `config set` would refuse — `credentialProblem`: blank, whitespace or control characters
@@ -212,7 +212,7 @@ the URL without userinfo), so a key pasted where a command belongs is never
 echoed; an `--api-key` value there is `***`. The value of `--log-format`, a format
 name, is shown as typed (the record escapes it). An invalid `JOBSUCHE_API_KEY` is
 reported as `Invalid JOBSUCHE_API_KEY: <reason>`, without the value.
-`test/conformance-p1-cli-redaction.test.ts` is the shared check (ten passwords,
+`apps/cli/test/conformance-p1-cli-redaction.test.ts` is the shared check (ten passwords,
 seven URL shapes, every echo path, plus the key by flag, by environment and typed
 without its flag).
 
@@ -245,9 +245,47 @@ keep the key.
 
 ## Architecture
 
+The repository is an **npm workspace** with two folders: `apps/` holds the programs it
+publishes, `packages/` the libraries they are built from.
+
 ```
-src/
-  client/
+package.json         # private workspace manifest: no version, never packed
+apps/cli/            # @maschinenlesbar.org/jobsuche-cli — the published package
+  package.json       # its version, bin, files, bundleDependencies
+  src/index.ts       # library entry: re-exports @maschinenlesbar.org/jobsuche-client
+  src/cli/           # the CLI (below)
+  test/              # CLI tests and every conformance-*.test.ts
+packages/client/     # @maschinenlesbar.org/jobsuche-client — private, bundled into the CLI
+  src/               # the API client (below)
+  test/              # tests that only touch the client, + the transport helpers and fixtures
+tools/pack/          # prepack/postpack: bundle the client and commander into the tarball
+tools/bump.mjs       # version bump + commit + tag (npm run bump)
+tsconfig.docs.json   # TypeDoc only: the package entry, with the client read from its sources
+```
+
+- **The client is its own package** so a later MCP app can share it with the CLI. It is
+  never published on its own: `apps/cli`'s `prepack` copies it (and commander) into the
+  app's `node_modules`, and `bundleDependencies` ships it inside the tarball. The library
+  entry re-exports the client's `"."`, so `import { JobsucheClient } from
+  "@maschinenlesbar.org/jobsuche-cli"` is unchanged.
+- **The client's exports:** `"."` is the public library surface (`src/index.ts`);
+  `"./internal/*"` maps to any module (`…/jobsuche-client/internal/engine`) for what
+  the CLI needs beyond that; `"./test/*"` reaches the client's test helpers and fixtures from
+  the CLI's tests (not bundled). Only `"."` is part of the library.
+- **Dependencies point one way:** the app depends on the client, the client on nothing
+  in the workspace. `obtainKey()` (fetching the published key document) is client code;
+  the `obtain-key` and `config` commands and the credentials file are the CLI's.
+- **The version lives in `apps/cli/package.json`.** The root has none; a plain
+  `npm version` at the root is refused. Release with `npm run bump -- <patch|minor|major>`,
+  which bumps the app, commits (the bare version as the message) and tags `vX.Y.Z`.
+- **TypeScript:** `tsconfig.base.json` holds the compiler options; every workspace has a
+  `tsconfig.json` (`src/`) and a `tsconfig.test.json` (`test/`), and the root
+  `tsconfig.json`/`tsconfig.test.json` reference them, built with `tsc -b`.
+
+The client (`packages/client/src/`) and the CLI (`apps/cli/src/`):
+
+```
+packages/client/src/
     types.ts     # Stellenangebot / JobSearchResult (the /pc/v6/jobs shape) + search params
     query.ts     # dependency-free query-string builder
     validate.ts  # input rules (Problem functions) + assertValid, shared by library and CLI
@@ -255,7 +293,9 @@ src/
     engine.ts    # URL building, retry/backoff, redirects (strips creds cross-origin), default headers (auth), decoding, errors
     errors.ts    # JobsucheError / JobsucheApiError / JobsucheNetworkError / JobsucheParseError / JobsucheValidationError
     client.ts    # JobsucheClient — search + details over the engine (injects X-API-Key)
-  cli/
+    obtain-key.ts # obtainKey(): reads the public key from the document it is published in
+    index.ts     # the client's public surface (the library entry re-exports it)
+apps/cli/src/cli/
     io.ts        # injectable I/O seam (stdout/stderr, secret prompt) + injectable env + credentials file, the logger and the clock
     log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     credentials.ts # CredentialStore — the credentials file behind `jobsuche config`
@@ -275,11 +315,11 @@ src/
 
 ### Library / technical terms
 
-**API client.** [`JobsucheClient`](src/client/client.ts) — the typed wrapper
+**API client.** [`JobsucheClient`](packages/client/src/client.ts) — the typed wrapper
 over the API (`search` + `details`). Usable as a library independently of the
 CLI.
 
-**Request engine.** [`RequestEngine`](src/client/engine.ts) — builds URLs,
+**Request engine.** [`RequestEngine`](packages/client/src/engine.ts) — builds URLs,
 serialises queries, applies retry/backoff, follows redirects (stripping
 credentials cross-origin), decodes JSON/raw responses and maps errors. Sits
 between the client and the transport. `DEFAULT_BASE_URL` is
@@ -287,7 +327,7 @@ between the client and the transport. `DEFAULT_BASE_URL` is
 default 100 MiB) to defend against memory exhaustion.
 
 **Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
-([`http.ts`](src/client/http.ts)). The default (`nodeHttpTransport`) uses
+([`http.ts`](packages/client/src/http.ts)). The default (`nodeHttpTransport`) uses
 Node's built-in `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
 **The transport contract is enforced by the engine** (`exchange()` in
@@ -316,11 +356,11 @@ test double), not only the built-in one:
   redacted) `}`) is called once per retry right before the sleep, never when there is none, and
   a throw in it is swallowed. The CLI's `action()` sets it to log one `WARN` record of
   `jobsuche.http`, `HTTP 503 from <host>: retry 1 of 3 in 2 s` (`retryMessage`; host only, whole
-  seconds, ms under 1 s). Tests: `test/engine.test.ts`, `test/retry-log.test.ts`.
+  seconds, ms under 1 s). Tests: `packages/client/test/engine.test.ts`, `apps/cli/test/retry-log.test.ts`.
 - `transport` and `sleep` must be functions (else `JobsucheValidationError`).
 
-`test/conformance-p5-transport-contract.test.ts` is the shared check;
-`test/conformance-p8-p9-p13-responses-and-errors.test.ts` covers the charset, the
+`apps/cli/test/conformance-p5-transport-contract.test.ts` is the shared check;
+`apps/cli/test/conformance-p8-p9-p13-responses-and-errors.test.ts` covers the charset, the
 response shapes and the wrong-typed inputs.
 
 **Secrets in library objects and errors.** The engine keeps the base URL and the
@@ -334,7 +374,7 @@ request, a transport message such as fetch's "Request cannot be constructed from
 a URL that includes credentials: http://user:pw@…", and the `cause` chain. URLs
 in messages go through `redactUrl`, which also cuts the userinfo out of a value
 that doesn't parse. `obtainKey()` names a `user:password@` source as `***@` in its
-errors and in `sourceUrl`. `test/conformance-p2-library-redaction.test.ts` is the
+errors and in `sourceUrl`. `apps/cli/test/conformance-p2-library-redaction.test.ts` is the
 shared check.
 
 **Default headers.** The engine merges `defaultHeaders` into every request —
@@ -365,7 +405,7 @@ exported), a `WARN` record of `jobsuche.http`: `requests to <host> are sent unen
 "the API key" / "the base URL's credentials" when they travel — never their value. Help,
 version and usage errors never warn; `cleartextCredentialsProblem` stays as a deprecated
 alias.
-`test/conformance-p3-redirect-credentials.test.ts` is the shared check.
+`apps/cli/test/conformance-p3-redirect-credentials.test.ts` is the shared check.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
 retried automatically, up to `maxRetries` / `--max-retries` (default 2, at most
@@ -382,7 +422,7 @@ Until 0.2.0 this repo ignored `Retry-After` (11 requests in 11 s against a
 server asking for an hour); it now follows the portfolio default, failing early
 above the cap rather than waiting it, because the BA gateway should not be asked
 again inside the window it named.
-`test/conformance-p6-retry-policy.test.ts` is the shared check.
+`apps/cli/test/conformance-p6-retry-policy.test.ts` is the shared check.
 
 **Server text in messages** (an error `detail`) is stripped of control characters
 and cut at 500 characters ("…"; a quoted error envelope or body snippet at 200), never
@@ -433,12 +473,12 @@ parser uses the same constant and rule.
 **RawResponse.** The engine's raw-response shape (`data`/`contentType`/`status`)
 — exported for completeness; the job endpoints return decoded JSON.
 
-**Query builder.** [`buildQueryString`](src/client/query.ts) — a dependency-free
+**Query builder.** [`buildQueryString`](packages/client/src/query.ts) — a dependency-free
 serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans
 as `true`/`false`, dates as ISO-8601, and encodes spaces as `%20` (not `+`).
 
 **CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`io.ts`](src/cli/io.ts)): a client factory plus an I/O object (`out`/`err`)
+([`io.ts`](apps/cli/src/cli/io.ts)): a client factory plus an I/O object (`out`/`err`)
 an injectable `env` (for `JOBSUCHE_API_KEY`) and an optional `credentials` store
 (`jobsuche config`; only `defaultDeps` sets it). Lets the whole CLI run in
 tests with a mocked client and captured output — no subprocess.
@@ -448,10 +488,10 @@ tests with a mocked client and captured output — no subprocess.
 quietly; an EPIPE on stderr is ignored, so a failed run keeps its exit code — a
 usage error piped through `2>&1 | head` still exits `2`. Any other stdout write error
 is an ERROR record of `jobsuche.output` (`Could not write to stdout: …`, in the format
-argv asks for: `processLogger`) and exits `1`; any other stderr write error exits `1`. `test/conformance-p7-pipes-exit-codes.test.ts` spawns the built bin to
+argv asks for: `processLogger`) and exits `1`; any other stderr write error exits `1`. `apps/cli/test/conformance-p7-pipes-exit-codes.test.ts` spawns the built bin to
 check both.
 
-**Input validation.** [`validate.ts`](src/client/validate.ts) — the library owns
+**Input validation.** [`validate.ts`](packages/client/src/validate.ts) — the library owns
 every rule about what a request may contain. A rule is a pure, exported
 `…Problem(value)` function that returns the reason a value is invalid (or
 `undefined`); `assertValid(name, value, problem)` turns a reason into a
@@ -461,7 +501,7 @@ rejects rather than throwing synchronously. The CLI's value-parsers call the sam
 functions, and `run.ts` maps a `JobsucheValidationError` to exit `2`
 (an `ERROR` record of `jobsuche.cli`), so CLI and library accept and reject the same inputs.
 
-**Error types.** [`errors.ts`](src/client/errors.ts): `JobsucheApiError`
+**Error types.** [`errors.ts`](packages/client/src/errors.ts): `JobsucheApiError`
 (non-2xx, carries `status`/`detail`/`url`/`body`, with an `isRetryable` getter
 for 429/503; `detail` comes from the body's `detail`/`message`, or from the
 gateway's `messages: [{code, path, detail}]` as `path: detail (code)`), `JobsucheNetworkError` (transport failure/timeout),
@@ -477,22 +517,29 @@ exact base64 round-trip (not charset sniffing) and passed through unchanged.
 ## Testing
 
 ```bash
-npm test          # builds, then runs `node --test` over dist/test
+npm test          # builds, then runs `node --test` over each workspace's dist/test
+npm run coverage  # the same tests in one run, with a coverage report
+node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
+
+The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`),
+with the transport helpers (`helpers.ts`, which `apps/cli/test/helpers.ts` re-exports next
+to the CLI's own helpers) and the recorded answers (`fixtures.ts`); everything that drives
+the CLI is in `apps/cli/test/`.
 
 - **`query.test.ts`** — query-string serialisation.
 - **`http.test.ts`** — the default transport against a real loopback `http.createServer`.
 - **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry, and redirect handling (incl. credential-header stripping on cross-origin redirects) — mocked transport.
 - **`client.test.ts`** — the X-API-Key header, search params and the refnr base64 encoding (incl. hyphenless numeric refnrs and empty-refnr rejection) — mocked transport.
 - **`cli.test.ts`** — command parsing, `--api-key` / `JOBSUCHE_API_KEY` precedence, 401/403 and other exit codes — mocked client.
-- **`validate.test.ts`** — `assertValid`, the exit-2 mapping of `JobsucheValidationError`, and the CLI ↔ library parity tests. `parity()` in `test/helpers.ts` runs one input through `run()` and through the library on one recording mock transport; a parity test asserts both reject without a request, or both send the identical request.
+- **`validate.test.ts`** — `assertValid`, the exit-2 mapping of `JobsucheValidationError`, and the CLI ↔ library parity tests. `parity()` in `apps/cli/test/helpers.ts` runs one input through `run()` and through the library on one recording mock transport; a parity test asserts both reject without a request, or both send the identical request.
 - **`obtain-key.test.ts`** — the key source parser (the documented key format, placeholders, conflicting keys), redirects, limits and the `--export` line.
 - **`io.test.ts`** — `handleOutputErrors` (EPIPE on stdout and stderr).
-- **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
+- **`log.test.ts`** — the record helpers of `apps/cli/src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
 - **`config.test.ts`** — `jobsuche config` and the credentials file in a temporary directory: set/get/list/unset, no value from argv, flag > env > file precedence, a file others can read refused only when needed, links, invalid JSON, `readSecretFrom` on a pipe.
 
-The **conformance tests** (`test/conformance-p*.test.ts`) are shared across the
+The **conformance tests** (`apps/cli/test/conformance-p*.test.ts`) are shared across the
 `*-cli` repos (`.reviews/2026-10-06-fix-patterns.md` in the workspace); each is
 copied as is and differs only in its adapter block at the top:
 
@@ -524,9 +571,13 @@ base-URL environment variable; `obtain-key` does not verify the key; no `-o`, so
 
 GitHub Actions workflows under `.github/workflows/`:
 
-- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR.
-- **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test, `npm pack`, and create a GitHub Release with the tarball.
-- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): publish to npm via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
+- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR; then pack the
+  real tarball, check the pack left nothing behind, install it globally with the registry out
+  of reach and run the bin.
+- **release.yml** — on a `v*` tag (made by `npm run bump`): verify the tag matches
+  `apps/cli/package.json`, test, write the SBOMs (scoped to the `apps/cli` workspace), then
+  `npm pack --workspace apps/cli`, and create a GitHub Release with the tarball.
+- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): `npm publish --workspace apps/cli` via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
 - **docs.yml** — build the project website (`site/`, English and German) with the TypeDoc API docs
   under `/api/`, and deploy both to GitHub Pages on each `v*` tag.
   TypeDoc runs from the isolated, lockfile-pinned `tools/docs/` toolchain because it
@@ -542,7 +593,9 @@ The project website — <https://maschinenlesbar-org.github.io/jobsuche-cli/> in
 reference under `/api/`. Its content comes from this repository: the README intro and quick
 start, the command tree of the built CLI (`site/scripts/cli-reference.mjs`), `Usage.md`,
 `GLOSSARY.md` and its German version `GLOSSARY.de.md`, the skills, and the skill examples in
-`EXAMPLE.md` and `EXAMPLE.de.md`. The only repo-specific files are `site/_config.yml` and
+`EXAMPLE.md` and `EXAMPLE.de.md`. The only repo-specific files are `site/_config.yml`
+(which also says where the published manifest and the built program are:
+`manifest: apps/cli/package.json`, `program: apps/cli/dist/src/cli/program.js`) and
 `site/_data/project.yml` (the German intro and the access requirements); the rest of `site/` is
 identical in every maschinenlesbar.org CLI, so change it in all of them together. When the
 README intro changes, update the German intro in `site/_data/project.yml`.
@@ -561,7 +614,7 @@ contributions; see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## The log on stderr
 
-Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+Every diagnostic line on stderr is a log record (`apps/cli/src/cli/log.ts`): a timestamp, a level
 (`ERROR`, `WARN`, `INFO`) and a topic, `jobsuche.<area>`. `--log-format text` (the default)
 writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
