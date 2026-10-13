@@ -4,7 +4,7 @@
 [![Release](https://github.com/maschinenlesbar-org/jobsuche-cli/actions/workflows/release.yml/badge.svg)](https://github.com/maschinenlesbar-org/jobsuche-cli/actions/workflows/release.yml)
 [![npm](https://img.shields.io/npm/v/@maschinenlesbar.org/jobsuche-cli)](https://www.npmjs.com/package/@maschinenlesbar.org/jobsuche-cli)
 
-**Website:** [English](https://maschinenlesbar-org.github.io/jobsuche-cli/) · [Deutsch](https://maschinenlesbar-org.github.io/jobsuche-cli/de/) — command reference, guides and API docs
+**Website:** [English](https://maschinenlesbar.org/jobsuche-cli/) · [Deutsch](https://maschinenlesbar.org/jobsuche-cli/de/) — command reference, guides and API docs
 
 Search Germany's federal **job database** from your terminal. `jobsuche` is a
 small command-line tool over the
