@@ -492,7 +492,11 @@ as printed (`String(value)`, the shortest decimal that reads back as the same do
 compared with the number as written (`exactAtTheEdges`/`decimalOf`, no BigInt):
 `12345678901234567890` prints as `12345678901234567000` and is refused, while `1E23` or
 `1.7976931348623157E308`, a double a server printed in its own shortest form, prints as the
-same number and passes.
+same number and passes. The scan (`scanNumbers`, linear, skipping strings, no reviver) can also
+deliver declared big integers: the engine option `bigIntegerKeys` (a set of member names) makes
+the value of each such member its exact literal, as a JSON string, whatever its size. This
+API's answers carry no number past 2^53 (every live search and listing passed the check), so
+the client declares none; every undeclared number keeps the rule above.
 
 **Charset.** A body is decoded by the charset its `Content-Type` names (UTF-8
 when it names none; `decodeBody`, a `TextDecoder`), so an `iso-8859-1` answer

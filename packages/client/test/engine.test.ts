@@ -1,7 +1,14 @@
 import { test } from "node:test";
 import { TextDecoder } from "node:util";
 import assert from "node:assert/strict";
-import { RequestEngine, cleartextCredentialsProblem, cleartextProblem } from "../src/engine.js";
+import {
+  RequestEngine,
+  bigIntegerKeysOption,
+  cleartextCredentialsProblem,
+  cleartextProblem,
+  firstInexactNumber,
+  scanNumbers,
+} from "../src/engine.js";
 import { JobsucheClient, woNote } from "../src/client.js";
 import {
   JobsucheApiError,
@@ -662,4 +669,42 @@ test("an answer longer than V8's longest string is a JobsucheParseError naming t
   // An error status with such a body is still the API error, without the unreadable body.
   const failing = new RequestEngine({ maxResponseBytes: 0, maxRetries: 0, transport: makeMockTransport(() => rawResponse(huge, "text/plain", 500)).transport });
   await assert.rejects(failing.getJson("/x"), (err: unknown) => err instanceof JobsucheApiError && err.status === 500 && err.body === "");
+});
+
+test("bigIntegerKeys: a declared member's number is its exact literal as a string; others keep the rule (D3)", async () => {
+  const body = '{"_version_":1858054135406919680,"small":{"_version_":5},"neg":{"\\u005fversion_":-12345678901234567890},' +
+    '"s":{"_version_":"text"},"n":{"_version_":null},"arr":{"_version_":[1]},"t":"\\"_version_\\":1","n2":42}';
+  const e = new RequestEngine({
+    bigIntegerKeys: new Set(["_version_"]),
+    transport: makeMockTransport(() => rawResponse(body, "application/json")).transport,
+  });
+  assert.deepEqual(await e.getJson("/x"), {
+    _version_: "1858054135406919680", small: { _version_: "5" }, neg: { _version_: "-12345678901234567890" },
+    s: { _version_: "text" }, n: { _version_: null }, arr: { _version_: [1] }, t: '"_version_":1', n2: 42,
+  });
+  assert.deepEqual([...e.bigIntegerKeys], ["_version_"]);
+  // An undeclared big number is still refused; a declared member doesn't make others exact.
+  const other = new RequestEngine({
+    bigIntegerKeys: ["_version_"] as unknown as ReadonlySet<string>,
+    transport: makeMockTransport(() => rawResponse('{"_version_":1858054135406919680,"id":12345678901234567890}', "application/json")).transport,
+  });
+  await assert.rejects(other.getJson("/x"), /the number 12345678901234567890 cannot be represented exactly/);
+  // Malformed stays malformed: a declared member with a leading zero still fails JSON.parse.
+  const malformed = new RequestEngine({ bigIntegerKeys: new Set(["_version_"]), transport: makeMockTransport(() => rawResponse('{"_version_":01}', "application/json")).transport });
+  await assert.rejects(malformed.getJson("/x"), /not valid JSON/);
+  for (const bad of [new Set([""]), new Set([1]), "x", 5, null]) {
+    assert.throws(() => new RequestEngine({ bigIntegerKeys: bad as unknown as ReadonlySet<string> }),
+      (err: unknown) => err instanceof JobsucheValidationError && err.message === "Invalid bigIntegerKeys: Expected a set of non-empty member names.");
+  }
+  // The option reader copies a set or a list; undefined is none.
+  const names = new Set(["a"]);
+  const copy = bigIntegerKeysOption(names);
+  names.add("b");
+  assert.deepEqual([...copy], ["a"]);
+  assert.deepEqual([...bigIntegerKeysOption(["x", "y"] as unknown as ReadonlySet<string>)], ["x", "y"]);
+  assert.equal(bigIntegerKeysOption(undefined).size, 0);
+  // Without declarations the scan is the plain number check.
+  assert.equal(firstInexactNumber('{"a":"1e400","b":3e-324}'), "3e-324");
+  assert.deepEqual(scanNumbers('{"a":1}'), { json: '{"a":1}', inexact: undefined });
+  // The client declares none: the API's answers carry no number past 2^53.
 });
