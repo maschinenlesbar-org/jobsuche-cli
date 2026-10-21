@@ -192,10 +192,15 @@ answers `401`/`403`, the error says the redirect dropped the key (for `http:` �
 (`ERROR`, `WARN`, `INFO`) and a topic `jobsuche.<area>`, as text (log4j style) or with
 `--log-format jsonl` as one JSON object per line. The areas: `cli` (usage errors,
 commander's messages, unexpected errors), `api` (the API's answers: an error status, the
-401/403 hints, the `--wo` warning, and a malformed answer — bad JSON, the wrong shape or
-content type), `http` (the connection, the cleartext warning, one WARN per retry before it waits), `config` (the credentials
+401/403 hints, the `--wo` warning, a malformed answer — bad JSON, the wrong shape or
+content type —, and text replaced with U+FFFD, as `WARN`), `http` (the connection, the cleartext warning, one WARN per retry before it waits), `config` (the credentials
 file), `obtain-key` and `output` (stdout failures). A record is always one line; control
 characters in it are escaped.
+
+**Replaced text.** Bytes of an answer that are not valid in its charset, and half characters
+(lone surrogates), are replaced with U+FFFD and reported in one `WARN` record of
+`jobsuche.api` with the count and the request; the run still succeeds and the output stays
+readable for `jq`.
 
 ---
 

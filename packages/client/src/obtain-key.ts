@@ -229,7 +229,9 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
     );
   }
 
-  const text = decodeBody(response.body, String(headerValue(response.headers["content-type"]) ?? ""), `GET ${redactUrl(url)}`);
+  // Bytes that are not valid text become U+FFFD; a key holding one does not match the key
+  // format, so the replacement can never change the key that is printed.
+  const { text } = decodeBody(response.body, String(headerValue(response.headers["content-type"]) ?? ""), `GET ${redactUrl(url)}`);
   // The `clientId` is the documented value and wins; an `X-API-Key` example is
   // the fallback. When the document states more than one distinct key — two
   // clientIds, or an X-API-Key that contradicts the clientId — it is ambiguous,

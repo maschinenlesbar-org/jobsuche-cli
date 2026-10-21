@@ -375,7 +375,10 @@ test double), not only the built-in one:
   a throw in it is swallowed. The CLI's `action()` sets it to log one `WARN` record of
   `jobsuche.http`, `HTTP 503 from <host>: retry 1 of 3 in 2 s` (`retryMessage`; host only, whole
   seconds, ms under 1 s). Tests: `packages/client/test/engine.test.ts`, `apps/cli/test/retry-log.test.ts`.
-- `transport` and `sleep` must be functions (else `JobsucheValidationError`).
+- An answer delivered changed (invalid text replaced with U+FFFD, see *Text is never changed
+  silently*) is reported through the engine option `onWarning(message)`; the CLI logs it as a
+  `WARN` record of `jobsuche.api`.
+- `transport`, `sleep`, `onRetry` and `onWarning` must be functions (else `JobsucheValidationError`).
 
 `apps/cli/test/conformance-p5-transport-contract.test.ts` is the shared check;
 `apps/cli/test/conformance-p8-p9-p13-responses-and-errors.test.ts` covers the charset, the
@@ -496,6 +499,18 @@ when it names none; `decodeBody`, a `TextDecoder`), so an `iso-8859-1` answer
 keeps its umlauts and a byte order mark added by a proxy is dropped instead of
 breaking `JSON.parse`. An unknown charset label is a `JobsucheParseError` naming
 it. `obtainKey()` decodes its source the same way.
+
+**Text is never changed silently.** Bytes that are not valid in the declared (or default
+UTF-8) charset (`decodeBody` decodes with a `fatal` TextDecoder first, then lossily, and
+counts what it replaced; it returns `{ text, replaced }`) and lone surrogates written as JSON
+escapes (`"\ud800"`, `wellFormedEscapes`, one linear pass) become U+FFFD, so the result is
+well-formed text that `jq` reads. One bad character never sinks a whole answer: it is not an
+error, but the engine option `onWarning(message)` is told the count and the request (`GET
+<url>: 2 characters of the answer were not valid text (invalid bytes or a lone surrogate) and
+replaced with U+FFFD.`), and the CLI's `action()` logs it as a `WARN` record of `jobsuche.api`.
+A throw in the hook is swallowed. In `obtainKey()` a key holding a U+FFFD does not match the
+key format. `apps/cli/test/conformance-p27-big-and-odd-answers.test.ts` (P27) checks it on both
+sides.
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;
 default 100 MiB), guarding against unbounded responses.
@@ -618,7 +633,10 @@ copied as is and differs only in its adapter block at the top:
   (a text trimmed and in NFC; the reference number trimmed and base64-encoded, so no dot
   segment or slash reaches the path);
 - `p25-response-corpus` — a number a double can't carry exactly, and an empty answer, are a
-  parse error (exit `1`, an ERROR record of `jobsuche.api`), never a changed value.
+  parse error (exit `1`, an ERROR record of `jobsuche.api` naming the request), never a
+  changed value;
+- `p27-big-and-odd-answers` — big and odd answers: a lone surrogate or invalid bytes become
+  U+FFFD with one `WARN` of `jobsuche.api`, never silent or fatal.
 
 Cases that don't apply here are skipped in the adapter with the reason (no
 base-URL environment variable; `obtain-key` does not verify the key; no `-o`, so P23's
@@ -688,7 +706,7 @@ controls as `\uXXXX`, so no text that reaches a record, by whatever path, can sp
 forge another one or steer the terminal. Before that a lone surrogate (half a
 character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`),
 and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
-code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning, and a malformed answer, a `JobsucheParseError`: bad JSON, the wrong shape or content type, an unknown charset), `http` (the connection, the cleartext warning, one WARN per retry before it waits), `config` (the credentials file and the `config` commands: what they stored or removed, and every failure of the file — `CredentialsError` —, whichever command read it; a usage error of a `config` command stays `cli`), `obtain-key` and `output` (a stdout write error). The no-echo prompt of `config set` stays plain. Code logs through `logOf(deps)` and never writes diagnostics
+code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning, and a malformed answer, a `JobsucheParseError`: bad JSON, the wrong shape or content type, an unknown charset; and text replaced with U+FFFD, as `WARN`), `http` (the connection, the cleartext warning, one WARN per retry before it waits), `config` (the credentials file and the `config` commands: what they stored or removed, and every failure of the file — `CredentialsError` —, whichever command read it; a usage error of a `config` command stays `cli`), `obtain-key` and `output` (a stdout write error). The no-echo prompt of `config set` stays plain. Code logs through `logOf(deps)` and never writes diagnostics
 with `io.err` directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`: the first `--log-format`, the value of one of the program's own value options
 skipped, used only for the records of a parse error; a `preAction` hook then sets the

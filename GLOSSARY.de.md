@@ -194,11 +194,17 @@ den Key zu beschuldigen.
 Zeitstempel, eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `jobsuche.<Bereich>`, als
 Text (im Stil von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Zeile. Die
 Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die
-Antworten der API: ein Fehlerstatus, die Hinweise zu 401/403, die `--wo`-Warnung und eine
-fehlerhafte Antwort — ungültiges JSON, die falsche Form oder der falsche Content-Type),
+Antworten der API: ein Fehlerstatus, die Hinweise zu 401/403, die `--wo`-Warnung, eine
+fehlerhafte Antwort — ungültiges JSON, die falsche Form oder der falsche Content-Type — und
+durch U+FFFD ersetzter Text, als `WARN`),
 `http` (die Verbindung, die Klartext-Warnung, je Wiederholung eine WARN-Zeile vor dem Warten), `config` (die Datei mit den Zugangsdaten),
 `obtain-key` und `output` (Schreibfehler auf stdout). Ein Eintrag ist immer eine Zeile;
 Steuerzeichen darin werden maskiert.
+
+**Ersetzter Text (replaced text).** Bytes einer Antwort, die in ihrem Zeichensatz ungültig
+sind, und halbe Zeichen (einzelne Surrogate) werden durch U+FFFD ersetzt und in einem
+`WARN`-Eintrag von `jobsuche.api` mit der Anzahl und der Anfrage gemeldet; der Aufruf gelingt
+trotzdem, und die Ausgabe bleibt für `jq` lesbar.
 
 ---
 

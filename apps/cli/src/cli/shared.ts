@@ -311,6 +311,8 @@ export function action(
       }
     }
     options.onRetry = (event) => logOf(deps).warn("http", retryMessage(event));
+    // An answer delivered changed (invalid text replaced with U+FFFD) is never silent.
+    options.onWarning = (message) => logOf(deps).warn("api", message);
     const client = deps.createClient(options);
     // Built first, so a key the client rejects is a usage error before any warning. One
     // warning per run, before the first request, when the base URL is plain http: to a host
