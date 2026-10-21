@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { TextDecoder } from "node:util";
 import assert from "node:assert/strict";
 import { RequestEngine, cleartextCredentialsProblem, cleartextProblem } from "../src/engine.js";
 import { JobsucheClient, woNote } from "../src/client.js";
@@ -632,4 +633,33 @@ test("text that is not valid is replaced with U+FFFD and reported through onWarn
   const throwing = new RequestEngine({ onWarning: () => { throw new Error("hook"); }, transport: makeMockTransport(() => rawResponse('"\\ud800"', "application/json")).transport });
   assert.equal(await throwing.getJson("/x"), "\ufffd");
   assert.throws(() => new RequestEngine({ onWarning: "log" as unknown as () => void }), JobsucheValidationError);
+});
+
+test("an answer longer than V8's longest string is a JobsucheParseError naming the request, not a plain Error (T14)", async (t) => {
+  // A real one needs a body of 512 MB and more (possible with maxResponseBytes 0): V8's own
+  // error is stood in for, for the body marked by its length.
+  const huge = Buffer.from('{"referenznummer":"x"}                 ');
+  const tooLong = Object.assign(new Error("Cannot create a string longer than 0x1fffffe8 characters"), { code: "ERR_STRING_TOO_LONG" });
+  const decode = TextDecoder.prototype.decode;
+  t.mock.method(TextDecoder.prototype, "decode", function (this: InstanceType<typeof TextDecoder>, input?: Uint8Array, options?: { stream?: boolean }) {
+    if (input !== undefined && input.byteLength === huge.length) throw tooLong;
+    return decode.call(this, input, options);
+  });
+  const toString = Buffer.prototype.toString;
+  t.mock.method(Buffer.prototype, "toString", function (this: Buffer, ...args: Parameters<Buffer["toString"]>) {
+    if (this.length === huge.length && args[0] === "utf8") throw tooLong;
+    return toString.apply(this, args);
+  });
+  const e = new RequestEngine({ maxResponseBytes: 0, transport: makeMockTransport(() => rawResponse(huge, "application/json")).transport });
+  await assert.rejects(e.getJson("/items", { q: "x" }), (err: unknown) => {
+    assert.ok(err instanceof JobsucheParseError, String(err));
+    assert.equal(
+      err.message,
+      `GET https://rest.arbeitsagentur.de/items?q=x: the answer is too large to read as text (${huge.length} bytes; the longest string is 536870888 characters).`,
+    );
+    return true;
+  });
+  // An error status with such a body is still the API error, without the unreadable body.
+  const failing = new RequestEngine({ maxResponseBytes: 0, maxRetries: 0, transport: makeMockTransport(() => rawResponse(huge, "text/plain", 500)).transport });
+  await assert.rejects(failing.getJson("/x"), (err: unknown) => err instanceof JobsucheApiError && err.status === 500 && err.body === "");
 });

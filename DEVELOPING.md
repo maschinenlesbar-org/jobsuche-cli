@@ -513,7 +513,11 @@ key format. `apps/cli/test/conformance-p27-big-and-odd-answers.test.ts` (P27) ch
 sides.
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;
-default 100 MiB), guarding against unbounded responses.
+default 100 MiB), guarding against unbounded responses. A body too large to become one string
+(512 MB and more, possible only with `maxResponseBytes: 0` or `--max-response-bytes 0`) is a
+`JobsucheParseError`, `GET <url>: the answer is too large to read as text (N bytes; the longest
+string is 536870888 characters).`, not a plain `Error` ("Unexpected error" in the CLI); an error
+status with such a body keeps its `JobsucheApiError`, without the body.
 
 **Engine option ranges.** The `RequestEngine` constructor (and so
 `new JobsucheClient(...)`) throws a `JobsucheValidationError` for a numeric option
