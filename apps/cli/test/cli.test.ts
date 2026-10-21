@@ -684,3 +684,27 @@ test("an answer over the size cap says so and names --max-response-bytes, not 'c
   assert.equal(await run(["details", "10001-1-S"], refused.deps), 1);
   assert.match(untimed(refused.err.join("\n")), /^ERROR \[jobsuche\.http\] could not reach the API \(GET .* failed: connect ECONNREFUSED/);
 });
+
+// Found in the 2026-10-21 fix round (the class of ckan-cli 7f8b5e3): a URL with a password
+// given as a text filter, padded or after a dash, was not found by the redaction (it looked for
+// a scheme at the start of each argument), and the library sends the value trimmed, so the
+// password reached stderr in the request URL, the --wo note and the dash-guard refusal.
+test("a password in a URL inside an option value is redacted on stderr, padded or not", async () => {
+  const url = "https://bob:s3cretpw@host.example/";
+  const argvs = [
+    ["search", "--was", url], ["search", "--was", ` ${url}`], ["search", "--was", `\t${url}`], [`--was= ${url}`],
+    ["search", "--was", ` -${url}`], ["search", "--wo", ` ${url}`], ["search", "--was", `Koch ${url}`],
+  ].map((argv) => (argv[0] === "search" ? argv : ["search", ...argv]));
+  for (const argv of argvs) {
+    for (const status of [404, 200]) {
+      const cli = makeCli(() =>
+        status === 404
+          ? jsonResponse({ messages: [{ code: "X" }] }, 404)
+          : jsonResponse({ maxErgebnisse: 0, woOutput: { bereinigterOrt: "Bonn" } }),
+      );
+      await run(argv, cli.deps);
+      const err = cli.err.join("\n");
+      assert.doesNotMatch(err, /s3cretpw|bob%3As3/, `${JSON.stringify(argv)} ${status}: ${err}`);
+    }
+  }
+});
