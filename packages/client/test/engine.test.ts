@@ -479,3 +479,31 @@ test("onRetry is never called without a retry", async () => {
 test("onRetry must be a function", () => {
   assert.throws(() => new RequestEngine({ onRetry: 5 as never }), JobsucheValidationError);
 });
+
+test("a number the answer's JSON cannot carry exactly is a parse error, never a changed value (K1)", async () => {
+  const path = "/jobboerse/jobsuche-service/pc/v6/jobs";
+  const body = (n: string) => `{"maxErgebnisse":${n},"ergebnisliste":[{"referenznummer":"9007199254740993","entfernung":1}]}`;
+  for (const n of [
+    "1e400", "-1e400", "12345678901234567890", "9007199254740993",
+    "12345678901234567890.0", "9007199254740993e0", "90071992547409930E-1", "9007199254740992.5",
+    "-9007199254740992.5", "1e-400", "-0.0001e-399", "1e23",
+  ]) {
+    const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
+    await assert.rejects(e.getJson(path), (err) => {
+      assert.ok(err instanceof JobsucheParseError, n);
+      assert.equal(err.message, `Unexpected response from ${path}: the number ${n} cannot be represented exactly.`);
+      return true;
+    });
+  }
+  // What a double carries exactly (or as JSON means it) passes, digits inside strings included.
+  const ok: Array<[string, number]> = [
+    ["9007199254740991", 9007199254740991], ["9007199254740992.0", 2 ** 53], ["9007199254740992e0", 2 ** 53],
+    ["90071992547409920E-1", 2 ** 53], ["1.2e21", 1.2e21], ["1e21", 1e21], ["0", 0], ["-0", -0], ["0.0e-500", 0],
+    ["0e5", 0], ["1.00000000000000001", 1], ["5e-324", 5e-324], ["1e2", 100], ["1.10", 1.1], ["0.1", 0.1],
+  ];
+  for (const [n, value] of ok) {
+    const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
+    const got = await e.getJson<{ maxErgebnisse: number }>(path);
+    assert.equal(got.maxErgebnisse, value, n);
+  }
+});
