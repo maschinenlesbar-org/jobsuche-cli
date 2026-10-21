@@ -355,7 +355,8 @@ test double), not only the built-in one:
 - `maxResponseBytes`: checked on the body that came back; the message names the
   option and the CLI flag.
 - Response shapes: `headers` may be a plain object with names in any case, a
-  `Headers` instance or a `Map` (read lower-cased); `body` may be a Buffer, any
+  `Headers` instance or a `Map` (read lower-cased, into a record without a prototype, so a
+  header named `__proto__` is an ordinary one); `body` may be a Buffer, any
   ArrayBuffer view (a `Uint8Array`, from any realm), an ArrayBuffer or a string.
   A missing or non-HTTP status, no headers or no body is a `JobsucheNetworkError`.
 - Whatever a transport throws (a `TypeError: fetch failed`, a string, `null`, a
