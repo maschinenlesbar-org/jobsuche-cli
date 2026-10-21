@@ -35,6 +35,9 @@ import {
   redactUrl,
 } from "./errors.js";
 
+// quoteValue lives with the other message helpers (validate.ts quotes refused values with it).
+export { quoteValue } from "./errors.js";
+
 export const DEFAULT_BASE_URL = "https://rest.arbeitsagentur.de";
 /** The User-Agent sent when none is given (by the engine and by obtainKey). */
 export const DEFAULT_USER_AGENT = "jobsuche-cli";

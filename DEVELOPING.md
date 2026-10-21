@@ -452,7 +452,13 @@ an own message quotes from a server answer or the user's input (a redirect targe
 charset or Content-Type, a search parameter name, a base URL, the places of the `--wo`
 note) is cut at `MAX_QUOTED_LENGTH` (200, `cutForMessage`), so `err.message` stays
 bounded for a library caller, and so a hostile or buggy body cannot flood stderr or
-a CI log; `JobsucheApiError.body` keeps the full text.
+a CI log; `JobsucheApiError.body` keeps the full text. A refusal that quotes the value (a
+search parameter name, an invalid URL, the CLI's dash-leading text value) does so visibly
+(`quoteValue`, exported): as JSON quotes it, plus DEL, C1, every format character (a zero-width
+space, a soft hyphen, a bidi control), U+2028/2029 and a lone surrogate as `\uXXXX`, cut at 200
+characters with the "…" after the closing quote (`"wo\u200b"`); the CLI escapes commander's
+own echo of a rejected argument the same way (`escapeTerminalText` in `run.ts`), and the run's
+redaction knows both escaped forms of a key.
 
 **What the API did with `wo`.** The API never fails on a place: it corrects a
 typo, may resolve a garbled name to another town, or answers `suchmodus:

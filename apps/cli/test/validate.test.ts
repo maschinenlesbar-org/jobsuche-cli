@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { assertValid, type Problem } from "@maschinenlesbar.org/jobsuche-client/internal/validate";
-import { JobsucheError, JobsucheValidationError } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
+import { JobsucheError, JobsucheValidationError, quoteValue } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
+import { searchParamKeyProblem } from "@maschinenlesbar.org/jobsuche-client/internal/validate";
 import * as lib from "../src/index.js";
 import { run } from "../src/cli/run.js";
 import type { JobsucheClient } from "@maschinenlesbar.org/jobsuche-client/internal/client";
@@ -441,4 +442,26 @@ test("parity: umkreis above 200 is rejected by CLI and library alike; 200 is sen
   );
   assert.equal(ok.cli.code, 0, ok.cli.err);
   assert.deepEqual(ok.lib.requests, ok.cli.requests);
+});
+
+test("a refusal quotes the value visibly: invisible, format and control characters escaped, cut at 200 (D10)", async () => {
+  assert.equal(quoteValue("a\u200bb"), '"a\\u200bb"');
+  assert.equal(quoteValue("\u202eabc\u00ad\u007f\u0085\u2028"), '"\\u202eabc\\u00ad\\u007f\\u0085\\u2028"');
+  assert.equal(quoteValue("x\ud800"), '"x\\ud800"');
+  assert.equal(quoteValue("a\u001bb\n"), '"a\\u001bb\\n"');
+  assert.equal(quoteValue("X".repeat(500)), `"${"X".repeat(200)}"…`);
+  assert.equal(lib.quoteValue, quoteValue);
+  assert.equal(searchParamKeyProblem("wo\u200b")?.startsWith('Unknown search parameter "wo\\u200b" '), true);
+  // The CLI's own refusal of a dash-leading value quotes it the same way.
+  const o = await parity(["search", "--was", "-Ko\u200bch"], () => undefined);
+  assert.equal(o.cli.code, 2);
+  assert.ok(o.cli.err.includes('"-Ko\\u200bch"'), o.cli.err);
+  assert.ok(!o.cli.err.includes("\u200b"), o.cli.err);
+});
+
+test("a key echoed escaped (a quoted refusal) is still redacted (D10)", async () => {
+  const key = "-secret\u00adkey1";
+  const o = await parity(["--api-key", key, "search", "--was", key], () => undefined, { env: { JOBSUCHE_API_KEY: key } });
+  assert.equal(o.cli.code, 2);
+  assert.ok(!o.cli.err.includes("secret"), o.cli.err);
 });

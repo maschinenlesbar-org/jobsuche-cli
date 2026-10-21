@@ -19,6 +19,7 @@ import {
   redactCredentials,
   redactSecrets,
   redactUrl,
+  quoteValue,
 } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
 import { API_KEY_ENV_VAR } from "@maschinenlesbar.org/jobsuche-client/internal/obtain-key";
 import { CredentialsError } from "./credentials.js";
@@ -40,9 +41,41 @@ function configureTree(
     writeErr: (str) => writeCommanderErr(command, deps, state, str),
     // Commander's own errors echo what was typed: an unknown command, surplus
     // arguments, an unknown option, a rejected option value. Mask what may be a secret.
-    outputError: (str, write) => write(mask(str)),
+    // An argument it repeats is escaped (escapeCommanderError), so an invisible or format
+    // character in it shows.
+    outputError: (str, write) => write(escapeCommanderError(mask(str).replace(/\n$/, ""))),
   });
   for (const child of command.commands) configureTree(child, deps, mask, state);
+}
+
+/**
+ * Escape the characters a terminal acts on in one commander error message: CR and LF
+ * become `\r` and `\n` (as a log record writes them, `escapeForRecord`), the other C0
+ * controls (tab excepted), DEL, C1 and Unicode format characters (bidi overrides,
+ * zero-width characters, the soft hyphen) `\uXXXX`. Commander repeats a rejected argument
+ * raw ("option '--was <text>' argument '<value>' is invalid"): a zero-width space in it was
+ * invisible, an override reordered the line. The library escapes the values it quotes
+ * itself (`quoteValue`).
+ */
+export function escapeTerminalText(text: string): string {
+  return text.replace(/[\u0000-\u0008\u000a-\u001f\u007f-\u009f]|\p{Cf}/gu, (ch) =>
+    ch === "\n"
+      ? "\\n"
+      : ch === "\r"
+        ? "\\r"
+        : Array.from({ length: ch.length }, (_, i) => `\\u${ch.charCodeAt(i).toString(16).padStart(4, "0")}`).join(""),
+  );
+}
+
+/**
+ * escapeTerminalText for one commander error message, except for the
+ * `\n(Did you mean …?)` line commander appends after an unknown command or option: that
+ * hint is built from this CLI's own names and can only end the message.
+ */
+function escapeCommanderError(message: string): string {
+  const hint = /\n\(Did you mean [^\n]*\?\)$/.exec(message);
+  if (hint === null) return escapeTerminalText(message);
+  return escapeTerminalText(message.slice(0, hint.index)) + hint[0];
 }
 
 /** `jobsuche config`: the command's name with its parents'. */
@@ -224,6 +257,8 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
     for (const secret of credentialsIn(source)) {
       userinfo.add(secret);
       userinfo.add(JSON.stringify(secret).slice(1, -1));
+      userinfo.add(quoteValue(secret, Number.MAX_SAFE_INTEGER).slice(1, -1));
+      userinfo.add(escapeTerminalText(secret));
       const encoded = encodeURIComponent(secret);
       if (encoded !== secret) encodedUserinfo.add(encoded);
       // What a server echoes back: the Basic value and the decoded user:password on
@@ -239,6 +274,10 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
     for (const form of [value, value.trim()]) {
       keys.add(form);
       keys.add(JSON.stringify(form).slice(1, -1));
+      // As a refusal quotes it (quoteValue) and commander echoes it (escapeTerminalText):
+      // invisible and format characters escaped.
+      keys.add(quoteValue(form, Number.MAX_SAFE_INTEGER).slice(1, -1));
+      keys.add(escapeTerminalText(form));
     }
   };
   addKey(envKey);

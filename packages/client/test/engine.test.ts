@@ -379,7 +379,7 @@ test("own messages quote a server or user value at most 200 characters long (L3)
   const charset = new RequestEngine({ transport: async () => ({ status: 200, headers: { "content-type": `application/json; charset=${long}` }, body: Buffer.from("{}") }) });
   await assert.rejects(charset.getJson("/x"), (err: Error) => err.message.length < 400 && /charset "x+…"/.test(err.message));
   const client = new JobsucheClient({ transport: async () => ({ status: 200, headers: {}, body: Buffer.from("{}") }) });
-  await assert.rejects(client.search({ [long]: "1" } as never), (err: Error) => err.message.length < 600 && /Unknown search parameter "x+…"/.test(err.message));
+  await assert.rejects(client.search({ [long]: "1" } as never), (err: Error) => err.message.length < 600 && /Unknown search parameter "x{200}"…/.test(err.message));
 });
 
 test("the --wo note quotes the place asked for and the place used at most 200 characters long (L3)", () => {

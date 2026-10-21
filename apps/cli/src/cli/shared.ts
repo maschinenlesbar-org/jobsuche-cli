@@ -6,7 +6,7 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import { logOf, type CliDeps } from "./io.js";
 import type { JobsucheClientOptions } from "@maschinenlesbar.org/jobsuche-client/internal/client";
-import { JobsucheError, JobsucheValidationError, cutForMessage } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
+import { JobsucheError, JobsucheValidationError, quoteValue } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
 import { API_KEY_ENV_VAR } from "@maschinenlesbar.org/jobsuche-client/internal/obtain-key";
 import { API_KEY_PHRASE, DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type RetryEvent } from "@maschinenlesbar.org/jobsuche-client/internal/engine";
 import { baseUrlProblem, headerValueProblem, intRangeProblem, nonBlankProblem } from "@maschinenlesbar.org/jobsuche-client/internal/validate";
@@ -69,7 +69,7 @@ export function parseTextArg(value: string): string {
   if (blank !== undefined) throw new InvalidArgumentError(blank);
   if (/^--?[^\s]/.test(value)) {
     throw new InvalidArgumentError(
-      `looks like a missing value — "${cutForMessage(value)}" is the next option, consumed because ` +
+      `looks like a missing value — ${quoteValue(value)} is the next option, consumed because ` +
         "this one was left without a value. Supply the intended search term.",
     );
   }

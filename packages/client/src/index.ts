@@ -65,6 +65,7 @@ export {
   JobsucheValidationError,
   credentialsDroppedHint,
   credentialsIn,
+  quoteValue,
   redactCredentials,
   redactSecrets,
   redactUrl,
