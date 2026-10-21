@@ -362,7 +362,10 @@ test double), not only the built-in one:
   fires at the deadline; the call rejects then (`JobsucheNetworkError`) whether
   the transport stops or not.
 - `maxResponseBytes`: checked on the body that came back; the message names the
-  option and the CLI flag.
+  option and the CLI flag. Over the cap is a `JobsucheResponseTooLargeError` (a
+  `JobsucheNetworkError`, with the cap in `maxResponseBytes`), from the default transport and
+  from the engine alike: the API was reached and answered, so the CLI says that and names
+  `--max-response-bytes` instead of "could not reach the API".
 - Response shapes: `headers` may be a plain object with names in any case, a
   `Headers` instance or a `Map` (read lower-cased, into a record without a prototype, so a
   header named `__proto__` is an ordinary one); `body` may be a Buffer, any
@@ -608,7 +611,8 @@ functions, and `run.ts` maps a `JobsucheValidationError` to exit `2`
 **Error types.** [`errors.ts`](packages/client/src/errors.ts): `JobsucheApiError`
 (non-2xx, carries `status`/`detail`/`url`/`body`, with an `isRetryable` getter
 for 429/503; `detail` comes from the body's `detail`/`message`, or from the
-gateway's `messages: [{code, path, detail}]` as `path: detail (code)`), `JobsucheNetworkError` (transport failure/timeout),
+gateway's `messages: [{code, path, detail}]` as `path: detail (code)`), `JobsucheNetworkError` (transport failure/timeout;
+its subclass `JobsucheResponseTooLargeError` for an answer over `maxResponseBytes`),
 `JobsucheParseError` (bad JSON), `JobsucheValidationError` (an input rejected
 before any request, including a bad base URL or client option), all extending
 `JobsucheError`.

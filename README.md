@@ -289,6 +289,9 @@ same thing.
   re-run a fresh `search` to get current `referenznummer` values.
 - **Exit `1` / "could not reach the API"** — connectivity, DNS, or a timeout. Try again
   or raise the limit with `--timeout 60000`.
+- **Exit `1` / "Response exceeded maxResponseBytes"** — the API answered, but with more
+  than the size cap (100 MiB by default) allows; the message says so. Raise it with
+  `--max-response-bytes` (`0` = no limit), or ask for less (`--size`).
 - **No `ergebnisliste` in the result** — the search matched nothing (the key is
   left out rather than sent empty, and so is `facetten`); broaden `--was`, widen
   `--umkreis`, or drop filters.
@@ -308,7 +311,7 @@ These apply to every command and may be given before *or* after it:
 | `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; no control characters or characters above U+00FF, which a header cannot carry) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, at most `10`). Each retry waits the server's `Retry-After` (up to 30 s; a longer one is not retried, and the error names it) or else backs off linearly. Each retry logs one WARN record of `jobsuche.http` before it waits (`HTTP 503 from host: retry 1 of 3 in 2 s`) |
-| `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
+| `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB). A larger answer is an error (exit `1`) that names this option |
 
 ### Advanced — pointing at a proxy or staging host
 

@@ -8,7 +8,7 @@
 
 import http from "node:http";
 import https from "node:https";
-import { JobsucheNetworkError, redactUrl } from "./errors.js";
+import { JobsucheNetworkError, JobsucheResponseTooLargeError, redactUrl } from "./errors.js";
 
 export interface HttpRequest {
   method: string;
@@ -133,7 +133,7 @@ export const nodeHttpTransport: Transport = (request) =>
               aborted = true;
               clearDeadline();
               res.destroy();
-              reject(new JobsucheNetworkError(sizeLimitMessage(maxBytes)));
+              reject(new JobsucheResponseTooLargeError(sizeLimitMessage(maxBytes), maxBytes));
               return;
             }
             chunks.push(chunk);

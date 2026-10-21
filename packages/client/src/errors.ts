@@ -295,5 +295,21 @@ export class JobsucheValidationError extends JobsucheError {}
 /** A transport-level failure (DNS, connection reset, timeout, ...). */
 export class JobsucheNetworkError extends JobsucheError {}
 
+/**
+ * The answer was larger than `maxResponseBytes` (`--max-response-bytes`): the API was
+ * reached and answered, so this is not a connection problem. A JobsucheNetworkError (as it
+ * always was, for library callers), with the cap in `maxResponseBytes`; the CLI names the
+ * option to raise instead of "could not reach the API".
+ */
+export class JobsucheResponseTooLargeError extends JobsucheNetworkError {
+  /** The cap the answer exceeded, in bytes. */
+  readonly maxResponseBytes: number;
+
+  constructor(message: string, maxResponseBytes: number, options?: { cause?: unknown }) {
+    super(message, options);
+    this.maxResponseBytes = maxResponseBytes;
+  }
+}
+
 /** The response body could not be parsed as the expected JSON shape. */
 export class JobsucheParseError extends JobsucheError {}

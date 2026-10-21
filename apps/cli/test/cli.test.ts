@@ -664,3 +664,23 @@ test("terminal controls are escaped in chunks: the same text as one pass, across
   assert.equal(out[0], expected);
   assert.deepEqual(JSON.parse(out[0]!), { text });
 });
+
+// 2026-10-21 sweep, 03 Bug 3: the size cap was framed as "could not reach the API", and the
+// README sent the reader to connectivity, DNS and --timeout.
+test("an answer over the size cap says so and names --max-response-bytes, not 'could not reach the API'", async () => {
+  const cli = makeCli(() => rawResponse("x".repeat(100), "application/json"));
+  assert.equal(await run(["--max-response-bytes", "10", "details", "10001-1-S"], cli.deps), 1);
+  assert.deepEqual(cli.out, []);
+  const err = untimed(cli.err.join("\n"));
+  assert.doesNotMatch(err, /could not reach/);
+  assert.equal(
+    err,
+    `ERROR [jobsuche.http] GET https://rest.arbeitsagentur.de${SERVICE}/pc/v4/jobdetails/MTAwMDEtMS1T failed: ` +
+      "Response exceeded maxResponseBytes (10 bytes; --max-response-bytes on the CLI). The server answered, with more than " +
+      "the size cap allows: raise --max-response-bytes (0 = no limit).",
+  );
+  // A connection that failed is still "could not reach the API".
+  const refused = makeCli(() => { throw new JobsucheNetworkError("connect ECONNREFUSED 127.0.0.1:9"); });
+  assert.equal(await run(["details", "10001-1-S"], refused.deps), 1);
+  assert.match(untimed(refused.err.join("\n")), /^ERROR \[jobsuche\.http\] could not reach the API \(GET .* failed: connect ECONNREFUSED/);
+});

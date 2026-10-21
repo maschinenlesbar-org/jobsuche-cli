@@ -25,6 +25,7 @@ import {
   JobsucheError,
   JobsucheNetworkError,
   JobsucheParseError,
+  JobsucheResponseTooLargeError,
   JobsucheValidationError,
   credentialsIn,
   cutForMessage,
@@ -587,7 +588,7 @@ export async function exchange(
   // The size cap holds whatever the transport did: the default one aborts early, a
   // custom one may have read everything.
   if (limits.maxResponseBytes > 0 && body.byteLength > limits.maxResponseBytes) {
-    throw new JobsucheNetworkError(sizeLimitMessage(limits.maxResponseBytes));
+    throw new JobsucheResponseTooLargeError(sizeLimitMessage(limits.maxResponseBytes), limits.maxResponseBytes);
   }
   const reported = (response as { url?: unknown }).url;
   return {
@@ -657,12 +658,17 @@ export function networkError(
     // already (followedElsewhere) is passed on, scrubbed.
     const message = scrub(cause.message);
     const prefix = `${method} ${redactUrl(url)} failed: `;
+    // The size cap keeps its class (and the cap): the API answered, which the CLI says.
+    const named = (text: string, options?: { cause?: unknown }): JobsucheNetworkError =>
+      cause instanceof JobsucheResponseTooLargeError
+        ? new JobsucheResponseTooLargeError(text, cause.maxResponseBytes, options)
+        : new JobsucheNetworkError(text, options);
     if (message.startsWith(prefix)) {
       const inner = scrubCause(cause.cause, scrub);
       if (message === cause.message && inner === cause.cause) return cause;
-      return new JobsucheNetworkError(message, inner === undefined ? undefined : { cause: inner });
+      return named(message, inner === undefined ? undefined : { cause: inner });
     }
-    return new JobsucheNetworkError(`${prefix}${message}`, { cause: scrubCause(cause, scrub) });
+    return named(`${prefix}${message}`, { cause: scrubCause(cause, scrub) });
   }
   if (cause instanceof JobsucheError) return cause;
   const reason =

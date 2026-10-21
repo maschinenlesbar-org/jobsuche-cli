@@ -13,6 +13,7 @@ import {
   JobsucheError,
   JobsucheNetworkError,
   JobsucheParseError,
+  JobsucheResponseTooLargeError,
   JobsucheValidationError,
   credentialsIn,
   echoedCredentialForms,
@@ -450,9 +451,18 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       if (err.status === 404) return 4;
       return 1;
     }
+    if (err instanceof JobsucheResponseTooLargeError) {
+      // The API was reached and answered, past the size cap: name the option to raise, not
+      // connectivity (results/03 of the 2026-10-21 sweep, Bug 3).
+      log.error(
+        "http",
+        `${err.message}. The server answered, with more than the size cap allows: raise --max-response-bytes (0 = no limit).`,
+      );
+      return 1;
+    }
     if (err instanceof JobsucheNetworkError) {
-      // Transport-level failure (DNS, refused connection, timeout, body cap).
-      // Frame it as a connectivity problem rather than a bare libuv string.
+      // Transport-level failure (DNS, refused connection, timeout). Frame it as a
+      // connectivity problem rather than a bare libuv string.
       log.error("http", `could not reach the API (${err.message}).`);
       return 1;
     }

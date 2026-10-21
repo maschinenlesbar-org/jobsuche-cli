@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { nodeHttpTransport } from "../src/http.js";
-import { JobsucheNetworkError } from "../src/errors.js";
+import { JobsucheNetworkError, JobsucheResponseTooLargeError } from "../src/errors.js";
 
 /** Start a throwaway loopback server for one test and return its base URL. */
 async function withServer(
@@ -48,7 +48,7 @@ test("enforces maxResponseBytes", async () => {
     async (baseUrl) => {
       await assert.rejects(
         () => nodeHttpTransport({ method: "GET", url: baseUrl, maxResponseBytes: 10 }),
-        JobsucheNetworkError,
+        (err: unknown) => err instanceof JobsucheResponseTooLargeError && err instanceof JobsucheNetworkError && err.maxResponseBytes === 10,
       );
     },
   );

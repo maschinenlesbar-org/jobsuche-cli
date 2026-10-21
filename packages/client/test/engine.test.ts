@@ -14,6 +14,7 @@ import {
   JobsucheApiError,
   JobsucheNetworkError,
   JobsucheParseError,
+  JobsucheResponseTooLargeError,
   JobsucheValidationError,
   cutText,
   toWellFormed,
@@ -707,4 +708,24 @@ test("bigIntegerKeys: a declared member's number is its exact literal as a strin
   assert.equal(firstInexactNumber('{"a":"1e400","b":3e-324}'), "3e-324");
   assert.deepEqual(scanNumbers('{"a":1}'), { json: '{"a":1}', inexact: undefined });
   // The client declares none: the API's answers carry no number past 2^53.
+});
+
+test("an answer over the size cap is a JobsucheResponseTooLargeError naming the request and the cap (03 Bug 3)", async () => {
+  // A custom transport that read it all (the engine's own check) and the default one (aborts early).
+  const e = new RequestEngine({ maxResponseBytes: 10, transport: async () => rawResponse("x".repeat(100), "application/json") });
+  await assert.rejects(e.getJson("/x"), (err: unknown) => {
+    assert.ok(err instanceof JobsucheResponseTooLargeError && err instanceof JobsucheNetworkError, String(err));
+    assert.equal(err.maxResponseBytes, 10);
+    assert.match(err.message, /^GET https:\/\/rest\.arbeitsagentur\.de\/x failed: Response exceeded maxResponseBytes \(10 bytes/);
+    return true;
+  });
+  const server = createServer((_req, res) => res.end("x".repeat(1000)));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const { port } = server.address() as AddressInfo;
+    const d = new RequestEngine({ baseUrl: `http://127.0.0.1:${port}`, maxResponseBytes: 10, transport: nodeHttpTransport });
+    await assert.rejects(d.getJson("/x"), (err: unknown) => err instanceof JobsucheResponseTooLargeError && err.maxResponseBytes === 10);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });

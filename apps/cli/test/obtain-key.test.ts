@@ -11,6 +11,7 @@ import type { HttpRequest, HttpResponse } from "@maschinenlesbar.org/jobsuche-cl
 import { API_KEY_ENV_VAR, KEY_SOURCE_URL, obtainKey, shellQuoteSingle } from "@maschinenlesbar.org/jobsuche-client/internal/obtain-key";
 import {
   JobsucheError,
+  JobsucheNetworkError,
   JobsucheParseError,
   JobsucheValidationError,
 } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
@@ -165,7 +166,8 @@ test("obtainKey takes explicit limits, and 0 turns one off", async () => {
   // The cap holds even for a transport that ignores it (the engine checks the body).
   await assert.rejects(
     obtainKey({ transport: mt.transport, maxResponseBytes: 10 }),
-    (e: unknown) => e instanceof Error && e.name === "JobsucheNetworkError" && /maxResponseBytes \(10 bytes/.test(e.message),
+    // A JobsucheNetworkError still; its own class says the server answered (03 Bug 3 of 2026-10-21).
+    (e: unknown) => e instanceof JobsucheNetworkError && e.name === "JobsucheResponseTooLargeError" && /maxResponseBytes \(10 bytes/.test(e.message),
   );
   await obtainKey({ transport: mt.transport, timeoutMs: 0, maxResponseBytes: 0 });
   assert.equal("timeoutMs" in mt.last(), false);
