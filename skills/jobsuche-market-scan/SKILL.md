@@ -104,7 +104,7 @@ Choose the search axis to match the question:
 | `homeoffice` | Remote availability: `prozentual` (some %), `nv_true`/`nv_false` (not specified). Compute the remote-friendly share. |
 | `befristung` | Contract type: permanent vs fixed-term (codes — `1`/`2`/`3`). |
 | `arbeitszeit` | Full-time vs part-time mix. |
-| `veroeffentlichtseit` | **Freshness histogram** — cumulative counts at `1/7/14/28` days and `alle` (all). How active/churny the market is right now. |
+| `veroeffentlichtseit` | **Freshness histogram** — cumulative counts (in `.counts`) at `0` (published **today**), `1` (since yesterday), `7`, `14`, `28` days and `alle` (all). How active/churny the market is right now. |
 | `zeitarbeit` | Share that are temp-agency postings. |
 | `quereinstieg` | Openings flagged suitable for career-changers. |
 
@@ -125,7 +125,9 @@ jobsuche --compact search --was Pflege --wo Berlin --umkreis 50 --size 0 \
 >   search" rather than letting `jq` error on a missing key.
 > - `veroeffentlichtseit` counts are **cumulative** (`7` includes everything from
 >   the last 7 days, `alle` = the total), not per-bucket — derive deltas if you
->   want "new in the last day vs week".
+>   want "new in the last day vs week". **"Today" is the `0` bucket**, not `1`:
+>   `1` also counts yesterday's listings (live: `0` 206 vs `1` 399 for Pflege in
+>   Berlin), e.g. `jq '.facetten.veroeffentlichtseit.counts["0"]'`.
 > - Facet employer/location labels are the API's raw strings (e.g.
 >   `"50Hertz Transmission GmbH AD Berlin"`); show them verbatim.
 > - The default search **includes** temp-work agencies (`zeitarbeit`); with
@@ -151,7 +153,7 @@ Top hiring employers
 Where           Berlin 6,100 · Potsdam 453 · Oranienburg 120 · …
 Salary quoted   hourly 2,620 · annual 1,012 (rest not stated)
 Home office     271 list some remote, 35 none specified
-Freshness       146 in last 28 days, 45 in last 7, 13 today — active market
+Freshness       146 in last 28 days, 45 in last 7, 13 today (bucket 0) — active market
 ```
 
 Rules:
