@@ -489,7 +489,7 @@ test("a number the answer's JSON cannot carry exactly is a parse error, never a 
   for (const n of [
     "1e400", "-1e400", "12345678901234567890", "9007199254740993",
     "12345678901234567890.0", "9007199254740993e0", "90071992547409930E-1", "9007199254740992.5",
-    "-9007199254740992.5", "1e-400", "-0.0001e-399", "1e23",
+    "-9007199254740992.5", "1e-400", "-0.0001e-399", "123456789012345678901234567890",
   ]) {
     const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
     await assert.rejects(e.getJson(path), (err) => {
@@ -503,6 +503,10 @@ test("a number the answer's JSON cannot carry exactly is a parse error, never a 
     ["9007199254740991", 9007199254740991], ["9007199254740992.0", 2 ** 53], ["9007199254740992e0", 2 ** 53],
     ["90071992547409920E-1", 2 ** 53], ["1.2e21", 1.2e21], ["1e21", 1e21], ["0", 0], ["-0", -0], ["0.0e-500", 0],
     ["0e5", 0], ["1.00000000000000001", 1], ["5e-324", 5e-324], ["1e2", 100], ["1.10", 1.1], ["0.1", 0.1],
+    // A double a server printed in its shortest form reads back as that double and prints as the
+    // same number: not a changed value, though the decimal is not the double's exact binary value.
+    ["1e23", 1e23], ["100000000000000000000000", 1e23], ["1E23", 1e23], ["1.7976931348623157E308", Number.MAX_VALUE], ["-1.7976931348623157e308", -Number.MAX_VALUE],
+    ["4.35e30", 4.35e30],
   ];
   for (const [n, value] of ok) {
     const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
