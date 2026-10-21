@@ -574,7 +574,10 @@ print within a 512 MB heap.
 quietly; an EPIPE on stderr is ignored, so a failed run keeps its exit code — a
 usage error piped through `2>&1 | head` still exits `2`. Any other stdout write error
 is an ERROR record of `jobsuche.output` (`Could not write to stdout: …`, in the format
-argv asks for: `processLogger`) and exits `1`; any other stderr write error exits `1`. `apps/cli/test/conformance-p7-pipes-exit-codes.test.ts` spawns the built bin to
+argv asks for: `processLogger`) and exits `1` — also a write cut short when stdout is a regular
+file (`> out.json` under a file-size limit or on a full disk: EFBIG, ENOSPC), which
+`stdoutWriter` (`io.ts`) writes with `writeAll` and reports as stdout's `error`, where Node's
+stream ignored the short count and exited `0`; any other stderr write error exits `1`. `apps/cli/test/conformance-p7-pipes-exit-codes.test.ts` spawns the built bin to
 check both.
 
 **Input validation.** [`validate.ts`](packages/client/src/validate.ts) — the library owns
@@ -656,6 +659,9 @@ copied as is and differs only in its adapter block at the top:
 - `p25-response-corpus` — a number a double can't carry exactly, and an empty answer, are a
   parse error (exit `1`, an ERROR record of `jobsuche.api` naming the request), never a
   changed value;
+- `p26-output-integrity` — stdout redirected to a file and cut short (`ulimit -f`) is an
+  `ERROR` of `jobsuche.output` with exit `1`, never exit `0`; its `-o` tests are skipped
+  (`HAS_OUTPUT_OPTION = false`: this CLI has no `-o`);
 - `p27-big-and-odd-answers` — big and odd answers: 8 M numbers print with `--compact` within a
   256 MB heap, 20 MB of DEL characters within 512 MB, 90 MB of them (past V8's longest string
   once escaped) are an `ERROR` of `jobsuche.output`; a lone surrogate or invalid bytes become U+FFFD with one `WARN` of
@@ -663,7 +669,7 @@ copied as is and differs only in its adapter block at the top:
 
 Cases that don't apply here are skipped in the adapter with the reason (no
 base-URL environment variable; `obtain-key` does not verify the key; no `-o`, so P23's
-`OUTPUT_OPTION` is undefined and there is no P26 (output integrity); P23's `VALUE_OPTION` is `--log-format`, because
+`OUTPUT_OPTION` is undefined and P26 runs only its stdout case; P23's `VALUE_OPTION` is `--log-format`, because
 `usageErrorMask` shows any other rejected value only as its first three characters).
 
 ## Continuous integration
