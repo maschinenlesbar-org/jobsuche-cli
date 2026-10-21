@@ -4,6 +4,7 @@ import { JobsucheClient, woNote } from "../src/client.js";
 import { JobsucheApiError, JobsucheError, JobsucheParseError, JobsucheValidationError } from "../src/errors.js";
 import { makeMockTransport, jsonResponse, constantJson, okResponse } from "./helpers.js";
 import { V6_NO_MATCH, V6_SEARCH } from "./fixtures.js";
+import { isBlank } from "../src/validate.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>, apiKey?: string): JobsucheClient {
   return new JobsucheClient({ transport: mt.transport, ...(apiKey ? { apiKey } : {}) });
@@ -217,4 +218,18 @@ test("the text filters go out trimmed and in composed Unicode; a blank one is re
     }
   }
   assert.equal(mt.calls.length, count);
+});
+
+test("a parameter sent with allowUnknownParams is checked too: its name a token, a string value text (D8)", async () => {
+  const mt = makeMockTransport(okResponse);
+  const c = new JobsucheClient({ transport: mt.transport });
+  await c.search({ befristung: " 1\n" } as never, { allowUnknownParams: true });
+  assert.equal(new URL(mt.last().url).searchParams.get("befristung"), "1");
+  await assert.rejects(c.search({ "be​fristung": "1" } as never, { allowUnknownParams: true }), /Invalid search parameter: "be\\u200bfristung" contains an invisible/);
+  await assert.rejects(c.search({ befristung: "​" } as never, { allowUnknownParams: true }), /Invalid befristung: Must not be blank\./);
+  await assert.rejects(c.search({ befristung: "a­b" } as never, { allowUnknownParams: true }), /Invalid befristung: "a\\u00adb" contains an invisible character \(U\+00AD\)\./);
+  assert.equal(mt.calls.length, 1);
+  // A value of only invisible characters or combining marks is blank.
+  for (const blank of ["", " ", "​", "­", "́̈", "\u0085"]) assert.equal(isBlank(blank), true, JSON.stringify(blank));
+  assert.equal(isBlank("a​"), false);
 });

@@ -21,6 +21,7 @@ import {
   headerValueProblem,
   isPlainObject,
   jobDetailsProblem,
+  normalizeToken,
   refnrProblem,
   searchResultProblem,
   normalizeSearchParams,
@@ -155,7 +156,7 @@ export class JobsucheClient {
    *   as `"1002716922"`, which is NOT base64 of a refnr, is correctly encoded.
    */
   async details(refnr: string): Promise<JobDetails> {
-    const trimmed = (assertValid("refnr", refnr as unknown, refnrProblem) as string).trim();
+    const trimmed = normalizeToken(assertValid("refnr", refnr as unknown, refnrProblem) as string);
     const code = this.isEncodedCode(trimmed)
       ? trimmed
       : Buffer.from(trimmed, "utf8").toString("base64");

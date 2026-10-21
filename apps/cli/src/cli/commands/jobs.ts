@@ -1,6 +1,6 @@
 import { InvalidArgumentError, type Command } from "commander";
 import { logOf, type CliDeps } from "../io.js";
-import { action, onceOnly, parseBoundedInt, parseIntArg, parseNonBlank, parseTextArg, renderJson } from "../shared.js";
+import { action, onceOnly, parseBoundedInt, parseIntArg, parseRefnr, parseTextArg, renderJson } from "../shared.js";
 import type { JobSearchParams } from "@maschinenlesbar.org/jobsuche-client/internal/types";
 import { woNote } from "@maschinenlesbar.org/jobsuche-client/internal/client";
 import {
@@ -99,9 +99,9 @@ export function registerJobCommands(program: Command, deps: CliDeps): void {
   program
     .command("details")
     .description("Full job details by reference number (refnr) or encoded code")
-    // A blank reference (often an unset shell variable) is a usage error here,
-    // before the client's own check would make it a runtime error (exit 1).
-    .argument("<refnrOrCode>", "reference number (referenznummer) or encoded code", parseNonBlank)
+    // A blank reference (often an unset shell variable) or one with an invisible character
+    // is a usage error here, by the client's own rule (refnrProblem).
+    .argument("<refnrOrCode>", "reference number (referenznummer) or encoded code", parseRefnr)
     .action(
       action(deps, async ({ client, global }, [ref]) => {
         renderJson(deps, global, await client.details(ref!));

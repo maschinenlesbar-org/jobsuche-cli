@@ -9,7 +9,7 @@ import type { JobsucheClientOptions } from "@maschinenlesbar.org/jobsuche-client
 import { JobsucheError, JobsucheValidationError, quoteValue } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
 import { API_KEY_ENV_VAR } from "@maschinenlesbar.org/jobsuche-client/internal/obtain-key";
 import { API_KEY_PHRASE, DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type RetryEvent } from "@maschinenlesbar.org/jobsuche-client/internal/engine";
-import { baseUrlProblem, headerValueProblem, intRangeProblem, nonBlankProblem } from "@maschinenlesbar.org/jobsuche-client/internal/validate";
+import { baseUrlProblem, headerValueProblem, intRangeProblem, refnrProblem, textProblem } from "@maschinenlesbar.org/jobsuche-client/internal/validate";
 
 /** The name the API key is stored under in the credentials file (`jobsuche config set api-key`). */
 export const API_KEY_CREDENTIAL = "api-key";
@@ -61,12 +61,14 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
  * `search` query.) No job title, place, occupational field or employer name is
  * searched with a leading dash, so nothing legitimate is lost.
  *
- * A blank value ("" or whitespace, often an unset shell variable) is rejected
- * too, by the library's nonBlankProblem (the client rejects it the same way).
+ * The library's text rule comes first (textProblem, the client applies it the same way): a
+ * blank value ("" or whitespace, often an unset shell variable, or only invisible characters),
+ * a lone surrogate, or a control or format character (a zero-width space, a soft hyphen) is
+ * refused, the value quoted with the character escaped.
  */
 export function parseTextArg(value: string): string {
-  const blank = nonBlankProblem(value);
-  if (blank !== undefined) throw new InvalidArgumentError(blank);
+  const problem = textProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   if (/^--?[^\s]/.test(value)) {
     throw new InvalidArgumentError(
       `looks like a missing value — ${quoteValue(value)} is the next option, consumed because ` +
@@ -100,10 +102,14 @@ export function parseApiKey(value: string): string {
   return value;
 }
 
-/** commander value-parser for a required id: rejects "" and whitespace only (nonBlankProblem). */
-export function parseNonBlank(value: string): string {
-  const blank = nonBlankProblem(value);
-  if (blank !== undefined) throw new InvalidArgumentError(blank);
+/**
+ * commander value-parser for the reference number of `details`: the library's refnrProblem (a
+ * token: not blank, no control, format or invisible character, no lone surrogate). The client
+ * trims and normalises it (`normalizeToken`), so it is passed on as typed.
+ */
+export function parseRefnr(value: string): string {
+  const problem = refnrProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
 }
 

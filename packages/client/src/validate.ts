@@ -27,9 +27,104 @@ export function assertValid<T>(name: string, value: T, problem: Problem<T>): T {
   return value;
 }
 
-/** True for a string that is empty or only whitespace. */
+/** Characters that never make a value non-blank: whitespace, controls, format characters, combining marks. */
+const INVISIBLE = /[\s\p{Cc}\p{Cf}\p{M}]/gu;
+
+/** A lone surrogate: half of a character, which URLSearchParams would send as U+FFFD. */
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
+/**
+ * True when nothing in `value` would match anything: it is empty, or holds only whitespace,
+ * control and format characters (a zero-width space, a soft hyphen) and combining marks. Such
+ * a value reads as "no filter" upstream, or matches nothing, so it is refused as blank.
+ */
 export function isBlank(value: string): boolean {
-  return value.trim() === "";
+  return value.replace(INVISIBLE, "") === "";
+}
+
+/** `U+200B` for the first character of `text` that `pattern` matches. */
+function codePointOf(text: string, pattern: RegExp): string {
+  const ch = pattern.exec(text)?.[0] ?? "";
+  return `U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+/** A control character inside a text filter: C0 and C1, but not TAB, LF or CR (whitespace in a pasted phrase). */
+const TEXT_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/;
+
+/** A format character inside a text filter, but not ZWNJ/ZWJ (U+200C/U+200D), which some scripts and emoji need. */
+const TEXT_FORMAT = /(?![\u200c\u200d])\p{Cf}/u;
+
+/**
+ * Why `value` cannot be sent as a text filter, or undefined when it can. Refused, before any
+ * request, as the API would match nothing or everything:
+ * - a value that is blank once trimmed (Unicode whitespace, U+00A0 included), or that holds only
+ *   invisible characters and combining marks (`isBlank`): an empty filter reads as "no filter"
+ *   upstream, which answers with the whole unfiltered set;
+ * - a lone surrogate (half of a character, sent as U+FFFD);
+ * - a control character (but TAB, LF and CR) or a format character (a zero-width space, a soft
+ *   hyphen, a bidi control; ZWNJ and ZWJ are allowed): pasted along, it makes the search find
+ *   nothing.
+ * The reason quotes the value with every invisible character escaped (`quoteValue`).
+ */
+export function textProblem(value: string): string | undefined {
+  if (typeof value !== "string") return "Expected a string.";
+  if (isBlank(value)) return "Must not be blank.";
+  if (LONE_SURROGATE.test(value)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (TEXT_CONTROL.test(value)) return `${quoteValue(value)} contains a control character (${codePointOf(value, TEXT_CONTROL)}).`;
+  if (TEXT_FORMAT.test(value)) return `${quoteValue(value)} contains an invisible character (${codePointOf(value, TEXT_FORMAT)}).`;
+  return undefined;
+}
+
+/** A control or format character in a token (after trimming): every Cc and every Cf. */
+const TOKEN_INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+
+/**
+ * Why `value` cannot be sent as a token, or undefined when it can. A token is an id, a code or
+ * a parameter name: a value the API compares exactly. The rules apply to the value with
+ * surrounding whitespace trimmed, as it is sent ({@link normalizeToken}): not blank (and not only
+ * invisible characters or combining marks), no lone surrogate, and no control or format character
+ * at all (a zero-width space, ZWJ, a soft hyphen, a bidi control), since an invisible character in
+ * an id only ever makes it match nothing. The reason quotes the value visibly.
+ */
+export function tokenProblem(value: string): string | undefined {
+  if (typeof value !== "string") return "Expected a string.";
+  if (isBlank(value)) return "Must not be blank.";
+  const token = value.trim();
+  if (LONE_SURROGATE.test(token)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (TOKEN_INVISIBLE.test(token)) {
+    return `${quoteValue(value)} contains an invisible or control character (${codePointOf(token, TOKEN_INVISIBLE)}).`;
+  }
+  return undefined;
+}
+
+/** A token as it is sent: trimmed and in composed Unicode (NFC). Check it with {@link tokenProblem} first. */
+export function normalizeToken(value: string): string {
+  return value.trim().normalize("NFC");
+}
+
+/**
+ * The items of a comma-separated list value, as typed: each item is checked (`listProblem`) and
+ * canonicalised (`normalizeToken`) on its own, so `"a1, a2"` sends `a2`, and `"a1,,a2"`, `"a1,"`
+ * and `","` are refused rather than sent as an empty item (which an API may read as "no
+ * filter"). This API takes no list; exported for library callers, as the kit has it.
+ */
+export function splitList(value: string): string[] {
+  return value.split(",");
+}
+
+/**
+ * Why `items` cannot be sent as a list, or undefined when it can: not an array of strings, no
+ * item at all (an empty list reads as "no filter"), or an item that `itemProblem` refuses (by
+ * default {@link tokenProblem}: a blank item is refused, never dropped). The reason names the item.
+ */
+export function listProblem(items: readonly string[], itemProblem: Problem = tokenProblem): string | undefined {
+  if (!Array.isArray(items)) return "Expected a list of strings.";
+  if (items.length === 0) return "Expected at least one value.";
+  for (let i = 0; i < items.length; i++) {
+    const problem = itemProblem(items[i] as string);
+    if (problem !== undefined) return items.length === 1 ? problem : `item ${i + 1} of ${items.length}: ${problem}`;
+  }
+  return undefined;
 }
 
 /**
@@ -37,26 +132,31 @@ export function isBlank(value: string): boolean {
  * and U+3000 included; a value pasted with a trailing space or newline) and in composed
  * Unicode, NFC (a decomposed "München", u plus U+0308 as pasted from a macOS file name).
  * Inner whitespace is kept. Applied to the text filters (`TEXT_FILTERS`: `was`, `wo`,
- * `berufsfeld`, `arbeitgeber`) by `normalizeSearchParams`; never to the reference
- * number, codes or numbers.
+ * `berufsfeld`, `arbeitgeber`) and to the string value of a parameter sent with
+ * `allowUnknownParams` by `normalizeSearchParams`; the reference number goes out as
+ * `normalizeToken` makes it (the same, checked as a token). Check it with
+ * {@link textProblem} first.
  */
 export function normalizeText(value: string): string {
   return value.trim().normalize("NFC");
 }
 
 /**
- * Search parameters with each text filter (`TEXT_FILTERS`) that is a string in its
- * canonical form (normalizeText); everything else unchanged. Returns a new object, or
- * `params` itself when it is not an object (validateSearchParams then refuses it).
- * `search()` applies it before validateSearchParams, so a value that is blank once
- * trimmed is still refused before any request.
+ * Search parameters with each text filter (`TEXT_FILTERS`) that is a string, and the string
+ * value of every other parameter (one sent with `allowUnknownParams`), in its canonical form
+ * (normalizeText); everything else unchanged. Returns a new object, or `params` itself when it
+ * is not an object (validateSearchParams then refuses it). `search()` applies it before
+ * validateSearchParams, so a value that is blank once trimmed is still refused before any
+ * request.
  */
 export function normalizeSearchParams(params: JobSearchParams): JobSearchParams {
   if (!isPlainObject(params as unknown)) return params;
   const out: JobSearchParams = { ...params };
-  for (const name of TEXT_FILTERS) {
-    const value = params[name];
-    if (typeof value === "string") out[name] = normalizeText(value);
+  for (const [name, value] of Object.entries(params as Record<string, unknown>)) {
+    if (typeof value !== "string") continue;
+    // A name from the caller's object: defined, never assigned, so `__proto__` stays an own
+    // key (validateSearchParams refuses it) and never becomes the prototype.
+    Object.defineProperty(out, name, { value: normalizeText(value), enumerable: true, writable: true, configurable: true });
   }
   return out;
 }
@@ -240,8 +340,9 @@ export function searchParamKeyProblem(key: string, allowUnknown = false): string
 
 /**
  * Check search parameters before any request. `undefined` (or `null`) means "not
- * set". A given `was`, `wo`, `berufsfeld` or `arbeitgeber` must not be blank
- * (nonBlankProblem): leave a filter out to search without it. `umkreis` must be an
+ * set". A given `was`, `wo`, `berufsfeld` or `arbeitgeber` must be text (textProblem: not
+ * blank, nothing invisible): leave a filter out to search without it. An unknown parameter's
+ * name must be a token and its string value text. `umkreis` must be an
  * integer 0..MAX_UMKREIS (200), `size` a non-negative integer, `veroeffentlichtseit` an integer
  * 0..MAX_VEROEFFENTLICHT_SEIT, `angebotsart` one of ANGEBOTSART_CODES and `page`
  * an integer >= 1 (the API answers `page=0` with HTTP 400), `zeitarbeit` a boolean;
@@ -262,16 +363,21 @@ export function validateSearchParams(params: JobSearchParams, options: SearchOpt
   for (const [key, value] of Object.entries(params as Record<string, unknown>)) {
     const problem = searchParamKeyProblem(key, allowUnknown);
     if (problem !== undefined) throw new JobsucheValidationError(`Invalid search parameter: ${problem}`);
-    if ((SEARCH_PARAMS as readonly string[]).includes(key) || value === undefined || value === null) continue;
-    // An unknown parameter sent on request: one scalar, as for the known ones.
-    const scalar = typeof value === "string" ? !isBlank(value) : typeof value === "boolean" || Number.isFinite(value);
-    if (!scalar) {
+    if ((SEARCH_PARAMS as readonly string[]).includes(key)) continue;
+    // An unknown parameter sent on request: its name a token, one scalar as for the known ones,
+    // a string value text.
+    const name = tokenProblem(key);
+    if (name !== undefined) throw new JobsucheValidationError(`Invalid search parameter: ${name}`);
+    if (value === undefined || value === null) continue;
+    if (typeof value === "string") {
+      assertValid(key, value, textProblem);
+    } else if (typeof value !== "boolean" && !Number.isFinite(value)) {
       throw new JobsucheValidationError(`Invalid ${key}: Expected one non-blank string, a finite number or a boolean.`);
     }
   }
   for (const name of TEXT_FILTERS) {
     const value = params[name];
-    if (value !== undefined && value !== null) assertValid(name, value, nonBlankProblem);
+    if (value !== undefined && value !== null) assertValid(name, value, textProblem);
   }
   for (const [name, problem] of NUMERIC_PARAMS) {
     const value = params[name];
@@ -355,10 +461,13 @@ export const jobDetailsProblem: Problem<unknown> = (value) => {
 };
 
 /**
- * A reference number (or encoded code) for `details()`: a string that is not blank.
- * A number, `undefined` or an object used to fail as a raw TypeError.
+ * A reference number (or encoded code) for `details()`: a string, and a token
+ * (`tokenProblem`: not blank, no control, format or invisible character, no lone surrogate;
+ * it goes out as `normalizeToken` makes it, trimmed and NFC, then base64-encoded). A number,
+ * `undefined` or an object used to fail as a raw TypeError; a zero-width space in a pasted
+ * refnr was encoded with it and answered 404.
  */
 export const refnrProblem: Problem<unknown> = (value) => {
   if (typeof value !== "string") return "Expected a reference number (a string such as 10001-1002716922-S).";
-  return isBlank(value) ? "Must not be blank." : undefined;
+  return tokenProblem(value);
 };

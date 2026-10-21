@@ -91,15 +91,24 @@ The client checks its input before any request and rejects with a
 rules (exit `2`). The checks are exported from the package root, so a caller can
 run them up front.
 
-- **Blank search filters.** `search()` rejects a `was`, `wo`, `berufsfeld` or
-  `arbeitgeber` that is empty or only whitespace (`validateSearchParams`,
-  `nonBlankProblem`): dropping it would silently widen the search or run it
-  unfiltered. Leave a filter out (`undefined`) to not filter by it. These four text
-  filters go out trimmed and in composed Unicode, NFC (`normalizeText`, applied by
-  `normalizeSearchParams` before the check, so a value blank once trimmed is still
-  refused): a pasted `" München\n"` or a decomposed "München" (u plus U+0308) searches
-  the same as `München`. The reference number, codes and numbers are never
-  text-normalised. `woNote` compares the place in NFC on both sides.
+- **Request values, by kind** (decision D8 of the 2026-10-21 round, the kit's rules). Every
+  value that goes into a request passes one library function for its kind. The four text
+  filters (`was`, `wo`, `berufsfeld`, `arbeitgeber`) and the string value of a parameter sent
+  with `allowUnknownParams` are **text**: `textProblem` refuses a value that is blank — empty,
+  only whitespace, or only invisible characters and combining marks (`isBlank`): dropping it
+  would silently widen the search or run it unfiltered —, a lone surrogate, a control
+  character other than TAB/LF/CR and a format character other than ZWJ/ZWNJ (a zero-width
+  space, a soft hyphen, a bidi control), and they go out trimmed and in composed Unicode, NFC
+  (`normalizeText`, applied by `normalizeSearchParams` before the check, so a value blank once
+  trimmed is still refused): a pasted `" München\n"` or a decomposed "München" (u plus
+  U+0308) searches the same as `München`. Leave a filter out (`undefined`) to not filter by
+  it. The reference number of `details()` and the name of an unknown parameter are
+  **tokens**: `tokenProblem` refuses the same and every control or format character, and the
+  refnr goes out as `normalizeToken` makes it (trimmed, NFC), then base64-encoded. This API
+  has no list option; `splitList`/`listProblem` (a comma list item by item, an empty item
+  refused and named) are exported for library callers, as the kit has them. Codes and numbers
+  are never text-normalised. Each refusal quotes the value visibly (`quoteValue`).
+  `woNote` compares the place in NFC on both sides.
 - **Numeric search parameters out of range.** `veroeffentlichtseit` must be an
   integer `0`..`MAX_VEROEFFENTLICHT_SEIT` (100; the API ignores a larger value and
   returns the unfiltered set), `angebotsart` one of `ANGEBOTSART_CODES` (1, 2, 4, 34;
@@ -660,8 +669,10 @@ copied as is and differs only in its adapter block at the top:
 - `p24-input-corpus` — one corpus of tricky values through every text filter (`--was`,
   `--wo`, `--berufsfeld`, `--arbeitgeber`) and the reference number of `details`, on the CLI
   and in the library: both refuse it before any request, or both send it in canonical form
-  (a text trimmed and in NFC; the reference number trimmed and base64-encoded, so no dot
-  segment or slash reaches the path);
+  (a text trimmed and in NFC; the reference number trimmed, in NFC and base64-encoded, so no
+  dot segment or slash reaches the path); a value of only invisible characters, or one with a
+  control, format or half character, is refused on both sides, the character shown escaped
+  (this API has no list option, so the list cases are empty);
 - `p25-response-corpus` — a number a double can't carry exactly, and an empty answer, are a
   parse error (exit `1`, an ERROR record of `jobsuche.api` naming the request), never a
   changed value;

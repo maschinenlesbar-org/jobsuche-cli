@@ -158,7 +158,9 @@ details  <refnr>        full details for one listing
 | `--page <n>` | 1-based page index (`1` or more) |
 | `--size <n>` | page size |
 
-Each flag takes one value: giving one twice (`--wo Berlin --wo Hamburg`), or
+The text filters go out trimmed and in composed Unicode; a blank value, or one with a
+control, format or half character (a zero-width space, a soft hyphen), is a usage error
+(exit `2`). Each flag takes one value: giving one twice (`--wo Berlin --wo Hamburg`), or
 `--zeitarbeit` together with `--no-zeitarbeit`, is a usage error (exit `2`) rather
 than "the last one wins". The flag names mirror the API's German field names — the
 **[Glossary](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/GLOSSARY.md)** decodes every one.
@@ -168,7 +170,9 @@ than "the last one wins". The flag names mirror the API's German field names —
 Pass the `refnr` from any search result (e.g. `10001-1002716922-S`, a hex form
 like `14225-dafcdd47aabe512d-S`, or a purely numeric `1002716922`). The CLI
 base64-encodes it into the API's `encryptedJobCode` for you. An
-already-encoded code is also accepted and passed through unchanged.
+already-encoded code is also accepted and passed through unchanged. The refnr is sent
+trimmed and in composed Unicode; one with an invisible or control character in it (a
+zero-width space from a copied page) is a usage error, the character shown escaped.
 
 ## Common tasks
 
