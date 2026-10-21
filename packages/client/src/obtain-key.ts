@@ -111,28 +111,28 @@ const FOLLOWED_REDIRECTS = new Set([301, 302, 303, 307, 308]);
 
 export interface ObtainKeyOptions {
   /** Injectable transport; defaults to the built-in node:http/https one. */
-  transport?: Transport;
+  transport?: Transport | undefined;
   /**
    * Override the source document (tests, mirrors): an absolute http(s) URL
    * (httpUrlProblem), else a JobsucheValidationError.
    */
-  sourceUrl?: string;
+  sourceUrl?: string | undefined;
   /**
    * Time limit per request in milliseconds, whole response included, a
    * non-negative integer. Defaults to `DEFAULT_TIMEOUT_MS` (30 s), like the API
    * client; 0 disables it.
    */
-  timeoutMs?: number;
+  timeoutMs?: number | undefined;
   /**
    * Cap on the response body in bytes, a non-negative integer. Defaults to
    * `DEFAULT_MAX_RESPONSE_BYTES` (100 MiB), like the API client; 0 disables it.
    */
-  maxResponseBytes?: number;
+  maxResponseBytes?: number | undefined;
   /**
    * User-Agent header; defaults to `DEFAULT_USER_AGENT`. Must be a valid header
    * value (headerValueProblem), as for the API client: a blank one is rejected.
    */
-  userAgent?: string;
+  userAgent?: string | undefined;
 }
 
 export interface ObtainedKey {

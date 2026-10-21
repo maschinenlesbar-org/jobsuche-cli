@@ -192,7 +192,7 @@ export interface SearchOptions {
    * ignores one it doesn't know (a typo such as `wos`) and returns the unfiltered set.
    * Such a value must still be a string, a finite number or a boolean.
    */
-  allowUnknownParams?: boolean;
+  allowUnknownParams?: boolean | undefined;
 }
 
 /**

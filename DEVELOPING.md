@@ -67,6 +67,12 @@ new JobsucheClient({
 });
 ```
 
+Every optional field of the option types (`JobsucheClientOptions`, `EngineOptions`,
+`JobSearchParams`, `SearchOptions`, `ObtainKeyOptions`) is declared `?: T | undefined`,
+and an option given as `undefined` means its default, as an omitted one does. So
+`{ apiKey: process.env.JOBSUCHE_API_KEY }` compiles in a consumer that sets
+`exactOptionalPropertyTypes` (`packages/client/test/types.test.ts` compiles one).
+
 ### Methods
 
 `client.search(params)` (`/pc/v6/jobs`; the listings are `ergebnisliste`, keyed by
@@ -533,7 +539,7 @@ npm run coverage  # the same tests in one run, with a coverage report
 node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
 
-The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`),
+The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`, `types`),
 with the transport helpers (`helpers.ts`, which `apps/cli/test/helpers.ts` re-exports next
 to the CLI's own helpers) and the recorded answers (`fixtures.ts`); everything that drives
 the CLI is in `apps/cli/test/`.
@@ -541,6 +547,7 @@ the CLI is in `apps/cli/test/`.
 - **`query.test.ts`** — query-string serialisation.
 - **`http.test.ts`** — the default transport against a real loopback `http.createServer`.
 - **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry, and redirect handling (incl. credential-header stripping on cross-origin redirects) — mocked transport.
+- **`types.test.ts`** — a consumer compiled by `tsc` with `exactOptionalPropertyTypes` can pass `undefined` for every option (starts a process, 30 s), and an option given as `undefined` means its default.
 - **`client.test.ts`** — the X-API-Key header, search params and the refnr base64 encoding (incl. hyphenless numeric refnrs and empty-refnr rejection) — mocked transport.
 - **`cli.test.ts`** — command parsing, `--api-key` / `JOBSUCHE_API_KEY` precedence, 401/403 and other exit codes — mocked client.
 - **`validate.test.ts`** — `assertValid`, the exit-2 mapping of `JobsucheValidationError`, and the CLI ↔ library parity tests. `parity()` in `apps/cli/test/helpers.ts` runs one input through `run()` and through the library on one recording mock transport; a parity test asserts both reject without a request, or both send the identical request.

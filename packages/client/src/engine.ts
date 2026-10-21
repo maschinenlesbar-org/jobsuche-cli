@@ -72,59 +72,59 @@ export interface EngineOptions {
    * control characters, query or fragment (baseUrlProblem). Defaults to
    * https://rest.arbeitsagentur.de
    */
-  baseUrl?: string;
+  baseUrl?: string | undefined;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
-  transport?: Transport;
+  transport?: Transport | undefined;
   /**
    * Value of the User-Agent header; defaults to `DEFAULT_USER_AGENT`. Must be a
    * valid header value (headerValueProblem): a blank one is rejected, not replaced.
    */
-  userAgent?: string;
+  userAgent?: string | undefined;
   /**
    * Extra headers sent on every request (e.g. an API key). Names must be HTTP
    * tokens and values valid header values (headerNameProblem, headerValueProblem).
    */
-  defaultHeaders?: Record<string, string>;
+  defaultHeaders?: Record<string, string> | undefined;
   /**
    * Per-request timeout in milliseconds, whole response included, a non-negative
    * integer (0 disables; capped at MAX_TIMEOUT_MS, 2^31 - 1 ms). Defaults to 30000.
    * Enforced by the engine for every transport: the transport gets an AbortSignal
    * that fires at the deadline, and the call fails then either way.
    */
-  timeoutMs?: number;
+  timeoutMs?: number | undefined;
   /**
    * Number of automatic retries for transient (429/503) responses and reset
    * connections (`isTransientNetworkError`; GET/HEAD only), an integer
    * 0..`MAX_RETRIES` (10). Defaults to 2.
    */
-  maxRetries?: number;
+  maxRetries?: number | undefined;
   /**
    * Base backoff between retries in milliseconds (grows linearly: `retryDelayMs *
    * attempt`), an integer 0..`MAX_RETRY_AFTER_MS` (30 000). Defaults to 200. A
    * `Retry-After` header can lengthen a wait (up to `MAX_RETRY_AFTER_MS`), never
    * shorten it; a longer one is not retried at all.
    */
-  retryDelayMs?: number;
+  retryDelayMs?: number | undefined;
   /**
    * Number of HTTP redirects (301/302/303/307/308) to follow, an integer
    * 0..`MAX_REDIRECTS` (10). Defaults to 5. Any other 3xx, one with a missing or
    * malformed Location, and one past this limit surface as a JobsucheApiError
    * naming the target.
    */
-  maxRedirects?: number;
+  maxRedirects?: number | undefined;
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
    * from a hostile/buggy endpoint), a non-negative integer. Defaults to 100 MiB;
    * set to 0 for no limit. Checked on the body of every transport.
    */
-  maxResponseBytes?: number;
+  maxResponseBytes?: number | undefined;
   /** Injectable sleep, primarily for deterministic tests. */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: ((ms: number) => Promise<void>) | undefined;
   /**
    * Called once per retry, right before the backoff sleep, for each retried 429/503
    * and reset connection; never when there is no retry. A throw is swallowed.
    */
-  onRetry?: (event: RetryEvent) => void;
+  onRetry?: ((event: RetryEvent) => void) | undefined;
 }
 
 /** What `EngineOptions.onRetry` is told about one retry. */

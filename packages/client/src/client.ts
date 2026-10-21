@@ -53,7 +53,7 @@ export interface JobsucheClientOptions extends EngineOptions {
    * character above U+00FF is rejected (JobsucheValidationError). Obtain the
    * public key with obtainKey() (see obtain-key.ts).
    */
-  apiKey?: string;
+  apiKey?: string | undefined;
 }
 
 /**

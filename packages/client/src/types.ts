@@ -118,39 +118,39 @@ export type JobDetails = JsonObject;
  */
 export interface JobSearchParams {
   /** "was" — job title / keyword; not blank. */
-  was?: string;
+  was?: string | undefined;
   /** "wo" — location; not blank. */
-  wo?: string;
+  wo?: string | undefined;
   /** Occupational field; not blank. */
-  berufsfeld?: string;
+  berufsfeld?: string | undefined;
   /**
    * Employer name; not blank. Matched exactly and case-sensitively against the
    * registered name (`"Siemens AG"`, not `"Siemens"` or `"siemens ag"`); the
    * `facetten.arbeitgeber` keys of a search are those names.
    */
-  arbeitgeber?: string;
+  arbeitgeber?: string | undefined;
   /**
    * Radius in km around `wo`: an integer 0..`MAX_UMKREIS` (200; the API answers a
    * larger one with HTTP 400). 0 searches the place itself.
    */
-  umkreis?: number;
+  umkreis?: number | undefined;
   /**
    * Published within the last N days: an integer 0..`MAX_VEROEFFENTLICHT_SEIT`
    * (100). The API would silently ignore a larger value.
    */
-  veroeffentlichtseit?: number;
+  veroeffentlichtseit?: number | undefined;
   /**
    * Temp-work (Zeitarbeit) listings: omitted = included with the rest, `true` =
    * only temp-work listings, `false` = none.
    */
-  zeitarbeit?: boolean;
+  zeitarbeit?: boolean | undefined;
   /**
    * Offer type code, one of `ANGEBOTSART_CODES`: 1 job, 2 self-employment,
    * 4 apprenticeship/dual study, 34 internship/trainee.
    */
-  angebotsart?: Angebotsart;
+  angebotsart?: Angebotsart | undefined;
   /** 1-based page; an integer >= 1 (the API answers 0 with HTTP 400). */
-  page?: number;
+  page?: number | undefined;
   /** Page size; a non-negative integer. */
-  size?: number;
+  size?: number | undefined;
 }
