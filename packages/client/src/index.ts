@@ -46,6 +46,8 @@ export {
   MAX_UMKREIS,
   MAX_VEROEFFENTLICHT_SEIT,
   nonBlankProblem,
+  normalizeSearchParams,
+  normalizeText,
   refnrProblem,
   SEARCH_PARAMS,
   searchParamKeyProblem,

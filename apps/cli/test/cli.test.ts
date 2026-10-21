@@ -592,3 +592,17 @@ test("--compact takes the gap path only for an answer holding a huge string, the
   assert.deepEqual(calls.map((args) => (args.length >= 3 ? args[2] : "none")), ["", "none", "", "", 2]);
   assert.deepEqual(out, ['"stub"', '"stub"', '"stub"', '"stub"', '"stub"']);
 });
+
+test("the text filters go out trimmed and composed, as the library sends them (K6)", async () => {
+  const cli = makeCli(okResponse);
+  const args = ["search", "--was", " Bäcker\n", "--wo", "München ", "--berufsfeld", " Informatik", "--arbeitgeber", "Siemens AG\t"];
+  assert.equal(await run(args, cli.deps), 0, cli.err.join("\n"));
+  const sent = new URL(cli.mt.last().url).searchParams;
+  assert.equal(sent.get("was"), "Bäcker");
+  assert.equal(sent.get("wo"), "München");
+  assert.equal(sent.get("berufsfeld"), "Informatik");
+  assert.equal(sent.get("arbeitgeber"), "Siemens AG");
+  const blank = makeCli(okResponse);
+  assert.equal(await run(["search", "--wo", "　"], blank.deps), 2);
+  assert.equal(blank.mt.calls.length, 0);
+});

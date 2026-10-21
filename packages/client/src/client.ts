@@ -23,6 +23,7 @@ import {
   jobDetailsProblem,
   refnrProblem,
   searchResultProblem,
+  normalizeSearchParams,
   validateSearchParams,
   type Problem,
   type SearchOptions,
@@ -130,9 +131,11 @@ export class JobsucheClient {
    * would otherwise run the search unfiltered).
    */
   async search(params: JobSearchParams = {}, options: SearchOptions = {}): Promise<JobSearchResult> {
-    validateSearchParams(params, options);
+    // The text filters go out trimmed and in NFC (normalizeSearchParams), checked as sent.
+    const sent = normalizeSearchParams(params);
+    validateSearchParams(sent, options);
     const path = `${SERVICE}/pc/v6/jobs`;
-    return checked(path, await this.engine.getJson<unknown>(path, prune({ ...params })), searchResultProblem, "search result");
+    return checked(path, await this.engine.getJson<unknown>(path, prune({ ...sent })), searchResultProblem, "search result");
   }
 
   /**

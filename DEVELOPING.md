@@ -94,7 +94,12 @@ run them up front.
 - **Blank search filters.** `search()` rejects a `was`, `wo`, `berufsfeld` or
   `arbeitgeber` that is empty or only whitespace (`validateSearchParams`,
   `nonBlankProblem`): dropping it would silently widen the search or run it
-  unfiltered. Leave a filter out (`undefined`) to not filter by it.
+  unfiltered. Leave a filter out (`undefined`) to not filter by it. These four text
+  filters go out trimmed and in composed Unicode, NFC (`normalizeText`, applied by
+  `normalizeSearchParams` before the check, so a value blank once trimmed is still
+  refused): a pasted `" München\n"` or a decomposed "München" (u plus U+0308) searches
+  the same as `München`. The reference number, codes and numbers are never
+  text-normalised. `woNote` compares the place in NFC on both sides.
 - **Numeric search parameters out of range.** `veroeffentlichtseit` must be an
   integer `0`..`MAX_VEROEFFENTLICHT_SEIT` (100; the API ignores a larger value and
   returns the unfiltered set), `angebotsart` one of `ANGEBOTSART_CODES` (1, 2, 4, 34;

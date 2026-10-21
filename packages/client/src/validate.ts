@@ -33,6 +33,35 @@ export function isBlank(value: string): boolean {
 }
 
 /**
+ * A free-text value as the API should get it: without surrounding whitespace (U+00A0
+ * and U+3000 included; a value pasted with a trailing space or newline) and in composed
+ * Unicode, NFC (a decomposed "München", u plus U+0308 as pasted from a macOS file name).
+ * Inner whitespace is kept. Applied to the text filters (`TEXT_FILTERS`: `was`, `wo`,
+ * `berufsfeld`, `arbeitgeber`) by `normalizeSearchParams`; never to the reference
+ * number, codes or numbers.
+ */
+export function normalizeText(value: string): string {
+  return value.trim().normalize("NFC");
+}
+
+/**
+ * Search parameters with each text filter (`TEXT_FILTERS`) that is a string in its
+ * canonical form (normalizeText); everything else unchanged. Returns a new object, or
+ * `params` itself when it is not an object (validateSearchParams then refuses it).
+ * `search()` applies it before validateSearchParams, so a value that is blank once
+ * trimmed is still refused before any request.
+ */
+export function normalizeSearchParams(params: JobSearchParams): JobSearchParams {
+  if (!isPlainObject(params as unknown)) return params;
+  const out: JobSearchParams = { ...params };
+  for (const name of TEXT_FILTERS) {
+    const value = params[name];
+    if (typeof value === "string") out[name] = normalizeText(value);
+  }
+  return out;
+}
+
+/**
  * A blank value ("" or whitespace, often an unset shell variable or an empty form
  * field) is invalid: the API treats a missing filter as no filter, so a blank
  * filter would silently widen the search or run it unfiltered.

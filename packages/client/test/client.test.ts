@@ -190,3 +190,25 @@ test("woNote names an unrecognised or substituted place, not a correction in kin
   assert.equal(woNote(undefined, at(undefined, "UNGUELTIG")), undefined);
   assert.equal(woNote("Berlin", { maxErgebnisse: 0 }), undefined);
 });
+
+test("the text filters go out trimmed and in composed Unicode; a blank one is refused (K6)", async () => {
+  const decomposed = "München"; // u + U+0308, as pasted from a macOS file name
+  const mt = makeMockTransport(okResponse);
+  const client = new JobsucheClient({ transport: mt.transport });
+  await client.search({ was: "  Bäcker\n", wo: ` ${decomposed}\t`, berufsfeld: " Informatik ", arbeitgeber: " Siemens AG　" });
+  const sent = new URL(mt.last().url).searchParams;
+  assert.equal(sent.get("was"), "Bäcker");
+  assert.equal(sent.get("wo"), "München");
+  assert.equal(sent.get("berufsfeld"), "Informatik");
+  assert.equal(sent.get("arbeitgeber"), "Siemens AG");
+  // Inner whitespace is kept.
+  await client.search({ was: " Fach  informatiker " });
+  assert.equal(new URL(mt.last().url).searchParams.get("was"), "Fach  informatiker");
+  const count = mt.calls.length;
+  for (const name of ["was", "wo", "berufsfeld", "arbeitgeber"] as const) {
+    for (const blank of ["", " ", " ", "\n\t", "　"]) {
+      await assert.rejects(client.search({ [name]: blank }), JobsucheValidationError, `${name} ${JSON.stringify(blank)}`);
+    }
+  }
+  assert.equal(mt.calls.length, count);
+});

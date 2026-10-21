@@ -114,7 +114,8 @@ export type JobDetails = JsonObject;
 /**
  * Parameters for the jobs search endpoint. `search()` checks them before any
  * request (validateSearchParams); leave a parameter out (`undefined`) to not
- * filter by it.
+ * filter by it. The text filters (`was`, `wo`, `berufsfeld`, `arbeitgeber`) are
+ * sent trimmed and in NFC (`normalizeText`).
  */
 export interface JobSearchParams {
   /** "was" — job title / keyword; not blank. */
