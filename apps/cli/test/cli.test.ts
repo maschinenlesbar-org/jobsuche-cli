@@ -281,7 +281,7 @@ test("a JSON parse error does not pass the body's control characters to stderr",
   const cli = makeCli(() => rawResponse(`${ESC}]0;TITLE${BEL}${ESC}[31m not json`, "application/json"));
   assert.equal(await run(["search", "--was", "x"], cli.deps), 1);
   const err = cli.err.join("\n");
-  assert.match(err, /Failed to parse JSON response/);
+  assert.match(err, /GET https:\/\/rest\.arbeitsagentur\.de\/jobboerse\/jobsuche-service\/pc\/v6\/jobs\?was=x: the answer is not valid JSON/);
   assert.match(err, /TITLE/);
   assert.equal([...err].filter((c) => c.charCodeAt(0) < 0x20 && c !== "\n").length, 0);
 });

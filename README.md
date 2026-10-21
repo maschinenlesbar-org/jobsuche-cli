@@ -203,7 +203,8 @@ Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `W
 `INFO`) and a topic, the program and the area it comes from (`jobsuche.cli` for usage
 errors, `jobsuche.api` for the API's answers, a malformed one included, `jobsuche.http` for the connection,
 `jobsuche.config` for the credentials file, its failures included, `jobsuche.obtain-key`,
-`jobsuche.output` for a stdout write error).
+`jobsuche.output` for a stdout write error). An error about an answer names the request
+(`GET <url>: the answer is not valid JSON.`).
 By default it is written log4j style;
 `--log-format jsonl` writes one JSON object per line instead. A record is always one
 line: a line break, a control character or a bidi control in a message (a server's

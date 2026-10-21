@@ -465,14 +465,23 @@ result is an object with an integer `maxErgebnisse` and, when present, an
 `ergebnisliste` array of listings with a string `referenznummer`; a listing is an
 object with a string `referenznummer`. Anything else — `null`, `{}`, an array, an
 error envelope such as `{"message": "quota exceeded"}` — is a `JobsucheParseError`
-(CLI exit `1`) quoting what the server said, never data or "nothing found".
+(CLI exit `1`) quoting what the server said, never data or "nothing found"
+(`GET <url>: unexpected response shape: not a search result (no maxErgebnisse count; the
+server said: quota exceeded).`).
+
+Every error about an answer names the request, `GET <url>: …`, with the URL as the engine's
+`describeUrl` gives it (absolute, so a `--base-url` mirror's host is named; userinfo shown as
+`***@`; cut at 500 characters), like a network error: the shape errors above, a body that is
+not JSON (`the answer is not valid JSON.`), one with another Content-Type (`expected a JSON
+answer, got Content-Type "text/html".`), an empty body (`empty response body.`, never "nothing
+found"), an inexact number and an unknown charset (`unsupported response charset "…".`).
 
 A body with a number JSON.parse cannot carry exactly — one out of a double's range
 (`1e400`, which printed as `null`), one past 2^53 that it rounds, in any form
 (`12345678901234567890`, `12345678901234567890.0`, `9007199254740993e0`,
 `9007199254740992.5`), a non-zero one too small for a double (`1e-400`, which became
 `0`), or a subnormal one (below 2.2250738585072014e-308) that does not print as written
-(`3e-324`, which became `5e-324`) — is a `JobsucheParseError` too (`Unexpected response from <path>: the number …
+(`3e-324`, which became `5e-324`) — is a `JobsucheParseError` too (`GET <url>: the number …
 cannot be represented exactly.`, `firstInexactNumber` in `getJson`), never a changed
 value; below 2^53 and above the subnormal range a decimal fraction keeps a double's usual
 precision. Past 2^53 and below the smallest normal double the number

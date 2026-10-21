@@ -758,6 +758,15 @@ export class RequestEngine {
     return `${this.#baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
 
+  /**
+   * The request URL as error messages show it: absolute (so a message names the host
+   * that gave a bad answer, which matters with a custom base URL), userinfo redacted
+   * and cut at 500 characters.
+   */
+  describeUrl(path: string, query?: QueryParams): string {
+    return cutForMessage(redactUrl(this.buildUrl(path, query)), MAX_DETAIL_LENGTH);
+  }
+
   /** Perform a request with Accept negotiation and transient-error retries. */
   async request(
     method: string,
@@ -880,10 +889,14 @@ export class RequestEngine {
     }
   }
 
-  /** Perform a GET expecting JSON and parse it into `T`. */
+  /**
+   * Perform a GET expecting JSON and parse it into `T`. Every error about the answer names
+   * the request (`GET <url>: …`, userinfo redacted).
+   */
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
     const res = await this.request("GET", path, { query, accept: "application/json" });
-    const text = decodeBody(res.data, res.contentType, path);
+    const request = `GET ${this.describeUrl(path, query)}`;
+    const text = decodeBody(res.data, res.contentType, request);
     // Guard against a 200 that is not actually JSON (e.g. an HTML error/landing
     // page from a misconfigured --base-url that resolves to an unexpected host).
     // Inspecting the Content-Type yields a clearer message than a raw parse error.
@@ -894,23 +907,24 @@ export class RequestEngine {
       // cannot inject terminal escape sequences via the parse-error message.
       const snippet = sanitizeServerText(this.#scrub(cutText(text, 200)));
       throw new JobsucheParseError(
-        `Expected a JSON response from ${path} but got Content-Type "${cutForMessage(sanitizeServerText(res.contentType))}"`,
+        `${request}: expected a JSON answer, got Content-Type "${cutForMessage(sanitizeServerText(res.contentType))}".`,
         { cause: snippet ? new Error(snippet) : undefined },
       );
     }
+    // A broken answer, not "no results": printed as nothing with exit 0, it would let a
+    // script carry on as if the API had found nothing.
+    if (text.trim() === "") throw new JobsucheParseError(`${request}: empty response body.`);
     let parsed: T;
     try {
       parsed = JSON.parse(text) as T;
     } catch (cause) {
-      throw new JobsucheParseError(`Failed to parse JSON response from ${path}`, { cause: scrubCause(cause, this.#scrub) });
+      throw new JobsucheParseError(`${request}: the answer is not valid JSON.`, { cause: scrubCause(cause, this.#scrub) });
     }
     // JSON.parse rounds and overflows numbers silently: refuse the answer rather than
     // hand on a changed value.
     const inexact = firstInexactNumber(text);
     if (inexact !== undefined) {
-      throw new JobsucheParseError(
-        `Unexpected response from ${path}: the number ${cutForMessage(inexact)} cannot be represented exactly.`,
-      );
+      throw new JobsucheParseError(`${request}: the number ${cutForMessage(inexact)} cannot be represented exactly.`);
     }
     return parsed;
   }
@@ -970,15 +984,15 @@ export class RequestEngine {
  * none). TextDecoder drops a leading byte order mark, which Buffer#toString keeps and
  * JSON.parse then rejects, so a BOM added by a proxy cannot turn a valid answer into
  * a parse error, and an `iso-8859-1` body keeps its umlauts. An unknown charset label
- * is a `JobsucheParseError` naming it and `where`.
+ * is a `JobsucheParseError` naming it and `request` (`GET <url>`).
  */
-export function decodeBody(body: Buffer, contentType: string, where: string): string {
+export function decodeBody(body: Buffer, contentType: string, request: string): string {
   const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset);
   } catch {
-    throw new JobsucheParseError(`Unsupported response charset "${cutForMessage(sanitizeServerText(charset))}" from ${where}.`);
+    throw new JobsucheParseError(`${request}: unsupported response charset "${cutForMessage(sanitizeServerText(charset))}".`);
   }
   return decoder.decode(body);
 }

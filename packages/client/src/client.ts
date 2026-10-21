@@ -73,13 +73,14 @@ function prune(params: Record<string, unknown>): QueryParams {
 
 /**
  * `value` as `T` when `problem` finds nothing wrong with it, else a JobsucheParseError
- * (`Unexpected response from <path>: not a <what> (<reason>)`): a 2xx body without
- * the documented shape is never handed on as data.
+ * (`GET <url>: unexpected response shape: not a <what> (<reason>).`, the request as
+ * `RequestEngine.describeUrl` names it): a 2xx body without the documented shape is never
+ * handed on as data.
  */
-function checked<T>(path: string, value: unknown, problem: Problem<unknown>, what: string): T {
+function checked<T>(request: string, value: unknown, problem: Problem<unknown>, what: string): T {
   const reason = problem(value);
   if (reason !== undefined) {
-    throw new JobsucheParseError(`Unexpected response from ${path}: not a ${what} (${sanitizeServerText(reason)}).`);
+    throw new JobsucheParseError(`${request}: unexpected response shape: not a ${what} (${sanitizeServerText(reason)}).`);
   }
   return value as T;
 }
@@ -135,7 +136,9 @@ export class JobsucheClient {
     const sent = normalizeSearchParams(params);
     validateSearchParams(sent, options);
     const path = `${SERVICE}/pc/v6/jobs`;
-    return checked(path, await this.engine.getJson<unknown>(path, prune({ ...sent })), searchResultProblem, "search result");
+    const query = prune({ ...sent });
+    const request = `GET ${this.engine.describeUrl(path, query)}`;
+    return checked(request, await this.engine.getJson<unknown>(path, query), searchResultProblem, "search result");
   }
 
   /**
@@ -157,7 +160,7 @@ export class JobsucheClient {
       ? trimmed
       : Buffer.from(trimmed, "utf8").toString("base64");
     const path = `${SERVICE}/pc/v4/jobdetails/${encodeURIComponent(code)}`;
-    return checked(path, await this.engine.getJson<unknown>(path), jobDetailsProblem, "job listing");
+    return checked(`GET ${this.engine.describeUrl(path)}`, await this.engine.getJson<unknown>(path), jobDetailsProblem, "job listing");
   }
 
   /**

@@ -141,6 +141,12 @@ test("a 2xx body that is not a search result or a listing is a parse error", asy
   // The server's own words are quoted.
   const said = new JobsucheClient({ transport: constantJson({ message: "quota exceeded" }).transport });
   await assert.rejects(said.search(), /not a search result \(no maxErgebnisse count; the server said: quota exceeded\)/);
+  // The error names the request (D9): method and URL, with the query that was sent.
+  await assert.rejects(said.search({ was: "Koch" }), (err: Error) =>
+    err.message.startsWith("GET https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs?was=Koch: unexpected response shape: not a search result"));
+  const listing = new JobsucheClient({ transport: constantJson({}).transport });
+  await assert.rejects(listing.details("10001-1-S"), (err: Error) =>
+    err.message === "GET https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/jobdetails/MTAwMDEtMS1T: unexpected response shape: not a job listing (no referenznummer).");
 });
 
 // 2026-10-05 sweep, 04 question 1: an unknown parameter (a typo such as `wos`) went to
