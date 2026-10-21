@@ -9,7 +9,7 @@ import type { JobsucheClientOptions } from "@maschinenlesbar.org/jobsuche-client
 import { JobsucheError, JobsucheValidationError, quoteValue } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
 import { API_KEY_ENV_VAR } from "@maschinenlesbar.org/jobsuche-client/internal/obtain-key";
 import { API_KEY_PHRASE, DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type RetryEvent } from "@maschinenlesbar.org/jobsuche-client/internal/engine";
-import { baseUrlProblem, headerValueProblem, intRangeProblem, refnrProblem, textProblem } from "@maschinenlesbar.org/jobsuche-client/internal/validate";
+import { baseUrlProblem, headerValueProblem, intRangeProblem, normalizeText, refnrProblem, textProblem } from "@maschinenlesbar.org/jobsuche-client/internal/validate";
 
 /** The name the API key is stored under in the credentials file (`jobsuche config set api-key`). */
 export const API_KEY_CREDENTIAL = "api-key";
@@ -59,7 +59,9 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
  * apart here, and `--was -- -x` merely makes the value `--`. (A `--` *does* work
  * for a positional argument, which is a different case — see lobbyregister-cli's
  * `search` query.) No job title, place, occupational field or employer name is
- * searched with a leading dash, so nothing legitimate is lost.
+ * searched with a leading dash, so nothing legitimate is lost. The rule judges the value as
+ * it is sent (`normalizeText`: trimmed, NFC), so `--was " -Koch"` is refused like `--was -Koch`
+ * rather than sending `was=-Koch` once the library trims it.
  *
  * The library's text rule comes first (textProblem, the client applies it the same way): a
  * blank value ("" or whitespace, often an unset shell variable, or only invisible characters),
@@ -69,7 +71,7 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
 export function parseTextArg(value: string): string {
   const problem = textProblem(value);
   if (problem !== undefined) throw new InvalidArgumentError(problem);
-  if (/^--?[^\s]/.test(value)) {
+  if (/^--?[^\s]/.test(normalizeText(value))) {
     throw new InvalidArgumentError(
       `looks like a missing value — ${quoteValue(value)} is the next option, consumed because ` +
         "this one was left without a value. Supply the intended search term.",

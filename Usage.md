@@ -66,7 +66,9 @@ or holds only invisible characters, is a usage error, and so is one with a contr
 character (other than a tab or a line break), a format character (a zero-width space, a
 soft hyphen, a bidi control; ZWJ and ZWNJ are allowed) or half a character (a lone
 surrogate): pasted along, such a character made the search find nothing. The refusal shows
-it escaped (`"Ko\u200bch" contains an invisible character (U+200B).`).
+it escaped (`"Ko\u200bch" contains an invisible character (U+200B).`). A value that starts
+with a dash once trimmed (`-Koch`, `" -Koch"`) is refused as a missing value: in `--was --wo
+Berlin` the next option was taken as the search text.
 The result is a `JobSearchResult` object: `ergebnisliste` (the listings — absent,
 not `[]`, when nothing matched), plus `maxErgebnisse` (total matches), `page`,
 `size`, `woOutput` and `facetten`. `woOutput.bereinigterOrt` is the place the API

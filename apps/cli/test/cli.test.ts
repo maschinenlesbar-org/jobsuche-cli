@@ -245,6 +245,23 @@ test("a starved free-text option is a usage error, not a silent search", async (
   assert.equal(cli.mt.calls.length, 0);
 });
 
+// 2026-10-21 sweep, 01 Bug 1: the dash guard tested the raw value, and the library trims
+// afterwards, so `--was " -Koch"` sent was=-Koch: the very value the rule refuses.
+test("the dash guard judges the value as it is sent: a padded dash-leading value is refused too", async () => {
+  for (const value of ["-Koch", " -Koch", "\t-Koch", "\n--wo", " --base-url=http://evil.example", "\u00a0-x"]) {
+    const cli = makeCli(okResponse);
+    assert.equal(await run(["search", "--was", value], cli.deps), 2, JSON.stringify(value));
+    assert.equal(cli.mt.calls.length, 0, JSON.stringify(value));
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[jobsuche\.cli\] .*looks like a missing value/, JSON.stringify(value));
+  }
+  // A dash inside the value, or a lone one, is a search text like any other.
+  for (const value of ["Koch -Lehrling", "Mit-Arbeiter", "-"]) {
+    const cli = makeCli(okResponse);
+    assert.equal(await run(["search", "--was", value], cli.deps), 0, JSON.stringify(value));
+    assert.equal(new URL(cli.mt.last().url).searchParams.get("was"), value);
+  }
+});
+
 // zeitarbeit=true returns only temp-work listings and the default already
 // includes them (live: 2231 + 6033 = 8264), so --zeitarbeit narrows and
 // --no-zeitarbeit is the way to leave them out.
