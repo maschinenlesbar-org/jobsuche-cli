@@ -6,7 +6,7 @@ import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { logOf, type CliDeps } from "./io.js";
 import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat, type Logger } from "./log.js";
-import type { GlobalOptions } from "./shared.js";
+import { OutputError, type GlobalOptions } from "./shared.js";
 import { sanitizeServerText } from "@maschinenlesbar.org/jobsuche-client/internal/engine";
 import {
   JobsucheApiError,
@@ -430,8 +430,9 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return 1;
     }
     if (err instanceof JobsucheError) {
-      // The credentials file and the config commands have an area of their own.
-      log.error(err instanceof CredentialsError ? "config" : "cli", err.message);
+      // The credentials file and the config commands have an area of their own; so has an
+      // answer that can't be printed (nested too deeply, too large).
+      log.error(err instanceof CredentialsError ? "config" : err instanceof OutputError ? "output" : "cli", err.message);
       return 1;
     }
     log.error("cli", `Unexpected error: ${err instanceof Error ? err.message : String(err)}`);

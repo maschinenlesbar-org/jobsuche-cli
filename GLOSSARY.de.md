@@ -198,7 +198,8 @@ Antworten der API: ein Fehlerstatus, die Hinweise zu 401/403, die `--wo`-Warnung
 fehlerhafte Antwort — ungültiges JSON, die falsche Form oder der falsche Content-Type — und
 durch U+FFFD ersetzter Text, als `WARN`),
 `http` (die Verbindung, die Klartext-Warnung, je Wiederholung eine WARN-Zeile vor dem Warten), `config` (die Datei mit den Zugangsdaten),
-`obtain-key` und `output` (Schreibfehler auf stdout). Ein Eintrag ist immer eine Zeile;
+`obtain-key` und `output` (Schreibfehler auf stdout, eine Antwort, die zu tief verschachtelt
+oder zu groß für die Ausgabe ist). Ein Eintrag ist immer eine Zeile;
 Steuerzeichen darin werden maskiert.
 
 **Ersetzter Text (replaced text).** Bytes einer Antwort, die in ihrem Zeichensatz ungültig

@@ -194,7 +194,7 @@ answers `401`/`403`, the error says the redirect dropped the key (for `http:` �
 commander's messages, unexpected errors), `api` (the API's answers: an error status, the
 401/403 hints, the `--wo` warning, a malformed answer — bad JSON, the wrong shape or
 content type —, and text replaced with U+FFFD, as `WARN`), `http` (the connection, the cleartext warning, one WARN per retry before it waits), `config` (the credentials
-file), `obtain-key` and `output` (stdout failures). A record is always one line; control
+file), `obtain-key` and `output` (stdout failures, an answer too deeply nested or too large to print). A record is always one line; control
 characters in it are escaped.
 
 **Replaced text.** Bytes of an answer that are not valid in its charset, and half characters

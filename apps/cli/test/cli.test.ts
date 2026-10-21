@@ -397,21 +397,47 @@ test("an unsendable JOBSUCHE_API_KEY is a usage error, as from --api-key", async
 
 // A 100 000-deep body parsed fine but overflowed JSON.stringify:
 // "Unexpected error: Maximum call stack size exceeded".
-test("a deeply nested response gives a clear error instead of a stack overflow", async () => {
+test("an answer nested too deeply is a clean error; it suggests --compact only where --compact prints it (D7)", async () => {
+  // A hostile or broken answer: JSON.parse reads it, the pretty printer's recursion can't. Whether
+  // the compact printer can depends on the Node version (iterative from Node 26) and the stack:
+  // probed here, never assumed.
   const depth = 200_000;
   // A valid search result whose facets nest without end.
   const body = `{"maxErgebnisse":0,"facetten":{"x":${"[".repeat(depth)}${"]".repeat(depth)}}}`;
+  let compactPrints = true;
+  try {
+    JSON.stringify(JSON.parse(body));
+  } catch {
+    compactPrints = false;
+  }
   const pretty = makeCli(() => rawResponse(body, "application/json"));
   assert.equal(await run(["search", "--was", "x"], pretty.deps), 1);
-  assert.equal(untimed(pretty.err.join("\n")), "ERROR [jobsuche.cli] The response is nested too deeply to pretty-print; try --compact.");
-
+  assert.deepEqual(pretty.out, []);
+  assert.equal(
+    untimed(pretty.err.join("\n")),
+    `ERROR [jobsuche.output] The answer is nested too deeply to pretty-print${compactPrints ? "; try --compact" : ""}.`,
+  );
   const compact = makeCli(() => rawResponse(body, "application/json"));
-  const code = await run(["--compact", "search", "--was", "x"], compact.deps);
-  // Compact output may still fit the stack; if not, the message is the compact one.
-  if (code !== 0) {
-    assert.equal(code, 1);
-    assert.equal(untimed(compact.err.join("\n")), "ERROR [jobsuche.cli] The response is nested too deeply to print.");
-  }
+  assert.equal(await run(["--compact", "search", "--was", "x"], compact.deps), compactPrints ? 0 : 1);
+  if (compactPrints) assert.equal(compact.out.join("").length, body.length);
+  else assert.equal(untimed(compact.err.join("\n")), "ERROR [jobsuche.output] The answer is nested too deeply to print.");
+});
+
+test("an answer too large to print is called too large, not too deep; the hint only where --compact prints (D7)", (t) => {
+  const { deps } = makeCli(okResponse);
+  const real = JSON.stringify;
+  // V8's own error for a text past its longest string, stood in for: a real one needs 512 MB.
+  const tooLarge = (gap: unknown): boolean => gap === 2 || gap === "big";
+  t.mock.method(JSON, "stringify", (value: unknown, replacer: never, gap: unknown) => {
+    if (tooLarge(gap) || (gap === undefined && (value as { all?: boolean }).all === true)) throw new RangeError("Invalid string length");
+    return real(value, replacer, gap as number);
+  });
+  assert.throws(() => renderJson(deps, {}, { id: "a1" }), (err: Error) =>
+    /^The answer is too large \(more than \d+ characters of JSON\) to pretty-print; try --compact\.$/.test(err.message));
+  assert.throws(() => renderJson(deps, {}, { all: true }), (err: Error) =>
+    /^The answer is too large \(more than \d+ characters of JSON\) to pretty-print\.$/.test(err.message));
+  assert.throws(() => renderJson(deps, { compact: true }, { all: true }), (err: Error) =>
+    /^The answer is too large \(more than \d+ characters of JSON\) to print\.$/.test(err.message));
 });
 
 // U+202E and U+2028 were written raw, so a title could spoof the terminal display.

@@ -548,13 +548,18 @@ an injectable `env` (for `JOBSUCHE_API_KEY`) and an optional `credentials` store
 (`jobsuche config`; only `defaultDeps` sets it). Lets the whole CLI run in
 tests with a mocked client and captured output — no subprocess.
 
-**Rendering** (`renderJson` in [`shared.ts`](apps/cli/src/cli/shared.ts)). An answer
-nested too deeply to pretty-print is an ERROR record that suggests `--compact`, not a
-stack overflow. `--compact` takes V8's fast path (`JSON.stringify(value)`) unless the
-answer holds a string or key of 64 Mi characters or more (`holdsHugeString`, an
-iterative walk), which goes through the gap path (an empty gap, the same text): on
-Node 26 the fast path aborts the process on a ~250 MB string from JSON.parse, but it
-is also the only path that prints very deep nesting there.
+**Rendering** (`renderJson` in [`shared.ts`](apps/cli/src/cli/shared.ts)). An answer that
+can't be printed is an `OutputError`, an ERROR record of `jobsuche.output` (exit `1`) that names
+the cause, never a stack overflow or "Unexpected error": "The answer is nested too deeply to
+pretty-print" (or "to print" with `--compact`), or "The answer is too large (more than 536870888
+characters of JSON) to pretty-print", V8's longest string. "; try --compact" is added only when
+the compact form of that very answer prints: it is probed, not assumed, because that depends on
+the Node version and the stack. `--compact` takes V8's fast path (`JSON.stringify(value)`)
+unless the answer holds a string or key of 64 Mi characters or more (`holdsHugeString`:
+iterative, linear, an array walked by index and an object by `for…in`, nothing allocated per
+value, so 8 M numbers print within a 256 MB heap), which goes through the gap path (an empty
+gap, the same text): on Node 26 the fast path aborts the process on a ~250 MB string from
+JSON.parse, but it is also the only path that prints very deep nesting there.
 
 **Closed pipes.** The bin shim installs `handleOutputErrors()` (in `io.ts`) before
 `run()`. An EPIPE on stdout (`| head`, `| jq` exiting early) exits `0` at once,
@@ -643,8 +648,9 @@ copied as is and differs only in its adapter block at the top:
 - `p25-response-corpus` — a number a double can't carry exactly, and an empty answer, are a
   parse error (exit `1`, an ERROR record of `jobsuche.api` naming the request), never a
   changed value;
-- `p27-big-and-odd-answers` — big and odd answers: a lone surrogate or invalid bytes become
-  U+FFFD with one `WARN` of `jobsuche.api`, never silent or fatal.
+- `p27-big-and-odd-answers` — big and odd answers: 8 M numbers print with `--compact` within a
+  256 MB heap; a lone surrogate or invalid bytes become U+FFFD with one `WARN` of
+  `jobsuche.api`, never silent or fatal.
 
 Cases that don't apply here are skipped in the adapter with the reason (no
 base-URL environment variable; `obtain-key` does not verify the key; no `-o`, so P23's
@@ -714,7 +720,7 @@ controls as `\uXXXX`, so no text that reaches a record, by whatever path, can sp
 forge another one or steer the terminal. Before that a lone surrogate (half a
 character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`),
 and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
-code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning, and a malformed answer, a `JobsucheParseError`: bad JSON, the wrong shape or content type, an unknown charset; and text replaced with U+FFFD, as `WARN`), `http` (the connection, the cleartext warning, one WARN per retry before it waits), `config` (the credentials file and the `config` commands: what they stored or removed, and every failure of the file — `CredentialsError` —, whichever command read it; a usage error of a `config` command stays `cli`), `obtain-key` and `output` (a stdout write error). The no-echo prompt of `config set` stays plain. Code logs through `logOf(deps)` and never writes diagnostics
+code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the API's answers: HTTP errors, the 401/403 hints, the `--wo` warning, and a malformed answer, a `JobsucheParseError`: bad JSON, the wrong shape or content type, an unknown charset; and text replaced with U+FFFD, as `WARN`), `http` (the connection, the cleartext warning, one WARN per retry before it waits), `config` (the credentials file and the `config` commands: what they stored or removed, and every failure of the file — `CredentialsError` —, whichever command read it; a usage error of a `config` command stays `cli`), `obtain-key` and `output` (a stdout write error, an answer too deeply nested or too large to print). The no-echo prompt of `config set` stays plain. Code logs through `logOf(deps)` and never writes diagnostics
 with `io.err` directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`: the first `--log-format`, the value of one of the program's own value options
 skipped, used only for the records of a parse error; a `preAction` hook then sets the
