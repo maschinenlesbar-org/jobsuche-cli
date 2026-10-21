@@ -594,11 +594,18 @@ copied as is and differs only in its adapter block at the top:
   `--log-format text|jsonl`; since the 2026-10-09 fixes also: one line with nothing raw,
   well-formed and bounded, the frame untouched by redaction, commander's help one record
   per line, the format commander parsed, malformed answers under `api`, echoed
-  credentials replaced, an `a:b@c` value that is no URL left alone.
+  credentials replaced, an `a:b@c` value that is no URL left alone;
+- `p24-input-corpus` — one corpus of tricky values through every text filter (`--was`,
+  `--wo`, `--berufsfeld`, `--arbeitgeber`) and the reference number of `details`, on the CLI
+  and in the library: both refuse it before any request, or both send it in canonical form
+  (a text trimmed and in NFC; the reference number trimmed and base64-encoded, so no dot
+  segment or slash reaches the path);
+- `p25-response-corpus` — a number a double can't carry exactly, and an empty answer, are a
+  parse error (exit `1`, an ERROR record of `jobsuche.api`), never a changed value.
 
 Cases that don't apply here are skipped in the adapter with the reason (no
 base-URL environment variable; `obtain-key` does not verify the key; no `-o`, so P23's
-`OUTPUT_OPTION` is undefined; P23's `VALUE_OPTION` is `--log-format`, because
+`OUTPUT_OPTION` is undefined and there is no P26 (output integrity); P23's `VALUE_OPTION` is `--log-format`, because
 `usageErrorMask` shows any other rejected value only as its first three characters).
 
 ## Continuous integration
