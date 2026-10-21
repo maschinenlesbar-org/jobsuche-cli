@@ -469,10 +469,12 @@ error envelope such as `{"message": "quota exceeded"}` — is a `JobsucheParseEr
 A body with a number JSON.parse cannot carry exactly — one out of a double's range
 (`1e400`, which printed as `null`), one past 2^53 that it rounds, in any form
 (`12345678901234567890`, `12345678901234567890.0`, `9007199254740993e0`,
-`9007199254740992.5`), or a non-zero one too small for a double (`1e-400`, which became
-`0`) — is a `JobsucheParseError` too (`Unexpected response from <path>: the number …
+`9007199254740992.5`), a non-zero one too small for a double (`1e-400`, which became
+`0`), or a subnormal one (below 2.2250738585072014e-308) that does not print as written
+(`3e-324`, which became `5e-324`) — is a `JobsucheParseError` too (`Unexpected response from <path>: the number …
 cannot be represented exactly.`, `firstInexactNumber` in `getJson`), never a changed
-value; below 2^53 a decimal fraction keeps a double's usual precision. Past 2^53 the number
+value; below 2^53 and above the subnormal range a decimal fraction keeps a double's usual
+precision. Past 2^53 and below the smallest normal double the number
 as printed (`String(value)`, the shortest decimal that reads back as the same double) is
 compared with the number as written (`exactAtTheEdges`/`decimalOf`, no BigInt):
 `12345678901234567890` prints as `12345678901234567000` and is refused, while `1E23` or

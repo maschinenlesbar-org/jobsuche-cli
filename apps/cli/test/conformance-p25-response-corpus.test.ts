@@ -1,9 +1,12 @@
-// Conformance test P25 (trend analysis 2026-10-21): an answer is exact, or it is an error. A
-// 2xx body whose number a double can't carry (out of range, past 2^53 in any written form, or
-// too small and turned into 0), and an empty one, are errors on the CLI (exit 1, an ERROR record
-// of <bin>.api, nothing on stdout) and in the library (the parse error), never a changed value
-// or "nothing found". A number a double carries (or a decimal fraction below 2^53, as JSON means
-// it) is printed as the same value. Shared across the *-cli repos; only the adapter differs.
+// Conformance test P25 (trend analysis 2026-10-21; fix plan 2026-10-21, D4 and D9): an answer is
+// exact, or it is an error. A 2xx body whose number a double can't carry (out of range, past 2^53
+// in any written form, too small and turned into 0, or a subnormal that prints changed: 3e-324
+// became 5e-324), and an empty one, are errors on the CLI (exit 1, an ERROR record of <bin>.api
+// naming the request, nothing on stdout) and in the library (the parse error, naming the request
+// too), never a changed value or "nothing found". A number a double carries (or a decimal fraction
+// in the normal range, as JSON means it) is printed as the same value. A member the repo declares
+// as a big integer (`bigIntegerKeys`, D3) is delivered as its exact literal, as a string, whatever
+// its size. Shared across the *-cli repos; only the adapter differs.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -44,11 +47,15 @@ const INEXACT = [
   "12345678901234567890", "-9007199254740993", "1e400", "-1E400", "12345678901234567890.0", "9007199254740993e0",
   "90071992547409930E-1", "9007199254740992.5", "-9007199254740992.5", "1e-400", "-0.0001e-399",
   "123456789012345678901234567890",
+  // Subnormal: a double has fewer digits below 2.2250738585072014e-308 (D4).
+  "3e-324", "4e-324", "-4e-324", "1.2345678901234567e-310",
 ];
 const EXACT: Array<[string, number]> = [
   ["0", 0], ["-0", -0], ["42", 42], ["9007199254740991", 9007199254740991], ["9007199254740992.0", 2 ** 53],
   ["9007199254740992e0", 2 ** 53], ["1e21", 1e21], ["1.2e21", 1.2e21], ["0.1", 0.1], ["1.10", 1.1],
   ["-2.5e-3", -0.0025], ["5e-324", 5e-324], ["0.0e-500", 0],
+  // A subnormal printed as written, and the smallest normal double (D4).
+  ["1e-310", 1e-310], ["-5e-324", -5e-324], ["2.2250738585072014e-308", 2.2250738585072014e-308],
   // A double printed in its shortest form (an ArcGIS sentinel, a Java Double): the same number back.
   ["1e23", 1e23], ["100000000000000000000000", 1e23], ["1.7976931348623157E308", Number.MAX_VALUE], ["-1.7976931348623157e308", -Number.MAX_VALUE],
 ];
