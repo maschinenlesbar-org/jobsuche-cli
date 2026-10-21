@@ -561,6 +561,14 @@ value, so 8 M numbers print within a 256 MB heap), which goes through the gap pa
 gap, the same text): on Node 26 the fast path aborts the process on a ~250 MB string from
 JSON.parse, but it is also the only path that prints very deep nesting there.
 
+Printed JSON is terminal-safe (`escapeControlChars` in `shared.ts`): DEL, the C1 range, U+2028,
+U+2029 and the bidi controls, which `JSON.stringify` leaves raw, are written as `\uXXXX`; the
+output parses to the same value. Each becomes six characters, so the function counts them
+first and refuses a text that escaped would pass V8's longest string ("The answer is too large
+to print (N characters once its control characters are escaped).", an ERROR of
+`jobsuche.output`), and builds the rest in 64 Ki chunks joined once, so 20 MB of DEL characters
+print within a 512 MB heap.
+
 **Closed pipes.** The bin shim installs `handleOutputErrors()` (in `io.ts`) before
 `run()`. An EPIPE on stdout (`| head`, `| jq` exiting early) exits `0` at once,
 quietly; an EPIPE on stderr is ignored, so a failed run keeps its exit code — a
@@ -649,7 +657,8 @@ copied as is and differs only in its adapter block at the top:
   parse error (exit `1`, an ERROR record of `jobsuche.api` naming the request), never a
   changed value;
 - `p27-big-and-odd-answers` — big and odd answers: 8 M numbers print with `--compact` within a
-  256 MB heap; a lone surrogate or invalid bytes become U+FFFD with one `WARN` of
+  256 MB heap, 20 MB of DEL characters within 512 MB, 90 MB of them (past V8's longest string
+  once escaped) are an `ERROR` of `jobsuche.output`; a lone surrogate or invalid bytes become U+FFFD with one `WARN` of
   `jobsuche.api`, never silent or fatal.
 
 Cases that don't apply here are skipped in the adapter with the reason (no

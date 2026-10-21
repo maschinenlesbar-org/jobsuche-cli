@@ -632,3 +632,18 @@ test("the text filters go out trimmed and composed, as the library sends them (K
   assert.equal(await run(["search", "--wo", "　"], blank.deps), 2);
   assert.equal(blank.mt.calls.length, 0);
 });
+
+test("terminal controls are escaped in chunks: the same text as one pass, across chunk edges (D7)", () => {
+  const DEL = String.fromCharCode(0x7f);
+  const C1 = String.fromCharCode(0x9b);
+  const RLO = String.fromCharCode(0x202e);
+  const LS = String.fromCharCode(0x2028);
+  // Controls right before, at and after the 64 Ki edges, and a run of them.
+  const text = ["a".repeat(65535), DEL, C1, "b".repeat(65534), RLO, DEL.repeat(70000), "ü😀", LS, C1].join("");
+  const { deps, out } = makeCli(okResponse);
+  renderJson(deps, { compact: true }, { text });
+  const expected = JSON.stringify({ text }).replace(/[\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g,
+    (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  assert.equal(out[0], expected);
+  assert.deepEqual(JSON.parse(out[0]!), { text });
+});
