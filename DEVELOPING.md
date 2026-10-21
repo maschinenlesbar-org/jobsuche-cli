@@ -503,6 +503,14 @@ an injectable `env` (for `JOBSUCHE_API_KEY`) and an optional `credentials` store
 (`jobsuche config`; only `defaultDeps` sets it). Lets the whole CLI run in
 tests with a mocked client and captured output — no subprocess.
 
+**Rendering** (`renderJson` in [`shared.ts`](apps/cli/src/cli/shared.ts)). An answer
+nested too deeply to pretty-print is an ERROR record that suggests `--compact`, not a
+stack overflow. `--compact` takes V8's fast path (`JSON.stringify(value)`) unless the
+answer holds a string or key of 64 Mi characters or more (`holdsHugeString`, an
+iterative walk), which goes through the gap path (an empty gap, the same text): on
+Node 26 the fast path aborts the process on a ~250 MB string from JSON.parse, but it
+is also the only path that prints very deep nesting there.
+
 **Closed pipes.** The bin shim installs `handleOutputErrors()` (in `io.ts`) before
 `run()`. An EPIPE on stdout (`| head`, `| jq` exiting early) exits `0` at once,
 quietly; an EPIPE on stderr is ignored, so a failed run keeps its exit code — a
