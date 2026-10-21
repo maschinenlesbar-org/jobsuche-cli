@@ -616,8 +616,9 @@ export function scrubCause(cause: unknown, scrub: (text: string) => string, dept
 }
 
 /**
- * A transport failure as a `JobsucheNetworkError`. The default transport rejects with
- * one already (passed through, its text scrubbed); an injected one may throw anything
+ * A transport failure as a `JobsucheNetworkError` reading `<METHOD> <url> failed:
+ * <reason>` (userinfo redacted). The default transport rejects with one already (its
+ * text scrubbed, the request named in front, the original as `cause`); an injected one may throw anything
  * (a TypeError from fetch, a string, null), which is wrapped naming the request, with
  * the original as `cause`, so every failure stays a `JobsucheError`. `scrub` removes
  * the caller's secrets from the message and the cause chain: fetch's "Request cannot be
@@ -630,10 +631,18 @@ export function networkError(
   scrub: (text: string) => string = (text) => text,
 ): JobsucheError {
   if (cause instanceof JobsucheNetworkError) {
+    // The default transport's own errors (a timeout, the size cap, a refused connection,
+    // a DNS failure) and exchange()'s deadline and size cap carry no URL: name the
+    // request, as for a reset, with the original as the cause. One that names it
+    // already (followedElsewhere) is passed on, scrubbed.
     const message = scrub(cause.message);
-    const inner = scrubCause(cause.cause, scrub);
-    if (message === cause.message && inner === cause.cause) return cause;
-    return new JobsucheNetworkError(message, inner === undefined ? undefined : { cause: inner });
+    const prefix = `${method} ${redactUrl(url)} failed: `;
+    if (message.startsWith(prefix)) {
+      const inner = scrubCause(cause.cause, scrub);
+      if (message === cause.message && inner === cause.cause) return cause;
+      return new JobsucheNetworkError(message, inner === undefined ? undefined : { cause: inner });
+    }
+    return new JobsucheNetworkError(`${prefix}${message}`, { cause: scrubCause(cause, scrub) });
   }
   if (cause instanceof JobsucheError) return cause;
   const reason =

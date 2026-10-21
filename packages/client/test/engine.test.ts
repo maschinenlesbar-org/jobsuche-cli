@@ -11,6 +11,9 @@ import {
   toWellFormed,
 } from "../src/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { nodeHttpTransport, type HttpResponse } from "../src/http.js";
 
 test("buildUrl normalises the path and appends the query", () => {
   const e = new RequestEngine({ baseUrl: "https://example.test/" });
@@ -506,4 +509,50 @@ test("a number the answer's JSON cannot carry exactly is a parse error, never a 
     const got = await e.getJson<{ maxErgebnisse: number }>(path);
     assert.equal(got.maxErgebnisse, value, n);
   }
+});
+
+test("a timeout, the size cap, a refused connection and a DNS failure name the request (K3)", async () => {
+  // They said only "Request exceeded the 20ms deadline", "Response exceeded maxResponseBytes (…)" and
+  // "connect ECONNREFUSED 127.0.0.1:9", where a reset says "GET <url> failed: socket hang up".
+  const path = "/jobboerse/jobsuche-service/pc/v6/jobs";
+  const url = `http://127.0.0.1:9${path}`;
+  const original = new JobsucheNetworkError("getaddrinfo ENOTFOUND rest.invalid");
+  const cases: Array<[string, ConstructorParameters<typeof RequestEngine>[0], RegExp]> = [
+    ["engine deadline", { transport: () => new Promise<HttpResponse>(() => {}), timeoutMs: 20 }, /^Request exceeded the 20ms deadline$/],
+    ["size cap", { transport: async () => rawResponse("x".repeat(100), "application/json"), maxResponseBytes: 10 }, /^Response exceeded maxResponseBytes \(10/],
+    ["refused", { transport: async () => { throw new JobsucheNetworkError("connect ECONNREFUSED 127.0.0.1:9"); } }, /^connect ECONNREFUSED 127\.0\.0\.1:9$/],
+    ["dns", { transport: async () => { throw original; } }, /^getaddrinfo ENOTFOUND rest\.invalid$/],
+  ];
+  for (const [name, options, reason] of cases) {
+    // The engine sends the userinfo as a header, never in the URL: the message has none.
+    const e = new RequestEngine({ baseUrl: "http://user:secret@127.0.0.1:9", maxRetries: 0, ...options });
+    await assert.rejects(e.getJson(path), (err) => {
+      assert.ok(err instanceof JobsucheNetworkError, name);
+      assert.ok(err.message.startsWith(`GET ${url} failed: `), `${name}: ${err.message}`);
+      assert.match(err.message.replace(/^GET \S+ failed: /, ""), reason, name);
+      assert.doesNotMatch(err.message, /secret/, name);
+      if (name === "dns") assert.equal(err.cause, original);
+      return true;
+    });
+  }
+  // A message that names the request already is not prefixed twice.
+  const named = new RequestEngine({
+    baseUrl: "http://127.0.0.1:9",
+    transport: async () => { throw new JobsucheNetworkError(`GET ${url} failed: x`); },
+  });
+  await assert.rejects(named.getJson(path), { message: `GET ${url} failed: x` });
+});
+
+test("the default transport's refused connection names the request (K3)", async () => {
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  const e = new RequestEngine({ baseUrl: `http://127.0.0.1:${port}`, transport: nodeHttpTransport, maxRetries: 0 });
+  await assert.rejects(e.getJson("/x"), (err) => {
+    assert.ok(err instanceof JobsucheNetworkError);
+    assert.match(err.message, new RegExp(`^GET http://127\\.0\\.0\\.1:${port}/x failed: connect ECONNREFUSED`));
+    assert.ok(err.cause instanceof Error);
+    return true;
+  });
 });

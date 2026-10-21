@@ -355,7 +355,10 @@ test double), not only the built-in one:
   A missing or non-HTTP status, no headers or no body is a `JobsucheNetworkError`.
 - Whatever a transport throws (a `TypeError: fetch failed`, a string, `null`, a
   synchronous throw) becomes a `JobsucheNetworkError` naming the request, the
-  original as `cause`.
+  original as `cause`. Every network error reads `<METHOD> <url> failed: <reason>`
+  (userinfo never in it): a reset, a timeout (the transport's or the engine's
+  deadline), the size cap, a refused connection and a DNS failure alike, and
+  `obtainKey()`'s name the key source's URL the same way.
 - A reset connection (`ECONNRESET`, `EPIPE`, `ECONNABORTED`, undici's
   `UND_ERR_SOCKET`, anywhere in the `cause` chain; `isTransientNetworkError`) is
   retried like a 503 for a GET, within `maxRetries`. A refused connection, a DNS
