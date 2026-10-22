@@ -218,7 +218,8 @@ The userinfo of every URL argument (`credentialsIn`, which finds it whether the 
 parses or not, then `redactCredentials`) becomes `***@` on stdout and stderr. Only a
 URL with a scheme counts (a bare `a:b@c` is a search text, a place or a User-Agent as often
 as a credential), except as the `--base-url` value; it is found anywhere in an argument
-(`urlsWithin`), not only at its start, since a text filter is sent trimmed: a padded
+(`urlsWithin`, linear: each `://` found with indexOf, at most 64 URLs per argument), not only
+at its start, since a text filter is sent trimmed: a padded
 `" https://user:pw@host"`, one after a dash or inside a phrase reached the request URL, the
 `--wo` note and the dash-guard refusal; the `--api-key` value and the `JOBSUCHE_API_KEY` value become
 `***` on stderr (`redactSecrets`) — not on stdout, where `obtain-key` prints the

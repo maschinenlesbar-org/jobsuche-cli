@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { run } from "../src/cli/run.js";
+import { redactionFor, run } from "../src/cli/run.js";
 import { renderJson } from "../src/cli/shared.js";
 import { JobsucheClient } from "@maschinenlesbar.org/jobsuche-client/internal/client";
 import { JobsucheNetworkError, credentialsIn } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
@@ -708,3 +708,20 @@ test("a password in a URL inside an option value is redacted on stderr, padded o
     }
   }
 });
+
+// T15b: the URL search of T15 runs over every argument on every run. A pattern retried at every
+// position took ~3 s on a 40 000-character argument without "://" and hung on 1 MB, and one slice
+// per "://" held 100 000 copies of the rest; indexOf keeps it linear, at most 64 URLs per argument.
+for (const [what, big] of [
+  ["40 000 characters without ://", "b".repeat(40_000)],
+  ["1 MB without ://", "b".repeat(1024 * 1024)],
+  ["100 000 ://", "a://".repeat(100_000)],
+] as const) {
+  test(`the URL search of the redaction is linear: an argument of ${what} is read fast (T15b)`, () => {
+    const started = performance.now();
+    const redaction = redactionFor([big], {});
+    assert.equal(redaction.err("no secret here"), "no secret here");
+    const took = performance.now() - started;
+    assert.ok(took < 1000, `${what} took ${Math.round(took)} ms`);
+  });
+}
