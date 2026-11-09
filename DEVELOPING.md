@@ -462,8 +462,14 @@ above the cap rather than waiting it, because the BA gateway should not be asked
 again inside the window it named.
 `apps/cli/test/conformance-p6-retry-policy.test.ts` is the shared check.
 
-**Server text in messages** (an error `detail`) is stripped of control characters
-and cut at 500 characters ("…"; a quoted error envelope or body snippet at 200), never
+**Server text in messages** (an error `detail`, a Content-Type, a charset, a redirect
+target, a transport's text) goes through `sanitizeServerText` (engine.ts): it reads at most
+the first 16 384 characters, drops whole terminal escape sequences (an OSC title goes with
+its sequence), the remaining C0/C1 controls and DEL and every format character, and folds
+whitespace to one line, each step a linear regex replace (a 16 MB error detail, cleaned one
+character at a time, exhausted a small heap). Answer text the engine rebuilds (`scanNumbers`,
+the lone-surrogate repair) is put together in a `TextBuilder` (errors.ts), never one `+=`
+per piece. The detail is then cut at 500 characters ("…"; a quoted error envelope or body snippet at 200), never
 inside a surrogate pair (`cutText`), so the message stays well-formed; any other value
 an own message quotes from a server answer or the user's input (a redirect target, a
 charset or Content-Type, a search parameter name, a base URL, the places of the `--wo`

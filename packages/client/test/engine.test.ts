@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { execFileSync } from "node:child_process";
 import { TextDecoder } from "node:util";
 import assert from "node:assert/strict";
 import {
@@ -7,6 +8,7 @@ import {
   cleartextCredentialsProblem,
   cleartextProblem,
   firstInexactNumber,
+  sanitizeServerText,
   scanNumbers,
 } from "../src/engine.js";
 import { JobsucheClient, woNote } from "../src/client.js";
@@ -16,6 +18,7 @@ import {
   JobsucheParseError,
   JobsucheResponseTooLargeError,
   JobsucheValidationError,
+  TextBuilder,
   cutText,
   toWellFormed,
 } from "../src/errors.js";
@@ -173,8 +176,9 @@ test("error detail is stripped of terminal control characters", async () => {
       // human-readable message that run.ts prints to stderr...
       assert.ok(!hasControlChars(err.detail ?? ""));
       assert.ok(!hasControlChars(err.message));
-      // ...while the printable characters are preserved.
-      assert.equal(err.detail, "boom[31mred2J!");
+      // ...while the printable characters are preserved; a whole escape sequence goes (the
+      // CSI's parameters with it, never a stray "[31m").
+      assert.equal(err.detail, "boomred!");
       return true;
     },
   );
@@ -250,7 +254,7 @@ test("the gateway's messages[] become the error detail", async () => {
 test("messages[] text is stripped of control characters", async () => {
   const mt = makeMockTransport(() => jsonResponse({ messages: [{ code: `C${ESC}[2J`, detail: `d${BEL}` }] }, 400));
   const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
-  await assert.rejects(() => e.getJson("/x"), (err: unknown) => err instanceof JobsucheApiError && err.detail === "d (C[2J)");
+  await assert.rejects(() => e.getJson("/x"), (err: unknown) => err instanceof JobsucheApiError && err.detail === "d (C)");
 });
 
 test("the engine rejects a base URL with a query or fragment", () => {
@@ -743,4 +747,80 @@ test("a number literal with a long run of zeros is checked in linear time", () =
   // are not significant digits.
   assert.equal(firstInexactNumber('{"a":0.000,"b":100,"c":1.50e2,"d":-0.0,"e":9007199254740993}'), "9007199254740993");
   assert.equal(firstInexactNumber('{"a":1000000000000000000000,"b":0.00100}'), undefined);
+});
+
+test("sanitizeServerText drops whole escape sequences, not just their control bytes (security audit class C)", () => {
+  const CSI8 = String.fromCharCode(0x9b);
+  const OSC8 = String.fromCharCode(0x9d);
+  const ST8 = String.fromCharCode(0x9c);
+  for (const [input, expected] of [
+    [`line1 ${ESC}]0;title${BEL}rest`, "line1 rest"],
+    [`${ESC}]8;;https://evil.example${ESC}\\click${ESC}]8;;${ESC}\\`, "click"],
+    [`${ESC}[31mred${ESC}[0m plain`, "red plain"],
+    [`${ESC}[1;31;4mbold`, "bold"],
+    [`${CSI8}2Jcleared`, "cleared"],
+    [`${OSC8}0;t${ST8}ok`, "ok"],
+    [`a${ESC}7b${ESC}(Bc`, "abc"],
+    // Unterminated: only ESC and its introducer go, the text stays.
+    [`keep ${ESC}]0;no terminator here`, "keep 0;no terminator here"],
+  ] as const) {
+    assert.equal(sanitizeServerText(input), expected, JSON.stringify(input));
+  }
+  // Invisible format characters go, whitespace runs become one space, ordinary text stays.
+  assert.equal(sanitizeServerText("real\u200b error\u2028Error: forged\u2066x\u2069 \ufeffend\u00ad\u200d\u2060!"), "real error Error: forgedx end!");
+  assert.equal(sanitizeServerText("  Cannot GET  /api/v1/  Größe  "), "Cannot GET /api/v1/ Größe");
+});
+
+test("sanitizeServerText reads a bounded prefix and drops what the per-character filter dropped (security audit class C)", () => {
+  // The filter it replaces, one character at a time: C0 but TAB to CR, DEL, C1 and Cf go.
+  const perCharacter = (text: string): string =>
+    [...text]
+      .filter((ch) => {
+        const n = ch.codePointAt(0) ?? 0;
+        return (n >= 0x09 && n <= 0x0d) || !(n <= 0x1f || (n >= 0x7f && n <= 0x9f) || /\p{Cf}/u.test(ch));
+      })
+      .join("")
+      .replace(/\s+/g, " ")
+      .trim();
+  const every = Array.from({ length: 0x3000 }, (_, i) => String.fromCharCode(i)).join("") + "\u{1f600}\u{e0001}\ud800x";
+  for (let at = 0; at < every.length; at += 512) {
+    const piece = every.slice(at, at + 512).replace(/[\u001b\u0090\u0098\u009b-\u009f]/g, "");
+    assert.equal(sanitizeServerText(piece), perCharacter(piece), `from U+${at.toString(16)}`);
+  }
+  // At most 16 384 units of the text are read, never half a surrogate pair.
+  assert.equal(sanitizeServerText("x".repeat(100_000)).length, 16_384);
+  assert.equal(sanitizeServerText(`${"x".repeat(16_383)}\u{1f600}`), "x".repeat(16_383));
+  // A control string ends at another introducer: the first is dropped by the filter, the second
+  // string as a whole. With introducers allowed inside, an unterminated run of them was matched
+  // from each one to the end: quadratic (100 000 × U+009D took 16 s).
+  const OSC8 = String.fromCharCode(0x9d);
+  const ST8 = String.fromCharCode(0x9c);
+  assert.equal(sanitizeServerText(`a${OSC8}0;x${OSC8}0;t${ST8}b`), "a0;xb");
+  assert.equal(sanitizeServerText(`a${ESC}]0;x${ESC}]0;t${BEL}b`), "a0;xb");
+});
+
+test("a TextBuilder joins its pieces in order across batches (security audit class C)", () => {
+  const b = new TextBuilder();
+  const expected: string[] = [];
+  for (let i = 0; i < 40_000; i++) {
+    b.push(String(i), ",");
+    expected.push(String(i), ",");
+  }
+  assert.equal(b.toString(), expected.join(""));
+  assert.equal(new TextBuilder().toString(), "");
+});
+
+// These tests start a process with a small heap: 30 s instead of the suite's 5 s.
+const STARTS_A_PROCESS = { timeout: 30_000 };
+
+test("scanNumbers quotes millions of declared members within a small heap (security audit class C)", STARTS_A_PROCESS, () => {
+  // One `+=` per quoted member made a rope node each: 3 million of them exhausted a 128 MB heap.
+  const engine = new URL("../src/engine.js", import.meta.url).href;
+  const n = 3_000_000;
+  const script =
+    `const { scanNumbers } = await import(${JSON.stringify(engine)});` +
+    `const json = "[" + '{"k":1},'.repeat(${n - 1}) + '{"k":1}]';` +
+    `process.stdout.write(String(scanNumbers(json, new Set(["k"])).json.length));`;
+  const out = execFileSync(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], { encoding: "utf8" });
+  assert.equal(out, String(n * 10 + 1));
 });
