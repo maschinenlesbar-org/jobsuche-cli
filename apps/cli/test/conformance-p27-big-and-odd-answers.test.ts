@@ -61,6 +61,14 @@ async function parity(
   const error = e === undefined ? undefined : e instanceof Error ? { name: e.constructor.name, message: e.message } : { name: typeof e, message: String(e) };
   return { cli: o.cli, lib: { ok: o.lib.ok, value: o.lib.value, error, requests: o.lib.requests } };
 }
+/** The method of `call`'s request, as the log names it (`WARN [<bin>.api] GET <url>: …`). */
+const METHOD = "GET";
+/** The global options that point the bin at the mock (default: `--base-url`). */
+const hostArgv = (base: string): string[] => ["--base-url", base];
+/** What the mock answers to the request for `path` (default: the test's body; a call that reads something else first answers that here). */
+const answerFor = (_path: string, body: Buffer): Buffer => body;
+/** The whole HTTP answer the raw-socket mock sends to the request for `path` (default: the test's `wire`). */
+const rawAnswerFor = (_path: string, wire: Buffer): Buffer => wire;
 // --------------------------------------------------------------------------------------
 
 // These tests start the built CLI as a process: 30 s instead of the suite's 5 s.
@@ -75,9 +83,9 @@ interface Run {
 
 /** Serve `body` (as JSON) to one run of the bin with a heap of `heapMb`, then stop. */
 function runWithAnswer(body: Buffer, heapMb: number, argv: string[] = []): Promise<Run> {
-  const server = http.createServer((_req, res) => {
+  const server = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    res.end(body);
+    res.end(answerFor(req.url ?? "", body));
   });
   return runAgainst(server, heapMb, argv);
 }
@@ -85,7 +93,7 @@ function runWithAnswer(body: Buffer, heapMb: number, argv: string[] = []): Promi
 /** Send `wire` (a whole HTTP answer, as bytes) to one run of the bin with a heap of `heapMb`, then stop. */
 function runWithRawAnswer(wire: Buffer, heapMb: number, argv: string[] = []): Promise<Run> {
   const server = net.createServer((socket) => {
-    socket.once("data", () => socket.end(wire));
+    socket.once("data", (request: Buffer) => socket.end(rawAnswerFor(/^\S+ (\S+)/.exec(request.toString("latin1"))?.[1] ?? "", wire)));
     socket.on("error", () => {});
   });
   return runAgainst(server, heapMb, argv);
@@ -99,7 +107,7 @@ async function runAgainst(server: net.Server, heapMb: number, argv: string[]): P
     return await new Promise<Run>((resolve) => {
       const child = spawn(
         process.execPath,
-        [`--max-old-space-size=${heapMb}`, BIN, "--base-url", base, "--max-retries", "0", ...argv, ...call],
+        [`--max-old-space-size=${heapMb}`, BIN, ...hostArgv(base), "--max-retries", "0", ...argv, ...call],
         { stdio: ["ignore", "pipe", "pipe"], env: { PATH: process.env.PATH ?? "" } },
       );
       const out: Buffer[] = [];
@@ -185,7 +193,7 @@ test("P27: a lone surrogate or invalid bytes are replaced with U+FFFD and report
     assert.ok(WELL_FORMED(o.cli.out), `${label}: ${o.cli.out}`);
     assert.equal(fromCli(o.cli.out), expected, label);
     const warn = new RegExp(
-      `^WARN  \\[${PROGRAM}\\.api\\] GET \\S+: ${count} characters? of the answer (was|were) not valid text .*replaced with U\\+FFFD\\.$`,
+      `^WARN  \\[${PROGRAM}\\.api\\] ${METHOD} \\S+: ${count} characters? of the answer (was|were) not valid text .*replaced with U\\+FFFD\\.$`,
     );
     assert.match(o.cli.err, warn, `${label}: ${o.cli.err}`);
     assert.equal(o.lib.ok, true, `${label}: ${o.lib.error?.message}`);
