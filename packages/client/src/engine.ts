@@ -431,14 +431,17 @@ export function isBidiControl(code: number): boolean {
 }
 
 /**
- * Check a base URL (baseUrlProblem) and return it with trailing slashes stripped,
- * or throw a JobsucheValidationError (`Invalid baseUrl: <reason>`) — a
+ * Check a base URL (baseUrlProblem) and return it as WHATWG parses it (its `href`: the host
+ * lower-cased, a default port dropped), trailing slashes stripped, or throw a JobsucheValidationError (`Invalid baseUrl: <reason>`) — a
  * configuration error, not a network one. The default transport still gates the
  * scheme on every hop (redirects included); this gate covers a library
  * consumer's custom transport, which does no such check.
  */
 export function validateBaseUrl(raw: string): string {
-  return assertValid("baseUrl", raw, baseUrlProblem).replace(/\/+$/, "");
+  // The base URL as WHATWG parses it, the reading every check of it makes (the host, the
+  // cleartext warning, the origin credentials are bound to), not a text-based reading of the
+  // string: a transport that reads the URL as text reaches the same host.
+  return new URL(assertValid("baseUrl", raw, baseUrlProblem)).href.replace(/\/+$/, "");
 }
 
 /**
@@ -771,6 +774,8 @@ export class RequestEngine {
     options = options ?? {};
     // Checked on the raw value, before the trailing-slash strip; only `undefined`
     // selects the default.
+    // Requests go to the URL as WHATWG parses it (validateBaseUrl).
+    const typed = options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl;
     this.#baseUrl = options.baseUrl === undefined ? DEFAULT_BASE_URL : validateBaseUrl(options.baseUrl);
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Header values are checked here, not only by the CLI: a CR/LF would reach a
@@ -793,7 +798,7 @@ export class RequestEngine {
     }
     // The userinfo as typed and as sent (WHATWG percent-encodes some of its characters: a server
     // that echoes the request URL echoes that spelling).
-    const userinfos = [...new Set([...credentialsIn(this.#baseUrl), ...credentialsIn(new URL(this.#baseUrl).href)])];
+    const userinfos = [...new Set([...credentialsIn(typed), ...credentialsIn(this.#baseUrl)])];
     // A credential header's value whole (an X-API-Key with an inner space included) and its
     // secret part (`Bearer <token>` → the token). And the forms a server echoes a base URL's
     // userinfo in: the Basic value (Latin-1 as the engine sends it, UTF-8 as Node's http and

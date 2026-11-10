@@ -247,9 +247,8 @@ export const headerValueProblem: Problem = (value) => {
 
 /**
  * An absolute http(s) URL, checked on the RAW value: new URL() silently trims
- * surrounding whitespace and drops tab/CR/LF, but the engine appends request
- * paths to the raw string, so a padded value would request `/%20/...` or reach a
- * custom transport unparsed. Userinfo is allowed, but a "%" in it must start a
+ * surrounding whitespace and drops tab/CR/LF, so a padded value is refused rather than
+ * repaired into another one. Userinfo is allowed, but a "%" in it must start a
  * valid escape (`%25` for a literal one); it is redacted from the reasons.
  */
 export const httpUrlProblem: Problem = (value) => {
@@ -282,14 +281,24 @@ export const httpUrlProblem: Problem = (value) => {
 
 /**
  * A base URL (`baseUrl`, `--base-url`): an http(s) URL (httpUrlProblem) without a
- * query or fragment. Request paths are appended to the base URL as a string, so a
- * query would end up in front of them and a fragment would swallow the path and
- * every filter.
+ * query or fragment, without a backslash, and with its scheme followed by exactly `//` and
+ * the host. Request paths are appended to the base URL as a string, so a query would end up
+ * in front of them and a fragment would swallow the path and every filter. None of the
+ * reasons repeats a password:
+ *
+ * - a backslash: WHATWG ends an http(s) host at one, as at a `/`, while text-based code reads
+ *   on, so `https://u:pw@a.example\@b.example` was checked as a.example by one reader and as
+ *   b.example by another; the message never quotes the value;
+ * - `http:host`, `http:/host`, `http:///host` (or `HTTPS:host`): WHATWG skips any slashes after
+ *   an http(s) scheme and repairs the URL silently, so the host requested would not be the one
+ *   typed, and code that reads the userinfo after `://` would miss it.
  */
 export const baseUrlProblem: Problem = (value) => {
   const problem = httpUrlProblem(value);
   if (problem !== undefined) return problem;
-  return /[?#]/.test(value) ? "A base URL cannot have a query (?) or fragment (#)." : undefined;
+  if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  if (value.includes("\\")) return 'A base URL cannot contain a backslash (\\); write "/" instead.';
+  return /^https?:\/\/[^/]/i.test(value) ? undefined : 'Expected an absolute http(s) URL ("https://" and the host).';
 };
 
 /** An HTTP header name: an RFC 9110 token. */

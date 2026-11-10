@@ -726,3 +726,20 @@ for (const [what, big] of [
     assert.ok(took < 1000, `${what} took ${Math.round(took)} ms`);
   });
 }
+
+test("--base-url with a backslash or a scheme not followed by // and the host is a usage error that never echoes the password (security audit F, F3, F4)", async () => {
+  for (const base of [
+    "https://alice:pw1-S3cret@api.example\\@evil.example",
+    "https:\\\\alice:pw1-S3cret@127.0.0.1:9",
+    "http:///alice:pw1-S3cret@127.0.0.1:9",
+    "http:/alice:pw1-S3cret@127.0.0.1:9",
+    "http:alice:pw1-S3cret@127.0.0.1:9",
+  ]) {
+    const cli = makeCli(() => jsonResponse({ maxErgebnisse: 0 }));
+    assert.equal(await run(["--base-url", base, "search", "--was", "x"], cli.deps), 2, base);
+    assert.equal(cli.mt.calls.length, 0, base);
+    const all = cli.err.join("\n");
+    assert.ok(!all.includes("pw1-S3cret"), all);
+    assert.match(all, /backslash|"https:\/\/" and the host/, all);
+  }
+});

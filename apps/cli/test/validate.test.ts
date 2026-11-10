@@ -409,7 +409,18 @@ test("parity: a base URL with a path prefix and trailing slashes sends the same 
 
 test("validateBaseUrl strips trailing slashes and redacts userinfo from its reasons", () => {
   assert.equal(lib.validateBaseUrl("https://x.example/api//"), "https://x.example/api");
+  // The URL as WHATWG parses it: the host lower-cased, a default port dropped.
+  assert.equal(lib.validateBaseUrl("https://API.Example:443/v1/"), "https://api.example/v1");
   assert.equal(lib.baseUrlProblem("https://u:pw@x.example/p"), undefined);
+  // A backslash, and a scheme not followed by exactly "//" and the host (security audit F, F4).
+  const p = lib.baseUrlProblem;
+  assert.equal(p("https://u:pw@a.example\\@b.example"), 'A base URL cannot contain a backslash (\\); write "/" instead.');
+  assert.equal(p("https:\\\\h.example"), 'A base URL cannot contain a backslash (\\); write "/" instead.');
+  for (const value of ["http:h.example", "http:/h.example", "http:///h.example", "HTTPS:h.example"]) {
+    assert.equal(p(value), 'Expected an absolute http(s) URL ("https://" and the host).', value);
+  }
+  assert.equal(p("http:///h.example/?q=1"), "A base URL cannot have a query (?) or fragment (#).");
+  assert.equal(p("HTTPS://H.example"), undefined);
   assert.throws(
     () => lib.validateBaseUrl("ftp://u:pw@x.example"),
     (err) => err instanceof JobsucheValidationError && !/pw/.test((err as Error).message),

@@ -139,9 +139,18 @@ run them up front.
   option ranges* below.
 - **A malformed base URL** (constructor). `baseUrl` must be an absolute http(s)
   URL, checked on the raw value: no surrounding or inner whitespace or control
-  characters (`new URL()` would silently trim them, while the engine appends paths
-  to the raw string), no query and no fragment (`baseUrlProblem`,
-  `validateBaseUrl`). Only `undefined` selects `DEFAULT_BASE_URL`. `obtainKey()`
+  characters (`new URL()` would silently trim them), no query and no fragment, no
+  backslash (WHATWG ends an http(s) host at one, so `https://u:pw@a.example\@b.example` is
+  a.example to the parser and b.example to code that reads the text; the message never
+  quotes the value), and the scheme followed by exactly `//` and the host (`http:host`,
+  `http:/host`, `http:///host`, which WHATWG repairs silently into `http://host`:
+  `Expected an absolute http(s) URL ("https://" and the host).`) (`baseUrlProblem`,
+  `validateBaseUrl`). Requests go to the base URL as WHATWG parses it (`validateBaseUrl`
+  returns its `href` without trailing slashes): the host lower-cased, a default port dropped,
+  the path percent-encoded where WHATWG does it; messages show that spelling and a custom
+  transport gets it. `credentialsIn` reads a userinfo where WHATWG does: after any slashes and
+  backslashes a special scheme skips (`http:///u:pw@h`, `https:\\u:pw@h`, `http:u:pw@h`), up to
+  a backslash too. Only `undefined` selects `DEFAULT_BASE_URL`. `obtainKey()`
   checks its `sourceUrl` with the same rule, a query allowed (`httpUrlProblem`).
   A path prefix and userinfo are fine, but a `%` in the userinfo must start a
   valid escape (`%25` for a literal one): Node decodes it for the Authorization
