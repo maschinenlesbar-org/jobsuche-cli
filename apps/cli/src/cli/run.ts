@@ -21,6 +21,7 @@ import {
   redactSecrets,
   redactUrl,
   quoteValue,
+  typedUrlCredentials,
 } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
 import { API_KEY_ENV_VAR } from "@maschinenlesbar.org/jobsuche-client/internal/obtain-key";
 import { CredentialsError } from "./credentials.js";
@@ -253,9 +254,11 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   const passwords = new Set<string>();
   const keys = new Set<string>();
   // A base URL typed without its scheme is read as if it had one.
-  const baseUrls = flagValues(argv, BASE_URL_FLAGS).map((value) => (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) ? value : `http://${value}`));
-  for (const source of [...values.flatMap(urlsWithin), envKey, ...baseUrls]) {
-    for (const secret of credentialsIn(source)) {
+  // Read as a URL however its scheme is typed: missing, special without "//", or mistyped
+  // (`http//u:pw@h`, the colon left out): typedUrlCredentials.
+  const baseUrls = flagValues(argv, BASE_URL_FLAGS);
+  for (const found of [...[...values.flatMap(urlsWithin), envKey].map(credentialsIn), ...baseUrls.map(typedUrlCredentials)]) {
+    for (const secret of found) {
       userinfo.add(secret);
       userinfo.add(JSON.stringify(secret).slice(1, -1));
       userinfo.add(quoteValue(secret, Number.MAX_SAFE_INTEGER).slice(1, -1));

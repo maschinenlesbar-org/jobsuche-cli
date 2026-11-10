@@ -253,6 +253,11 @@ reported as `Invalid JOBSUCHE_API_KEY: <reason>`, without the value.
 seven URL shapes, every echo path, plus the key by flag, by environment and typed
 without its flag).
 
+A base URL (`--base-url`, and the environment variable where the CLI reads one) is read as
+a URL however its scheme is typed (`typedUrlCredentials`): missing (`alice:pw@host`) or
+mistyped (`http//alice:pw@host`, the colon left out, whose userinfo is everything between the
+first slashes and the last `@`), so commander's echo of a refused one shows no password.
+
 The key is publicly documented and can be fetched out-of-band (for CI or local
 live testing — never from production) with the bundled script:
 
