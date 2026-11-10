@@ -580,7 +580,10 @@ key format. `apps/cli/test/conformance-p27-big-and-odd-answers.test.ts` (P27) ch
 sides.
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;
-default 100 MiB), guarding against unbounded responses. A body too large to become one string
+default 100 MiB), guarding against unbounded responses. The built-in transport joins a body's
+small chunks as they arrive (`COALESCE_CHUNKS`, 1024 of them, or `COALESCE_BYTES`, 64 KiB), so
+its memory follows the bytes, not the number of chunks a server sends (a Buffer per one-byte
+chunk held about 210 bytes of heap each). A body too large to become one string
 (512 MB and more, possible only with `maxResponseBytes: 0` or `--max-response-bytes 0`) is a
 `JobsucheParseError`, `GET <url>: the answer is too large to read as text (N bytes; the longest
 string is 536870888 characters).`, not a plain `Error` ("Unexpected error" in the CLI); an error
@@ -730,7 +733,8 @@ copied as is and differs only in its adapter block at the top:
   (`HAS_OUTPUT_OPTION = false`: this CLI has no `-o`);
 - `p27-big-and-odd-answers` — big and odd answers: 8 M numbers print with `--compact` within a
   256 MB heap, 20 MB of DEL characters within 512 MB, 90 MB of them (past V8's longest string
-  once escaped) are an `ERROR` of `jobsuche.output`; a lone surrogate or invalid bytes become U+FFFD with one `WARN` of
+  once escaped) are an `ERROR` of `jobsuche.output`, two million one-byte chunks are read within
+  256 MB; a lone surrogate or invalid bytes become U+FFFD with one `WARN` of
   `jobsuche.api`, never silent or fatal.
 
 Cases that don't apply here are skipped in the adapter with the reason (no
