@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JobsucheClient, woNote } from "../src/client.js";
-import { JobsucheApiError, JobsucheError, JobsucheParseError, JobsucheValidationError } from "../src/errors.js";
+import { JobsucheApiError, JobsucheError, JobsucheNetworkError, JobsucheParseError, JobsucheValidationError } from "../src/errors.js";
 import { makeMockTransport, jsonResponse, constantJson, okResponse, rawResponse } from "./helpers.js";
 import { RequestEngine } from "../src/engine.js";
 import { V6_NO_MATCH, V6_SEARCH } from "./fixtures.js";
@@ -357,5 +357,71 @@ test("a number literal, a Content-Type and a body snippet a message quotes are s
     assert.ok(err instanceof JobsucheParseError, String(err));
     const cause = err.cause instanceof Error ? err.cause.message : "";
     assert.ok(!cause.includes("s3cret"), cause);
+  }
+});
+
+test("a credential or the API key echoed in a redirect's Location never names the request in a message (security audit class D2)", async () => {
+  // A password with characters a URL's query percent-encodes in a spelling of its own (`'` as %27).
+  const pw = "pä\"s's-W0rd";
+  const key = "Zq9x-k3y-Wv77-test";
+  const basic = Buffer.from(`alice:${pw}`, "utf8").toString("base64");
+  const secrets = [pw, `alice:${pw}`, basic, key];
+  const percentDecoded = (text: string): string =>
+    text.replace(/(?:%[0-9a-fA-F]{2})+/g, (run) => {
+      try {
+        return decodeURIComponent(run);
+      } catch {
+        return run;
+      }
+    });
+  const base = `https://alice:${encodeURIComponent(pw)}@mirror.example`;
+  const locations = [
+    `https://elsewhere.example/login?user=alice&pw=${encodeURIComponent(pw)}`,
+    `https://elsewhere.example/login?pw=${pw}`,
+    `https://elsewhere.example/${encodeURIComponent(`alice:${pw}`)}/x`,
+    `https://elsewhere.example/auth?basic=${basic}`,
+    `/relative/${pw}`,
+    `https://elsewhere.example/k?apikey=${key}`,
+  ];
+  for (const location of locations) {
+    // Every request answered with a 302 there: the redirect limit, naming the last request and target.
+    const retried: string[] = [];
+    const looping = new JobsucheClient({
+      apiKey: key,
+      baseUrl: base,
+      maxRetries: 0,
+      transport: async () => ({ status: 302, headers: { location }, body: Buffer.alloc(0) }),
+    });
+    const loop = await looping.search({ was: "x" }).catch((caught: unknown) => caught);
+    assert.ok(loop instanceof JobsucheApiError && /^HTTP 302 .*\(stopped after 5 redirects\)$/.test(loop.message), String(loop));
+    // One redirect, then a 401, a reset, an invalid answer and a 503 retried once: the request
+    // named (and the one onRetry is told about) is the followed one.
+    for (const after of ["401", "reset", "invalid", "503"] as const) {
+      let calls = 0;
+      const once = new JobsucheClient({
+        apiKey: key,
+        baseUrl: base,
+        maxRetries: after === "503" ? 1 : 0,
+        retryDelayMs: 0,
+        sleep: async () => {},
+        onRetry: (event) => retried.push(event.url),
+        transport: async (req) => {
+          calls += 1;
+          if (calls === 1) return { status: 302, headers: { location }, body: Buffer.alloc(0) };
+          // A transport's text names the URL it was given.
+          if (after === "reset") throw Object.assign(new Error(`socket hang up (${req.url})`), { code: "ECONNRESET" });
+          if (after === "invalid") return { status: 99, headers: {}, body: Buffer.alloc(0) };
+          return rawResponse("{}", "application/json", after === "503" ? 503 : 401);
+        },
+      });
+      const err = await once.search({ was: "x" }).catch((caught: unknown) => caught);
+      assert.ok(err instanceof JobsucheApiError || err instanceof JobsucheNetworkError, String(err));
+      const e = err as JobsucheApiError;
+      const seen = percentDecoded([e.message, e.url ?? "", e.location ?? "", JSON.stringify(e.credentialsDropped ?? {})].join("\n"));
+      for (const secret of secrets) assert.ok(!seen.includes(secret), `${location} ${after}: ${seen}`);
+    }
+    const seen = percentDecoded([loop.message, loop.url, loop.location ?? "", ...retried].join("\n"));
+    assert.ok(retried.length > 0);
+    for (const secret of secrets) assert.ok(!seen.includes(secret), `${location}: ${seen}`);
   }
 });

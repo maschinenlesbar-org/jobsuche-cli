@@ -29,8 +29,10 @@ import {
   intOption,
   followedElsewhere,
   networkError,
+  sanitizeServerText,
   secretScrubber,
   splitUserinfo,
+  urlSpellings,
   type ExchangeResponse,
 } from "./engine.js";
 import { assertValid, headerValueProblem, httpUrlProblem } from "./validate.js";
@@ -186,14 +188,20 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   // redirects only, it never leaves that origin.
   const start = splitUserinfo(sourceUrl);
   // Its userinfo, and the forms a server echoes it in (the Basic value, `user:password`, the
-  // password), longest first: a transport's text can carry any of them.
+  // password), each also percent-encoded (a Location), longest first: a transport's text or a
+  // redirect target can carry any of them.
   const scrub = secretScrubber(
     credentialsIn(sourceUrl),
     credentialsIn(sourceUrl)
       .flatMap(echoedCredentialForms)
+      .flatMap(urlSpellings)
       .sort((a, b) => b.length - a.length),
   );
   let url = start.url;
+  // The URL as messages name it: after a redirect, the Location as the source sent it with its
+  // credentials scrubbed, then resolved. Resolving first would percent-encode an echoed password
+  // in a new spelling (`'` as `%27` in a query) no scrub matches.
+  let shownUrl = redactUrl(url);
   let response: ExchangeResponse;
   for (let redirects = 0; ; redirects += 1) {
     // Through the engine's exchange(): the time limit and the size cap hold for any
@@ -217,21 +225,30 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
       );
     } catch (cause) {
       // A source behind Basic auth is never named with its password.
-      throw networkError("GET", url, cause, scrub);
+      throw networkError("GET", url, cause, scrub, shownUrl);
     }
     // A transport that followed a redirect to another host itself read the key from a
     // document this function would not trust (and would cite the wrong source).
     const elsewhere = followedElsewhere("GET", url, response.url);
-    if (elsewhere !== undefined) throw elsewhere;
+    if (elsewhere !== undefined) throw networkError("GET", url, elsewhere, scrub, shownUrl);
     if (!FOLLOWED_REDIRECTS.has(response.status) || redirects >= MAX_KEY_SOURCE_REDIRECTS) break;
-    const next = resolveLocation(headerValue(response.headers["location"]), url);
+    const location = headerValue(response.headers["location"]);
+    const next = resolveLocation(location, url);
     if (next === undefined || next.origin !== new URL(url).origin) break;
+    const sent = scrub(location ?? "");
+    let shownNext: string;
+    try {
+      shownNext = redactUrl(new URL(sent, shownUrl).href);
+    } catch {
+      shownNext = redactUrl(sent);
+    }
+    shownUrl = sanitizeServerText(shownNext);
     url = next.href;
   }
 
   if (response.status < 200 || response.status >= 300) {
     throw new JobsucheError(
-      `Could not read the key source ${redactUrl(url)} (HTTP ${response.status}). ` +
+      `Could not read the key source ${shownUrl} (HTTP ${response.status}). ` +
         `Retry, or copy the key from github.com/bundesAPI/jobsuche-api by hand.`,
     );
   }
@@ -239,7 +256,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   // Bytes that are not valid text become U+FFFD; a key holding one does not match the key
   // format, so the replacement can never change the key that is printed.
   // The Content-Type is scrubbed first: a refused charset is quoted in the error.
-  const { text } = decodeBody(response.body, scrub(String(headerValue(response.headers["content-type"]) ?? "")), `GET ${redactUrl(url)}`);
+  const { text } = decodeBody(response.body, scrub(String(headerValue(response.headers["content-type"]) ?? "")), `GET ${shownUrl}`);
   // The `clientId` is the documented value and wins; an `X-API-Key` example is
   // the fallback. When the document states more than one distinct key — two
   // clientIds, or an X-API-Key that contradicts the clientId — it is ambiguous,
@@ -249,18 +266,18 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   const conflicting = [...new Set([...clientIds, ...headerKeys])];
   if (conflicting.length > 1) {
     throw new JobsucheError(
-      `The key source ${redactUrl(url)} states conflicting keys (${conflicting.join(", ")}). ` +
+      `The key source ${shownUrl} states conflicting keys (${conflicting.join(", ")}). ` +
         `Check it by hand before relying on this command.`,
     );
   }
   const key = conflicting[0];
   if (!key) {
     throw new JobsucheParseError(
-      `No X-API-Key found at ${redactUrl(url)}. The upstream document may have changed ` +
+      `No X-API-Key found at ${shownUrl}. The upstream document may have changed ` +
         `format or stopped publishing the key — check it by hand before relying on this command.`,
     );
   }
-  return { key, sourceUrl: redactUrl(url) };
+  return { key, sourceUrl: shownUrl };
 }
 
 /** Resolve a Location header against the request URL; undefined if missing or malformed. */

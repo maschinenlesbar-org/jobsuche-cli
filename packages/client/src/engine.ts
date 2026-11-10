@@ -158,7 +158,7 @@ export interface RetryEvent {
   delayMs: number;
   /** The HTTP status that caused the retry; absent for a reset connection. */
   status?: number;
-  /** The URL being retried, userinfo redacted. */
+  /** The URL being retried, userinfo redacted (after a redirect, credentials echoed in it scrubbed). */
   url: string;
 }
 
@@ -689,31 +689,37 @@ export function scrubCause(cause: unknown, scrub: (text: string) => string, dept
  * the original as `cause`, so every failure stays a `JobsucheError`. `scrub` removes
  * the caller's secrets from the message and the cause chain: fetch's "Request cannot be
  * constructed from a URL that includes credentials: http://user:pw@…" carries them.
+ * `shown` is the request as messages name it (after a redirect, the Location with the
+ * secrets scrubbed as sent, then resolved: `RequestEngine`'s `shownTarget`); a text that
+ * names the URL the transport was given has it replaced by `shown`.
  */
 export function networkError(
   method: string,
   url: string,
   cause: unknown,
   scrub: (text: string) => string = (text) => text,
+  shown: string = redactUrl(url),
 ): JobsucheError {
+  const sent = redactUrl(url);
+  const named = (text: string): string => scrub(sent === shown ? text : text.split(sent).join(shown));
   if (cause instanceof JobsucheNetworkError) {
     // The default transport's own errors (a timeout, the size cap, a refused connection,
     // a DNS failure) and exchange()'s deadline and size cap carry no URL: name the
     // request, as for a reset, with the original as the cause. One that names it
     // already (followedElsewhere) is passed on, scrubbed.
-    const message = scrub(cause.message);
-    const prefix = `${method} ${redactUrl(url)} failed: `;
+    const message = named(cause.message);
+    const prefix = `${method} ${shown} failed: `;
     // The size cap keeps its class (and the cap): the API answered, which the CLI says.
-    const named = (text: string, options?: { cause?: unknown }): JobsucheNetworkError =>
+    const rebuilt = (text: string, options?: { cause?: unknown }): JobsucheNetworkError =>
       cause instanceof JobsucheResponseTooLargeError
         ? new JobsucheResponseTooLargeError(text, cause.maxResponseBytes, options)
         : new JobsucheNetworkError(text, options);
     if (message.startsWith(prefix)) {
       const inner = scrubCause(cause.cause, scrub);
       if (message === cause.message && inner === cause.cause) return cause;
-      return named(message, inner === undefined ? undefined : { cause: inner });
+      return rebuilt(message, inner === undefined ? undefined : { cause: inner });
     }
-    return named(`${prefix}${message}`, { cause: scrubCause(cause, scrub) });
+    return rebuilt(`${prefix}${message}`, { cause: scrubCause(cause, scrub) });
   }
   if (cause instanceof JobsucheError) return cause;
   const reason =
@@ -723,7 +729,7 @@ export function networkError(
         ? cause
         : "the transport failed without a message";
   return new JobsucheNetworkError(
-    `${method} ${redactUrl(url)} failed: ${sanitizeServerText(scrub(redactUrl(reason)))}`,
+    `${method} ${shown} failed: ${sanitizeServerText(named(redactUrl(reason)))}`,
     { cause: scrubCause(cause, scrub) },
   );
 }
@@ -839,7 +845,11 @@ export class RequestEngine {
     }
   }
 
-  /** Tell `onRetry` about a retry, then wait. A throwing callback never breaks the request. */
+  /**
+   * Tell `onRetry` about a retry (`url` as messages show it: userinfo redacted, after a redirect
+   * the credentials and the key echoed in it scrubbed), then wait. A throwing callback never
+   * breaks the request.
+   */
   private async backOff(attempt: number, delayMs: number, url: string, status?: number): Promise<void> {
     try {
       this.onRetry?.({
@@ -847,7 +857,7 @@ export class RequestEngine {
         maxRetries: this.maxRetries,
         delayMs,
         ...(status !== undefined ? { status } : {}),
-        url: redactUrl(url),
+        url,
       });
     } catch {
       // a logging hook is no reason to fail the request
@@ -899,6 +909,10 @@ export class RequestEngine {
     const credentialOrigin = originOf(start.url);
     let dropped: CredentialsDropped | undefined;
     let url = start.url;
+    // The URL as messages name it: after a redirect, the Location as the server sent it with the
+    // credentials and the key scrubbed, then resolved (`shownTarget`). Resolving first would
+    // percent-encode an echoed password in a new spelling (`'` as `%27` in a query) no scrub matches.
+    let shown = redactUrl(url);
 
     // Only an idempotent request is sent again: request() is public, and a POST re-sent
     // after a reset or a 503 may be applied twice. The client itself sends GETs only.
@@ -929,13 +943,13 @@ export class RequestEngine {
         // not retried — a slow upstream should not be asked again at once.
         if (idempotent && hasTransientCode(cause) && attempt < this.maxRetries) {
           attempt += 1;
-          await this.backOff(attempt, this.retryDelayMs * attempt, url);
+          await this.backOff(attempt, this.retryDelayMs * attempt, shown);
           continue;
         }
-        throw networkError(method, url, cause, this.#scrub);
+        throw networkError(method, url, cause, this.#scrub, shown);
       }
       const elsewhere = followedElsewhere(method, url, response.url);
-      if (elsewhere !== undefined) throw elsewhere;
+      if (elsewhere !== undefined) throw networkError(method, url, elsewhere, this.#scrub, shown);
 
       const status = response.status;
       const retryable = status === 429 || status === 503;
@@ -950,7 +964,7 @@ export class RequestEngine {
         if (retryAfter === undefined || retryAfter <= MAX_RETRY_AFTER_MS) {
           attempt += 1;
           const backoff = this.retryDelayMs * attempt;
-          await this.backOff(attempt, retryAfter === undefined ? backoff : Math.max(retryAfter, backoff), url, status);
+          await this.backOff(attempt, retryAfter === undefined ? backoff : Math.max(retryAfter, backoff), shown, status);
           continue;
         }
         retryAfterTooLong = retryAfter;
@@ -965,7 +979,7 @@ export class RequestEngine {
       if (next !== undefined && redirects >= this.maxRedirects) {
         // A loop (or a long chain): say how far it got rather than a bare 3xx.
         // (With maxRedirects 0 nothing was followed; the plain text says enough.)
-        throw this.toApiError(method, url, status, response.body, { location, redirectsFollowed: redirects || undefined, dropped });
+        throw this.toApiError(method, shown, status, response.body, { location, redirectsFollowed: redirects || undefined, dropped });
       }
       if (next !== undefined) {
         // SECURITY: the credentials belong to the start URL's origin. A redirect to
@@ -975,8 +989,9 @@ export class RequestEngine {
         next.username = "";
         next.password = "";
         if (hasCredentials && dropped === undefined && next.origin !== credentialOrigin) {
-          dropped = { from: originOf(url) ?? "", to: next.origin };
+          dropped = { from: originOf(url) ?? "", to: sanitizeServerText(this.#scrub(next.origin)) };
         }
+        shown = this.shownTarget(location as string, shown);
         url = next.href;
         redirects += 1;
         continue;
@@ -987,7 +1002,7 @@ export class RequestEngine {
       // Scrubbed at the source: it is the server's, and a message may quote it (or its charset).
       const contentType = this.#scrub(String(headerValue(response.headers["content-type"]) ?? ""));
       if (status < 200 || status >= 300) {
-        throw this.toApiError(method, url, status, response.body, { location, dropped, retryAfterMs: retryAfterTooLong });
+        throw this.toApiError(method, shown, status, response.body, { location, dropped, retryAfterMs: retryAfterTooLong });
       }
 
       return { data: response.body, contentType, status, url, ...(dropped !== undefined ? { credentialsDropped: dropped } : {}) };
@@ -1099,6 +1114,23 @@ export class RequestEngine {
     return quoteValue(this.#scrub(value), max);
   }
 
+  /**
+   * A redirect's `Location` as messages name it: the credentials and the API key scrubbed as sent,
+   * before resolving it against `from` (the current request as shown) percent-encodes what is
+   * left of them in a new spelling; then userinfo redacted and control and format characters
+   * dropped (`sanitizeServerText`). A value that doesn't resolve is shown cleaned as it came.
+   */
+  private shownTarget(location: string, from: string): string {
+    const sent = this.#scrub(location);
+    let target: string;
+    try {
+      target = redactUrl(new URL(sent, from).href);
+    } catch {
+      target = redactUrl(sent);
+    }
+    return sanitizeServerText(target);
+  }
+
   private toApiError(
     method: string,
     url: string,
@@ -1138,7 +1170,7 @@ export class RequestEngine {
     if (detail !== undefined) detail = cleanDetail(this.#scrub(detail));
     // Name the target of a redirect that was not followed.
     const location =
-      status >= 300 && status < 400 && locationHeader ? redirectTarget(url, locationHeader) : undefined;
+      status >= 300 && status < 400 && locationHeader ? this.shownTarget(locationHeader, url) || undefined : undefined;
     return new JobsucheApiError({
       status,
       url,
@@ -1279,17 +1311,6 @@ function resolveLocation(location: string | undefined, base: string): URL | unde
   } catch {
     return undefined;
   }
-}
-
-/**
- * The absolute, printable form of a `Location` header: resolved against the request
- * URL, userinfo redacted, control characters stripped (it is server text bound for
- * stderr). An unparseable value is shown sanitised as it came.
- */
-function redirectTarget(requestUrl: string, location: string): string | undefined {
-  const resolved = resolveLocation(location, requestUrl);
-  const clean = sanitizeServerText(resolved ? redactUrl(resolved.href) : location);
-  return clean === "" ? undefined : clean;
 }
 
 /** A JSON number token, matched at a given position (sticky). */

@@ -450,6 +450,13 @@ as a `JobsucheNetworkError` (`followedElsewhere`) instead of being trusted; a
 transport that follows redirects and reports nothing cannot be detected, so pass
 `redirect` through. A non-http(s) `Location` (`file:`, `data:`) is never followed.
 `obtainKey()` applies the same rules to its source (same-origin redirects only).
+After a redirect, every message (and `onRetry`'s `url`, a `JobsucheApiError`'s `url` and
+`location`, `credentialsDropped.to`) names the request as the engine shows it, not as it was
+sent: the `Location` with the base URL's credentials and the API key scrubbed as the server
+sent it, then resolved (`shownTarget`; `obtainKey` does the same for a source's credentials,
+its `sourceUrl` too). Resolving first would spell an echoed password anew (`'` as `%27` in a
+query), which no scrub matches. A transport's text that names the URL it was given has it
+replaced by the shown one. The request itself still goes to the `Location` as sent.
 A base URL on plain `http:` to a host other than loopback (`localhost`, `127.0.0.0/8`,
 `::1`) gets one stderr warning per run, before the first request (`cleartextProblem`,
 exported), a `WARN` record of `jobsuche.http`: `requests to <host> are sent unencrypted (http:, not https:)`, or naming

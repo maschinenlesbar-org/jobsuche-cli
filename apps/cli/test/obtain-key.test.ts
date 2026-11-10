@@ -280,3 +280,34 @@ test("a key source behind Basic auth: a transport's text echoing its credentials
   assert.ok(charset instanceof JobsucheParseError && /charset/.test(charset.message), String(charset));
   assert.ok(!charset.message.includes(pw), charset.message);
 });
+
+test("a key source behind Basic auth: a credential echoed in a redirect's Location never names the request (security audit class D2)", async () => {
+  // A password a query spells anew once resolved (`'` as %27): scrubbed as sent, then resolved.
+  const pw = "pä\"s's-W0rd";
+  const base = `https://alice:${encodeURIComponent(pw)}@mirror.example/key`;
+  const percentDecoded = (text: string): string =>
+    text.replace(/(?:%[0-9a-fA-F]{2})+/g, (run) => {
+      try {
+        return decodeURIComponent(run);
+      } catch {
+        return run;
+      }
+    });
+  for (const location of [`/login?pw=${pw}`, `/login?pw=${encodeURIComponent(pw)}`, `/${encodeURIComponent(`alice:${pw}`)}/key`]) {
+    // Followed (same origin) and then a 500, a loop, a reset naming the URL, or the key: the
+    // source named is the followed one, as shown.
+    for (const then of ["500", "302", "reset", "key"] as const) {
+      let calls = 0;
+      const transport = async (req: HttpRequest): Promise<HttpResponse> => {
+        calls += 1;
+        if (calls === 1 || then === "302") return { status: 302, headers: { location }, body: Buffer.alloc(0) };
+        if (then === "reset") throw Object.assign(new Error(`socket hang up (${req.url})`), { code: "ECONNRESET" });
+        return then === "key" ? rawResponse(README, "text/plain") : rawResponse("", "text/plain", 500);
+      };
+      const result = await obtainKey({ sourceUrl: base, transport }).catch((caught: unknown) => caught);
+      const seen = percentDecoded(result instanceof Error ? result.message : (result as { sourceUrl: string }).sourceUrl);
+      assert.ok(then === "key" ? !(result instanceof Error) : result instanceof JobsucheError, String(result));
+      assert.ok(!seen.includes(pw), `${location} ${then}: ${seen}`);
+    }
+  }
+});
