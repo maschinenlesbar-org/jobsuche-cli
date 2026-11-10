@@ -225,7 +225,8 @@ at its start, since a text filter is sent trimmed: a padded
 `***` on stderr (`redactSecrets`) — not on stdout, where `obtain-key` prints the
 key. The forms a server echoes a userinfo back in are replaced too: the `Basic` value
 and the decoded `user:password` on stdout and stderr, the password alone (4 characters
-or more) on stderr only, since it may well occur in the data. A key read from the
+or more; for a user name without a password, `TOKEN@host`, the token, sent as Basic
+`TOKEN:`) on stderr only, since it may well occur in the data. A key read from the
 credentials file becomes a secret of the run the moment it is
 read (`deps.addSecret`, by `action()`, `config get` and `config set`), like the flag and
 the env value. `config get --reveal` alone writes through the unredacted stdout
@@ -407,7 +408,8 @@ default headers (the `X-API-Key`) in real `#private` fields, so `console.log`,
 base-URL password. Server and transport text is scrubbed of them before it
 reaches an error (`secretScrubber`, `scrubCause`), together with the forms a server
 echoes a userinfo back in (the `Basic` value, in Latin-1 as the engine sends it and in UTF-8,
-the decoded `user:password`, the password alone from 4 characters: `echoedCredentialForms`):
+the decoded `user:password`, the password alone from 4 characters, or the user name when there
+is no password, a token sent as Basic `TOKEN:`: `echoedCredentialForms`):
 an error body that echoes the request, a transport message such as fetch's "Request cannot be
 constructed from a URL that includes credentials: http://user:pw@…", and the `cause` chain.
 The key is a credential header's value whole (an inner space included) and after a scheme

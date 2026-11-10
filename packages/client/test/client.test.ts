@@ -1,7 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JobsucheClient, woNote } from "../src/client.js";
-import { JobsucheApiError, JobsucheError, JobsucheNetworkError, JobsucheParseError, JobsucheValidationError } from "../src/errors.js";
+import {
+  JobsucheApiError,
+  JobsucheError,
+  JobsucheNetworkError,
+  JobsucheParseError,
+  JobsucheValidationError,
+  echoedCredentialForms,
+} from "../src/errors.js";
 import { makeMockTransport, jsonResponse, constantJson, okResponse, rawResponse } from "./helpers.js";
 import { RequestEngine } from "../src/engine.js";
 import { V6_NO_MATCH, V6_SEARCH } from "./fixtures.js";
@@ -423,5 +430,34 @@ test("a credential or the API key echoed in a redirect's Location never names th
     const seen = percentDecoded([loop.message, loop.url, loop.location ?? "", ...retried].join("\n"));
     assert.ok(retried.length > 0);
     for (const secret of secrets) assert.ok(!seen.includes(secret), `${location}: ${seen}`);
+  }
+});
+
+test("echoedCredentialForms treats a userinfo without a password as a token, Basic `TOKEN:` (security audit class E)", () => {
+  // Latin-1, as the engine sends the Basic value (the engine scrubs the UTF-8 spelling too).
+  const basic = (pair: string): string => Buffer.from(pair, "latin1").toString("base64");
+  assert.deepEqual(echoedCredentialForms("alice:s3cret"), [basic("alice:s3cret"), "alice:s3cret", "s3cret"]);
+  assert.deepEqual(echoedCredentialForms("T0ken"), [basic("T0ken:"), "T0ken:", "T0ken"]);
+  assert.deepEqual(echoedCredentialForms("T0ken:"), [basic("T0ken:"), "T0ken:", "T0ken"]);
+  assert.deepEqual(echoedCredentialForms("T%C3%B6k"), [basic("Tök:"), "Tök:"]); // short: not alone
+  assert.deepEqual(echoedCredentialForms(":pw12"), [basic(":pw12"), ":pw12", "pw12"]);
+  assert.deepEqual(echoedCredentialForms(""), []);
+  assert.deepEqual(echoedCredentialForms(":"), []);
+});
+
+test("a token as the base URL's user name is scrubbed from library errors in every echoed form (security audit class E)", async () => {
+  const token = "T0kenS3cret";
+  const basic = Buffer.from(`${token}:`, "latin1").toString("base64");
+  for (const base of [`https://${token}@mirror.example`, `https://${token}:@mirror.example`]) {
+    for (const echo of [`bad token ${token}`, `Authorization: Basic ${basic}`, `user ${token}: unknown`]) {
+      const mt = makeMockTransport(() => rawResponse(JSON.stringify({ message: echo }), "application/json", 401));
+      const c = new JobsucheClient({ baseUrl: base, transport: mt.transport });
+      const err = await c.search({ was: "x" }).catch((caught: unknown) => caught);
+      assert.ok(err instanceof JobsucheApiError && err.status === 401, String(err));
+      assert.equal(mt.last().headers?.["Authorization"], `Basic ${basic}`);
+      for (const text of [err.message, err.detail ?? "", err.body]) {
+        assert.ok(!text.includes(token) && !text.includes(basic), `${base} ${echo}: ${text}`);
+      }
+    }
   }
 });
