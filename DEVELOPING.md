@@ -735,7 +735,22 @@ copied as is and differs only in its adapter block at the top:
   256 MB heap, 20 MB of DEL characters within 512 MB, 90 MB of them (past V8's longest string
   once escaped) are an `ERROR` of `jobsuche.output`, two million one-byte chunks are read within
   256 MB; a lone surrogate or invalid bytes become U+FFFD with one `WARN` of
-  `jobsuche.api`, never silent or fatal.
+  `jobsuche.api`, never silent or fatal;
+- `p28-hostile-error-answers` (security audit 2026-10-27, reference `create-cli-template`, as
+  P29–P31) — a number with a long run of zeros checked in linear time; server text cut before it
+  is cleaned; a 16 MB error message one `ERROR` record and millions of lone surrogates repaired
+  within a small heap, both in the bin (30 s); the base URL's credentials scrubbed from decoded
+  error text, from a 2xx error envelope the shape check quotes and from a redirect's Location,
+  whose 302 loop ends at the redirect limit;
+- `p29-base-url-credentials` — a token userinfo scrubbed, a backslash and a repaired scheme
+  refused, requests to the parsed host, linear stdout redaction; the glued-URL case is skipped
+  (this CLI's stdout redaction matches argv's userinfo exactly and has no pattern pass);
+- `p30-output-links` — all skipped, `HAS_OUTPUT_OPTION = false` (no `-o`; the adapter has
+  stand-ins for the shapes the body uses);
+- `p31-release-pipeline` — the release workflow and `tools/sbom/`, read as text.
+
+The API key is scrubbed by the same code as the base URL's credentials; the client's
+`client.test.ts` checks it for the escaped echo, the quoted envelope, `woNote` and the Location.
 
 Cases that don't apply here are skipped in the adapter with the reason (no
 base-URL environment variable; `obtain-key` does not verify the key; no `-o`, so P23's
@@ -760,7 +775,8 @@ GitHub Actions workflows under `.github/workflows/`:
   where the tarball is built or where the write token is. Update the tool by changing its
   version in `tools/sbom/package.json` and running `npm install --package-lock-only
   --ignore-scripts` there; don't chain its install into an npm script.
-  `apps/cli/test/release-workflow.test.ts` reads the workflow and the lockfile and checks it.
+  `apps/cli/test/conformance-p31-release-pipeline.test.ts` (P31) reads the workflow and the
+  lockfile and checks it.
 - **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): `npm publish --workspace apps/cli` via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
 - **docs.yml** — build the project website (`site/`, English and German) with the TypeDoc API docs
   under `/api/`, and deploy both to GitHub Pages on each `v*` tag.
