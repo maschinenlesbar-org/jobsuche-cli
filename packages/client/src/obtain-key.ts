@@ -34,7 +34,7 @@ import {
   type ExchangeResponse,
 } from "./engine.js";
 import { assertValid, headerValueProblem, httpUrlProblem } from "./validate.js";
-import { JobsucheError, JobsucheParseError, JobsucheValidationError, credentialsIn, redactUrl } from "./errors.js";
+import { JobsucheError, JobsucheParseError, JobsucheValidationError, credentialsIn, echoedCredentialForms, redactUrl } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
 export const API_KEY_ENV_VAR = "JOBSUCHE_API_KEY";
@@ -185,7 +185,14 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   // Authorization header, never in the URL the transport sees; with same-origin
   // redirects only, it never leaves that origin.
   const start = splitUserinfo(sourceUrl);
-  const scrub = secretScrubber(credentialsIn(sourceUrl), []);
+  // Its userinfo, and the forms a server echoes it in (the Basic value, `user:password`, the
+  // password), longest first: a transport's text can carry any of them.
+  const scrub = secretScrubber(
+    credentialsIn(sourceUrl),
+    credentialsIn(sourceUrl)
+      .flatMap(echoedCredentialForms)
+      .sort((a, b) => b.length - a.length),
+  );
   let url = start.url;
   let response: ExchangeResponse;
   for (let redirects = 0; ; redirects += 1) {
@@ -231,7 +238,8 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
 
   // Bytes that are not valid text become U+FFFD; a key holding one does not match the key
   // format, so the replacement can never change the key that is printed.
-  const { text } = decodeBody(response.body, String(headerValue(response.headers["content-type"]) ?? ""), `GET ${redactUrl(url)}`);
+  // The Content-Type is scrubbed first: a refused charset is quoted in the error.
+  const { text } = decodeBody(response.body, scrub(String(headerValue(response.headers["content-type"]) ?? "")), `GET ${redactUrl(url)}`);
   // The `clientId` is the documented value and wins; an `X-API-Key` example is
   // the fallback. When the document states more than one distinct key — two
   // clientIds, or an X-API-Key that contradicts the clientId — it is ambiguous,

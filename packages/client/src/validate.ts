@@ -395,22 +395,27 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** No secrets to scrub: the text as it is. */
+const asIs = (text: string): string => text;
+
 /**
  * The text an error envelope carries (`message`, `error`, `detail`, or the gateway's
- * `messages[].detail`), cut to 200 characters (never inside a surrogate pair), for a parse error to quote; undefined
- * when there is none. Server text: control characters are stripped by the caller.
+ * `messages[].detail`), with `scrub` applied and then cut to 200 characters (never inside a
+ * surrogate pair), for a parse error to quote; undefined when there is none. Scrubbed before
+ * the cut, so a secret the server echoed never leaves a prefix behind. Server text: control
+ * characters are stripped by the caller.
  */
-function envelopeText(value: Record<string, unknown>): string | undefined {
+function envelopeText(value: Record<string, unknown>, scrub: (text: string) => string): string | undefined {
   for (const key of ["message", "error", "detail"]) {
     const v = value[key];
-    if (typeof v === "string" && v.trim() !== "") return cutText(v.trim(), 200);
+    if (typeof v === "string" && v.trim() !== "") return cutText(scrub(v.trim()), 200);
   }
   const messages = value["messages"];
   if (Array.isArray(messages)) {
     const texts = messages
       .map((m) => (isPlainObject(m) && typeof m["detail"] === "string" ? m["detail"] : undefined))
       .filter((t): t is string => t !== undefined && t.trim() !== "");
-    if (texts.length > 0) return cutText(texts.join("; "), 200);
+    if (texts.length > 0) return cutText(scrub(texts.join("; ")), 200);
   }
   return undefined;
 }
@@ -421,11 +426,13 @@ function envelopeText(value: Record<string, unknown>): string | undefined {
  * when nothing matched), `ergebnisliste` absent or an array of listings that each
  * have a string `referenznummer`, and `page`/`size` numbers and `woOutput`/
  * `facetten` objects when present. `null`, `{}`, an array or an error envelope
- * (`{"message": "quota exceeded"}` from a proxy) is not "nothing found".
+ * (`{"message": "quota exceeded"}` from a proxy) is not "nothing found". An envelope's text is
+ * quoted with `scrub` applied first (the client passes `RequestEngine.scrubServerValue`, so the
+ * base URL's credentials and the API key never reach the reason).
  */
-export const searchResultProblem: Problem<unknown> = (value) => {
+export function searchResultProblem(value: unknown, scrub: (text: string) => string = asIs): string | undefined {
   if (!isPlainObject(value)) return `expected a JSON object, got ${value === null ? "null" : Array.isArray(value) ? "an array" : typeof value}`;
-  const said = envelopeText(value);
+  const said = envelopeText(value, scrub);
   const max = value["maxErgebnisse"];
   if (typeof max !== "number" || !Number.isSafeInteger(max) || max < 0) {
     return `no maxErgebnisse count${said !== undefined ? `; the server said: ${said}` : ""}`;
@@ -444,21 +451,22 @@ export const searchResultProblem: Problem<unknown> = (value) => {
     if (value[key] !== undefined && !isPlainObject(value[key])) return `${key} is not an object`;
   }
   return undefined;
-};
+}
 
 /**
  * Why a 2xx body is not a `/pc/v4/jobdetails` record, or undefined: it must be a JSON
  * object with a string `referenznummer` (every live record has one). `{}`, `null` or
- * an error envelope is not a listing.
+ * an error envelope is not a listing. An envelope's text is quoted with `scrub` applied first,
+ * as in {@link searchResultProblem}.
  */
-export const jobDetailsProblem: Problem<unknown> = (value) => {
+export function jobDetailsProblem(value: unknown, scrub: (text: string) => string = asIs): string | undefined {
   if (!isPlainObject(value)) return `expected a JSON object, got ${value === null ? "null" : Array.isArray(value) ? "an array" : typeof value}`;
   if (typeof value["referenznummer"] !== "string") {
-    const said = envelopeText(value);
+    const said = envelopeText(value, scrub);
     return `no referenznummer${said !== undefined ? `; the server said: ${said}` : ""}`;
   }
   return undefined;
-};
+}
 
 /**
  * A reference number (or encoded code) for `details()`: a string, and a token

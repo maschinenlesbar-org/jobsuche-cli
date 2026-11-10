@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JobsucheClient, woNote } from "../src/client.js";
 import { JobsucheApiError, JobsucheError, JobsucheParseError, JobsucheValidationError } from "../src/errors.js";
-import { makeMockTransport, jsonResponse, constantJson, okResponse } from "./helpers.js";
+import { makeMockTransport, jsonResponse, constantJson, okResponse, rawResponse } from "./helpers.js";
+import { RequestEngine } from "../src/engine.js";
 import { V6_NO_MATCH, V6_SEARCH } from "./fixtures.js";
 import { isBlank } from "../src/validate.js";
 
@@ -232,4 +233,129 @@ test("a parameter sent with allowUnknownParams is checked too: its name a token,
   // A value of only invisible characters or combining marks is blank.
   for (const blank of ["", " ", "​", "­", "́̈", "\u0085"]) assert.equal(isBlank(blank), true, JSON.stringify(blank));
   assert.equal(isBlank("a​"), false);
+});
+
+test("an error body keeps its spelling unless a credential hides behind an escape (security audit class D)", async () => {
+  const base = "https://alice:s3cret-pw@mirror.example";
+  const bodyOf = async (body: string): Promise<string> => {
+    const e = new RequestEngine({ baseUrl: base, transport: async () => rawResponse(body, "application/json", 500), maxRetries: 0 });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof JobsucheApiError, String(err));
+    return err.body;
+  };
+  // No credential, or one spelled as sent: the body as sent (scrubbed), escapes kept.
+  assert.equal(await bodyOf('{"m":"caf\\u00e9 \\"x\\""}'), '{"m":"caf\\u00e9 \\"x\\""}');
+  assert.equal(await bodyOf('{"m":"pw s3cret-pw \\u00e9"}'), '{"m":"pw *** \\u00e9"}');
+  // Escaped: written again decoded, scrubbed in that spelling.
+  assert.equal(await bodyOf('{"m":"pw s3cret\\u002dpw \\u00e9"}'), '{"m":"pw *** é"}');
+  // Not JSON: nobody decodes it, it stays as sent.
+  assert.equal(await bodyOf("pw s3cret\\u002dpw"), "pw s3cret\\u002dpw");
+});
+
+test("a value quoted from an answer is scrubbed before it is cut, so no part of a credential stays (security audit class D)", async () => {
+  const pw = "s3cret-Pw-long";
+  const key = "Zq9x-k3y-Wv77-test";
+  const e = new RequestEngine({ baseUrl: `https://alice:${pw}@mirror.example`, defaultHeaders: { "X-API-Key": key } });
+  for (const at of [0, 190, 195, 199]) {
+    for (const secret of [pw, key]) {
+      const quoted = e.quoteServerValue(`${"x".repeat(at)}${secret}${"y".repeat(600)}`);
+      assert.ok(!quoted.includes(secret.slice(0, 6)), `${at}: ${quoted}`);
+    }
+  }
+  assert.equal(new RequestEngine().quoteServerValue('a"b'), '"a\\"b"');
+  // A 2xx error envelope the shape check quotes ("the server said: …", cut at 200) and the place
+  // a search names (woNote, cut at 200): scrubbed before the cut, so no prefix of the key or the
+  // password stays, also where the cut fell inside one.
+  for (const at of [0, 190, 195]) {
+    for (const secret of [pw, key]) {
+      const said = `${"x".repeat(at)}${secret}`;
+      for (const [answer, call] of [
+        [{ message: said }, (c: JobsucheClient) => c.search({ was: "x" })],
+        [{ messages: [{ detail: said }] }, (c: JobsucheClient) => c.details("10001-1002716922-S")],
+      ] as const) {
+        const c = new JobsucheClient({ apiKey: key, baseUrl: `https://alice:${pw}@mirror.example`, transport: async () => jsonResponse(answer) });
+        const err = await call(c).catch((caught: unknown) => caught);
+        assert.ok(err instanceof JobsucheParseError && /the server said/.test(err.message), String(err));
+        assert.ok(!err.message.includes(secret.slice(0, 6)), err.message);
+      }
+      const c = new JobsucheClient({ apiKey: key, baseUrl: `https://alice:${pw}@mirror.example` });
+      const note = c.woNote("Berlin", { maxErgebnisse: 0, woOutput: { bereinigterOrt: said } } as never) ?? "";
+      assert.match(note, /searched around/);
+      assert.ok(!note.includes(secret.slice(0, 6)), note);
+    }
+  }
+});
+
+test("an echo of the request URL as sent is scrubbed, a short password too (security audit class D)", async () => {
+  // Typed raw; WHATWG spells it `p%22%C3%A4` in the URL, which a server echoes.
+  const e = new RequestEngine({
+    baseUrl: 'https://alice:p"ä@mirror.example',
+    transport: async () => rawResponse(JSON.stringify({ message: "no access: https://alice:p%22%C3%A4@mirror.example/x" }), "application/json", 403),
+  });
+  const err = await e.getJson("/x").catch((caught: unknown) => caught);
+  assert.ok(err instanceof JobsucheApiError, String(err));
+  for (const text of [err.message, err.detail ?? "", err.body]) {
+    assert.ok(!text.includes("p%22%C3%A4@") && !text.includes('p"ä@'), text);
+  }
+});
+
+test("the API key and the base URL's Basic value echoed with JSON escapes are scrubbed from the message, the detail and the decoded body (security audit class D)", async () => {
+  const key = "Zq9x-k3y-Wv77-test";
+  const pw = "pä\"s's-W0rd";
+  const escaped = (text: string): string => `"${[...text].map((ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`).join("")}"`;
+  const basics = [Buffer.from(`alice:${pw}`, "latin1").toString("base64"), Buffer.from(`alice:${pw}`, "utf8").toString("base64")];
+  for (const echo of [escaped(key), escaped(`bad key ${key}`), ...basics.map((b) => escaped(`Basic ${b}`)), JSON.stringify(`Basic ${basics[1]}`)]) {
+    for (const body of [`{"message":${echo}}`, `{"detail":${echo}}`, `{"messages":[{"code":"X","detail":${echo}}]}`]) {
+      const c = new JobsucheClient({
+        apiKey: key,
+        baseUrl: `https://alice:${encodeURIComponent(pw)}@mirror.example`,
+        transport: async () => rawResponse(body, "application/json", 401),
+      });
+      const err = await c.search({ was: "x" }).catch((caught: unknown) => caught);
+      assert.ok(err instanceof JobsucheApiError && err.status === 401, String(err));
+      const decoded = JSON.stringify(JSON.parse(err.body));
+      for (const text of [err.message, err.detail ?? "", err.body, decoded]) {
+        for (const secret of [key, ...basics]) assert.ok(!text.includes(secret), `${body}: ${text}`);
+      }
+    }
+  }
+  // An X-API-Key with an inner space is scrubbed whole, not from its second word on.
+  const spaced = "Zq9xWv first-part";
+  const c = new JobsucheClient({ apiKey: spaced, transport: async () => jsonResponse({ message: `bad key ${spaced}` }, 401) });
+  const err = await c.search({ was: "x" }).catch((caught: unknown) => caught);
+  assert.ok(err instanceof JobsucheApiError, String(err));
+  assert.ok(!err.message.includes("Zq9xWv"), err.message);
+  // And the password percent-encoded, as a server puts it into a URL it quotes.
+  const encoded = encodeURIComponent(pw);
+  const d = new JobsucheClient({
+    baseUrl: `https://alice:${encoded}@mirror.example`,
+    transport: async () => rawResponse(JSON.stringify({ message: `log in again: /login?pw=${encoded}` }), "application/json", 401),
+  });
+  const err2 = await d.search({ was: "x" }).catch((caught: unknown) => caught);
+  assert.ok(err2 instanceof JobsucheApiError, String(err2));
+  for (const text of [err2.message, err2.detail ?? "", err2.body]) assert.ok(!text.includes(encoded), text);
+});
+
+test("a number literal, a Content-Type and a body snippet a message quotes are scrubbed (security audit class D)", async () => {
+  const pw = "12345678";
+  const c = (body: string, type: string): JobsucheClient =>
+    new JobsucheClient({ baseUrl: `https://alice:${pw}@mirror.example`, transport: async () => rawResponse(body, type) });
+  const inexact = await c(`{"maxErgebnisse":9007199254740993${pw}}`, "application/json").search({ was: "x" }).catch((caught: unknown) => caught);
+  assert.ok(inexact instanceof JobsucheParseError && /cannot be represented exactly/.test(inexact.message), String(inexact));
+  assert.ok(!inexact.message.includes(pw), inexact.message);
+  const html = await c("<html>", `text/x-${pw}; charset=utf-8`).search({ was: "x" }).catch((caught: unknown) => caught);
+  assert.ok(html instanceof JobsucheParseError && /expected a JSON answer/.test(html.message), String(html));
+  assert.ok(!html.message.includes(pw), html.message);
+  const charset = await c("{}", `application/json; charset=x-${pw}`).search({ was: "x" }).catch((caught: unknown) => caught);
+  assert.ok(charset instanceof JobsucheParseError && /unsupported response charset/.test(charset.message), String(charset));
+  assert.ok(!charset.message.includes(pw), charset.message);
+  // The snippet of a non-JSON body is scrubbed before its cut at 200: no prefix of the password.
+  const long = "s3cret-Pw-long";
+  for (const at of [190, 195]) {
+    const e = new JobsucheClient({ baseUrl: `https://alice:${long}@mirror.example`, transport: async () => rawResponse(`${"x".repeat(at)}${long}`, "text/html") });
+    const err = await e.search({ was: "x" }).catch((caught: unknown) => caught);
+    assert.ok(err instanceof JobsucheParseError, String(err));
+    const cause = err.cause instanceof Error ? err.cause.message : "";
+    assert.ok(!cause.includes("s3cret"), cause);
+  }
 });

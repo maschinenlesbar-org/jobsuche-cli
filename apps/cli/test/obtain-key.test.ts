@@ -260,3 +260,23 @@ test("obtainKey accepts only a value in the documented key format, never a place
   assert.notEqual(await run(["obtain-key"], cli.deps), 0);
   assert.deepEqual(cli.out, []);
 });
+
+test("a key source behind Basic auth: a transport's text echoing its credentials keeps none of their forms (security audit class D)", async () => {
+  // Only `user:password@` was cut from the text; the Basic value, the decoded pair and the
+  // password alone, as a server or a proxy echoes them, stayed in the message.
+  const pw = "s3cret-Pw";
+  const basic = Buffer.from(`alice:${pw}`, "latin1").toString("base64");
+  const transport = async (): Promise<HttpResponse> => {
+    throw new Error(`denied: Basic ${basic} (alice:${pw}) ${pw}`);
+  };
+  const err = await obtainKey({ sourceUrl: `https://alice:${pw}@mirror.example/key`, transport }).catch((caught: unknown) => caught);
+  assert.ok(err instanceof JobsucheNetworkError, String(err));
+  for (const secret of [basic, `alice:${pw}`, pw]) assert.ok(!err.message.includes(secret), err.message);
+  // A refused charset is quoted without the source's password.
+  const charset = await obtainKey({
+    sourceUrl: `https://alice:${pw}@mirror.example/key`,
+    transport: async () => rawResponse("x", `text/plain; charset=x-${pw}`),
+  }).catch((caught: unknown) => caught);
+  assert.ok(charset instanceof JobsucheParseError && /charset/.test(charset.message), String(charset));
+  assert.ok(!charset.message.includes(pw), charset.message);
+});

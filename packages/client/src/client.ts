@@ -26,7 +26,6 @@ import {
   searchResultProblem,
   normalizeSearchParams,
   validateSearchParams,
-  type Problem,
   type SearchOptions,
 } from "./validate.js";
 import type { QueryParams } from "./query.js";
@@ -76,10 +75,17 @@ function prune(params: Record<string, unknown>): QueryParams {
  * `value` as `T` when `problem` finds nothing wrong with it, else a JobsucheParseError
  * (`GET <url>: unexpected response shape: not a <what> (<reason>).`, the request as
  * `RequestEngine.describeUrl` names it): a 2xx body without the documented shape is never
- * handed on as data.
+ * handed on as data. A server text the reason quotes is scrubbed of the base URL's credentials
+ * and the API key (`scrub`) before it is cut.
  */
-function checked<T>(request: string, value: unknown, problem: Problem<unknown>, what: string): T {
-  const reason = problem(value);
+function checked<T>(
+  request: string,
+  value: unknown,
+  problem: (value: unknown, scrub: (text: string) => string) => string | undefined,
+  what: string,
+  scrub: (text: string) => string,
+): T {
+  const reason = problem(value, scrub);
   if (reason !== undefined) {
     throw new JobsucheParseError(`${request}: unexpected response shape: not a ${what} (${sanitizeServerText(reason)}).`);
   }
@@ -88,6 +94,8 @@ function checked<T>(request: string, value: unknown, problem: Problem<unknown>, 
 
 export class JobsucheClient {
   private readonly engine: RequestEngine;
+  /** `RequestEngine.scrubServerValue`, for the server values this client's messages quote. */
+  readonly #scrub = (text: string): string => this.engine.scrubServerValue(text);
 
   constructor(options: JobsucheClientOptions = {}) {
     // A JavaScript caller may pass null for "no options"; anything else must be an object.
@@ -139,7 +147,7 @@ export class JobsucheClient {
     const path = `${SERVICE}/pc/v6/jobs`;
     const query = prune({ ...sent });
     const request = `GET ${this.engine.describeUrl(path, query)}`;
-    return checked(request, await this.engine.getJson<unknown>(path, query), searchResultProblem, "search result");
+    return checked(request, await this.engine.getJson<unknown>(path, query), searchResultProblem, "search result", this.#scrub);
   }
 
   /**
@@ -161,7 +169,16 @@ export class JobsucheClient {
       ? trimmed
       : Buffer.from(trimmed, "utf8").toString("base64");
     const path = `${SERVICE}/pc/v4/jobdetails/${encodeURIComponent(code)}`;
-    return checked(`GET ${this.engine.describeUrl(path)}`, await this.engine.getJson<unknown>(path), jobDetailsProblem, "job listing");
+    return checked(`GET ${this.engine.describeUrl(path)}`, await this.engine.getJson<unknown>(path), jobDetailsProblem, "job listing", this.#scrub);
+  }
+
+  /**
+   * {@link woNote} for a result of this client: the place the API names is scrubbed of the base
+   * URL's credentials and the API key before it is cut, as every server value a message of this
+   * client quotes.
+   */
+  woNote(wo: string | undefined, result: JobSearchResult): string | undefined {
+    return woNote(wo, result, this.#scrub);
   }
 
   /**
@@ -200,8 +217,11 @@ function placeKey(text: string): string {
  *   case-insensitively, NFC, blanks collapsed): the API searched around that place
  *   instead. A correction such as `Berln` → `Berlin` is named the same way; a
  *   postcode or `Frankfurt` → `Frankfurt am Main` is not.
+ *
+ * `scrub` is applied to the place the API names before it is cut: `JobsucheClient.woNote`
+ * passes the client's (the base URL's credentials and the API key), so prefer that method.
  */
-export function woNote(wo: string | undefined, result: JobSearchResult): string | undefined {
+export function woNote(wo: string | undefined, result: JobSearchResult, scrub: (text: string) => string = (text) => text): string | undefined {
   if (wo === undefined || wo.trim() === "" || !isPlainObject(result as unknown)) return undefined;
   const out = result.woOutput;
   if (!isPlainObject(out as unknown)) return undefined;
@@ -212,7 +232,7 @@ export function woNote(wo: string | undefined, result: JobSearchResult): string 
       `was searched there: an empty result does not mean "no jobs". Check the spelling or use a postcode.`
     );
   }
-  const resolved = typeof out?.bereinigterOrt === "string" ? sanitizeServerText(out.bereinigterOrt) : "";
+  const resolved = typeof out?.bereinigterOrt === "string" ? sanitizeServerText(scrub(out.bereinigterOrt)) : "";
   if (resolved === "") return undefined;
   const a = placeKey(asked);
   const b = placeKey(resolved);

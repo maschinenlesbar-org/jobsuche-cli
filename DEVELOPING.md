@@ -406,13 +406,26 @@ default headers (the `X-API-Key`) in real `#private` fields, so `console.log`,
 `util.inspect` and `JSON.stringify` of a client never show the key or a
 base-URL password. Server and transport text is scrubbed of them before it
 reaches an error (`secretScrubber`, `scrubCause`), together with the forms a server
-echoes a userinfo back in (the `Basic` value, the decoded `user:password`, the
-password alone from 4 characters: `echoedCredentialForms`): an error body that echoes the
-request, a transport message such as fetch's "Request cannot be constructed from
-a URL that includes credentials: http://user:pw@…", and the `cause` chain. URLs
+echoes a userinfo back in (the `Basic` value, in Latin-1 as the engine sends it and in UTF-8,
+the decoded `user:password`, the password alone from 4 characters: `echoedCredentialForms`):
+an error body that echoes the request, a transport message such as fetch's "Request cannot be
+constructed from a URL that includes credentials: http://user:pw@…", and the `cause` chain.
+The key is a credential header's value whole (an inner space included) and after a scheme
+(`Bearer <token>`); the userinfo is taken as typed and as WHATWG spells it in the request URL
+(`p%22%C3%A4` for a typed `p"ä`), and every form also percent-encoded, as a server puts it into
+a URL it quotes. A `detail` is scrubbed again once decoded (a JSON escape, `\"` or `\u00e4`, hid
+an echo from the scrub of the body as sent), and `JobsucheApiError.body` stays as sent (scrubbed)
+unless it is JSON with an escape whose decoded text still holds a secret: then it is the decoded
+JSON written again with the secret replaced (`scrubBody`; `""` for such a body too deeply nested
+to write again). A value the client quotes from a 2xx answer is scrubbed before it is cut: the
+text of an error envelope a shape error quotes (`searchResultProblem`/`jobDetailsProblem` take
+the engine's scrub), the place `JobsucheClient.woNote` names, the number literal, the
+Content-Type and charset, and a non-JSON body's snippet. API code quotes a server value with
+`RequestEngine.quoteServerValue` (scrubbed, then `quoteValue`) and stores one with
+`scrubServerValue`. URLs
 in messages go through `redactUrl`, which also cuts the userinfo out of a value
 that doesn't parse. `obtainKey()` names a `user:password@` source as `***@` in its
-errors and in `sourceUrl`. `apps/cli/test/conformance-p2-library-redaction.test.ts` is the
+errors and in `sourceUrl`, and scrubs every echoed form of its userinfo from them. `apps/cli/test/conformance-p2-library-redaction.test.ts` is the
 shared check.
 
 **Default headers.** The engine merges `defaultHeaders` into every request —
@@ -485,8 +498,8 @@ redaction knows both escaped forms of a key.
 
 **What the API did with `wo`.** The API never fails on a place: it corrects a
 typo, may resolve a garbled name to another town, or answers `suchmodus:
-"UNGUELTIG"` with an empty result — all HTTP 200. `woNote(wo, result)` (in
-`client.ts`, exported) returns a sentence when the place used
+"UNGUELTIG"` with an empty result — all HTTP 200. `client.woNote(wo, result)` (the free
+`woNote(wo, result, scrub?)` in `client.ts`, exported, without the client's scrub) returns a sentence when the place used
 (`woOutput.bereinigterOrt`) neither contains nor is contained in the `wo` asked
 for (NFC, case-insensitive, blanks collapsed), or when it was not recognised; the
 `search` command logs it as a `WARN` record of `jobsuche.api` on stderr and keeps exit `0`.
