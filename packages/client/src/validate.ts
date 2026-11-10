@@ -5,7 +5,7 @@
 // value-parsers call the same function and turn the reason into a usage error, so
 // the rule exists exactly once.
 
-import { JobsucheValidationError, cutText, quoteValue, redactUrl } from "./errors.js";
+import { JobsucheValidationError, credentialsIn, cutText, quoteValue, redactCredentials, redactUrl } from "./errors.js";
 import type { JobSearchParams } from "./types.js";
 
 /** Why `value` is invalid, or `undefined` if it is valid. */
@@ -258,13 +258,22 @@ export const httpUrlProblem: Problem = (value) => {
     const c = value.charCodeAt(i);
     if (c <= 0x20 || c === 0x7f) return "A base URL cannot contain whitespace or control characters.";
   }
+  // A value typed without `<scheme>://` (`my_user:pw@host`, `T0ken:@host`) is a userinfo and a
+  // host whose scheme was left out, as the CLI reads a --base-url: redactUrl finds a userinfo
+  // only after a scheme, so its password was quoted in clear.
+  const spellsScheme = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value);
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    return `Invalid URL: ${quoteValue(redactUrl(value))}.`;
+    const shown = spellsScheme ? redactUrl(value) : redactCredentials(redactUrl(value), credentialsIn(`http://${value}`));
+    return `Invalid URL: ${quoteValue(shown)}.`;
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
+    // `user:password@host` without a scheme parses as a URL whose scheme is the user name
+    // ("t0kens3cret:"), lower-cased, which no exact-string redaction can match: name a scheme
+    // only when the value spells one, `<scheme>://`.
+    if (!spellsScheme) return "Expected an absolute http(s) URL.";
     return `Unsupported protocol ${quoteValue(url.protocol)} (use http: or https:).`;
   }
   // The userinfo is decoded for the Authorization header; a "%" that isn't an escape

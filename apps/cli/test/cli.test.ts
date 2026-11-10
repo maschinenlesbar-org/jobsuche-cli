@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { redactionFor, run } from "../src/cli/run.js";
 import { renderJson } from "../src/cli/shared.js";
 import { JobsucheClient } from "@maschinenlesbar.org/jobsuche-client/internal/client";
-import { JobsucheNetworkError, credentialsIn } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
+import { JobsucheNetworkError, JobsucheValidationError, credentialsIn } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "@maschinenlesbar.org/jobsuche-client/internal/http";
 import { makeMockTransport, jsonResponse, okResponse, rawResponse, untimed } from "./helpers.js";
@@ -742,4 +742,29 @@ test("--base-url with a backslash or a scheme not followed by // and the host is
     assert.ok(!all.includes("pw1-S3cret"), all);
     assert.match(all, /backslash|"https:\/\/" and the host/, all);
   }
+});
+
+test("a --base-url typed without its scheme never names its user name or password (security audit F5)", async () => {
+  // `T0kenS3cret:@h` parses as a URL whose scheme is the token, lower-cased: the refusal named it
+  // (`Unsupported protocol "t0kens3cret:"`), which no exact-string redaction matches; and
+  // `my_user:pw@h`, which doesn't parse, was quoted by the library with its password.
+  for (const [baseUrl, secret] of [
+    ["T0kenS3cret:@h.example", "t0kens3cret"],
+    ["alice:s3cret-pw@h.example", "s3cret-pw"],
+    ["Alice:s3cret-pw@h.example/x", "s3cret-pw"],
+    ["my_user:s3cret-pw@h.example", "s3cret-pw"],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse({ maxErgebnisse: 0 }));
+    assert.equal(await run(["--base-url", baseUrl, "search", "--was", "x"], cli.deps), 2, baseUrl);
+    assert.equal(cli.mt.calls.length, 0, baseUrl);
+    const text = [...cli.out, ...cli.err].join("\n");
+    assert.ok(!text.toLowerCase().includes(secret), text);
+    assert.throws(
+      () => new JobsucheClient({ baseUrl }),
+      (err: unknown) => err instanceof JobsucheValidationError && !err.message.toLowerCase().includes(secret),
+      baseUrl,
+    );
+  }
+  assert.throws(() => new JobsucheClient({ baseUrl: "T0kenS3cret:@h.example" }), /Invalid baseUrl: Expected an absolute http\(s\) URL\.$/);
+  assert.throws(() => new JobsucheClient({ baseUrl: "my_user:s3cret-pw@h.example" }), /Invalid baseUrl: Invalid URL: "\*\*\*@h\.example"\.$/);
 });
