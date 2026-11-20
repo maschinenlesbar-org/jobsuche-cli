@@ -77,4 +77,41 @@ export {
   redactUrl,
 } from "./errors.js";
 
+export {
+  findJobs,
+  jobboerseUrl,
+  listing,
+  MAX_OFFSET,
+  OFFER_TYPES,
+  PAGE_SIZE,
+  PICK_DESCRIPTION_LENGTH,
+  pickDetails,
+  rankFacet,
+  scanMarket,
+  searchJobs,
+  searchParams,
+  watchEmployer,
+} from "./operations.js";
+export type {
+  EmployerCandidate,
+  EmployerProfile,
+  FindJobsInput,
+  Freshness,
+  JobFilters,
+  JobPage,
+  JobShortlist,
+  Listing,
+  MarketScan,
+  MarketScanInput,
+  OfferType,
+  OperationStatus,
+  PickDetails,
+  PlaceNote,
+  RankedFacet,
+  Searched,
+  SearchJobsInput,
+  TempAgencies,
+  WatchEmployerInput,
+} from "./operations.js";
+
 export * from "./types.js";
