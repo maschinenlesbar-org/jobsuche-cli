@@ -1,0 +1,325 @@
+{
+  "comment": "What tools/interop/interop.mjs needs that is particular to this repo: the environment both servers get (a test key, so neither reads a credentials file nor obtains the key over the network), the mock upstream answer per path (under --base-url http://127.0.0.1:<port>; every search gets the same answer, recorded live 2026-11-20 and cut down), how many tools the server lists, and the calls to make with what each must answer.",
+  "env": {
+    "JOBSUCHE_API_KEY": "interop-test-key"
+  },
+  "answers": {
+    "/jobboerse/jobsuche-service/pc/v6/jobs": {
+      "ergebnisliste": [
+        {
+          "stellenangebotsart": "SELBSTAENDIGKEIT",
+          "stellenangebotsTitel": "Data Engineer",
+          "arbeitszeitVollzeit": true,
+          "eintrittszeitraum": {
+            "von": "2026-11-23"
+          },
+          "verguetungsangabe": "KEINE_ANGABEN",
+          "vertragsdauer": "KEINE_ANGABE",
+          "stellenlokationen": [
+            {
+              "adresse": {
+                "strasse": "Landshuter Allee",
+                "hausnummer": "12-14",
+                "plz": "80637",
+                "ort": "München",
+                "region": "BAYERN",
+                "land": "DEUTSCHLAND"
+              },
+              "breite": 48.1484534,
+              "laenge": 11.5373018
+            }
+          ],
+          "homeofficemoeglich": true,
+          "homeofficetyp": "NACH_VEREINBARUNG",
+          "veroeffentlichungszeitraum": {
+            "von": "2026-11-02"
+          },
+          "datumErsteVeroeffentlichung": "2025-02-10",
+          "aenderungsdatum": "2026-11-02T08:37:59.246",
+          "hauptberuf": "Data Engineer",
+          "alternativBeruf1": "Informatiker/in",
+          "firma": "alfatraining Bildungszentrum GmbH",
+          "referenznummer": "10000-1183204759-S",
+          "entfernung": 2,
+          "alleBerufe": [
+            "Data Engineer",
+            "Informatiker/in"
+          ]
+        },
+        {
+          "stellenangebotsart": "ARBEIT",
+          "stellenangebotsTitel": "Senior Data Engineer (m/w/d)",
+          "quereinstiegGeeignet": false,
+          "arbeitszeitSchichtNachtWochenende": false,
+          "arbeitszeitTeilzeitAbend": false,
+          "arbeitszeitTeilzeitNachmittag": false,
+          "arbeitszeitTeilzeitVormittag": false,
+          "arbeitszeitTeilzeitFlexibel": false,
+          "arbeitszeitVollzeit": true,
+          "eintrittszeitraum": {
+            "von": "2026-11-13"
+          },
+          "verguetungsangabe": "KEINE_ANGABEN",
+          "vertragsdauer": "UNBEFRISTET",
+          "istGeringfuegigeBeschaeftigung": false,
+          "stellenlokationen": [
+            {
+              "adresse": {
+                "plz": "81667",
+                "ort": "München",
+                "region": "BAYERN",
+                "land": "DEUTSCHLAND"
+              },
+              "breite": 48.1311337,
+              "laenge": 11.5996045
+            }
+          ],
+          "homeofficemoeglich": false,
+          "chiffrenummer": "34984796",
+          "veroeffentlichungszeitraum": {
+            "von": "2026-11-12"
+          },
+          "datumErsteVeroeffentlichung": "2026-11-12",
+          "aenderungsdatum": "2026-11-13T07:10:00.781",
+          "externeURL": "https://www.persy.jobs/persy/l/job-jppm9-b",
+          "hauptberuf": "Data Engineer",
+          "firma": "Real I.S. AG Gesellschaft für Immobilien Assetmanagement",
+          "referenznummer": "12288-4996063592-S",
+          "entfernung": 3,
+          "alleBerufe": [
+            "Data Engineer"
+          ]
+        }
+      ],
+      "maxErgebnisse": 141,
+      "page": 1,
+      "size": 100,
+      "woOutput": {
+        "bereinigterOrt": "München",
+        "suchmodus": "UMKREISSUCHE",
+        "koordinaten": [
+          {
+            "lat": 48.1476759,
+            "lon": 11.5695622
+          }
+        ]
+      },
+      "facetten": {
+        "arbeitgeber": {
+          "counts": {
+            "alfatraining Bildungszentrum GmbH": 3,
+            "Google Germany GmbH": 15
+          },
+          "maxCount": 141
+        },
+        "veroeffentlichtseit": {
+          "counts": {
+            "0": 2,
+            "1": 5,
+            "7": 20,
+            "14": 41,
+            "28": 77,
+            "alle": 141
+          },
+          "maxCount": 141
+        }
+      }
+    },
+    "/jobboerse/jobsuche-service/pc/v4/jobdetails/MTAwMDAtMTE4MzIwNDc1OS1T": {
+      "stellenangebotsart": "SELBSTAENDIGKEIT",
+      "stellenangebotsTitel": "Data Engineer",
+      "stellenangebotsBeschreibung": "Lehrauftrag auf freiberuflicher Basis: Vermittlung von Fachwissen rund um die Zusammenführung, Aufbereitung, Anreicherung und Weitergabe von Daten.\n\nBeauftragungsbeginn: 23.11.2026, 21.12.2026 (und weitere Beauftragungstermine)\nOrtsunabhängig: Homeoffice oder an einem unserer Standorte\n\nDauer: 4 Woc",
+      "arbeitszeitVollzeit": true,
+      "eintrittszeitraum": {
+        "von": "2026-11-23"
+      },
+      "verguetungsangabe": "KEINE_ANGABEN",
+      "vertragsdauer": "KEINE_ANGABE",
+      "stellenlokationen": [
+        {
+          "adresse": {
+            "strasse": "Graf-Adolf-Str.",
+            "hausnummer": "67",
+            "plz": "40210",
+            "ort": "Düsseldorf",
+            "region": "NORDRHEIN_WESTFALEN",
+            "land": "DEUTSCHLAND"
+          },
+          "breite": 51.2189116,
+          "laenge": 6.7866524
+        },
+        {
+          "adresse": {
+            "strasse": "Hellweg",
+            "hausnummer": "8",
+            "plz": "44787",
+            "ort": "Bochum",
+            "region": "NORDRHEIN_WESTFALEN",
+            "land": "DEUTSCHLAND"
+          },
+          "breite": 51.47989915100004,
+          "laenge": 7.22023452500008
+        },
+        {
+          "adresse": {
+            "strasse": "Frankfurter Allee",
+            "hausnummer": "73",
+            "plz": "10247",
+            "ort": "Berlin",
+            "region": "BERLIN",
+            "land": "DEUTSCHLAND"
+          },
+          "breite": 52.51442479700006,
+          "laenge": 13.46545199500008
+        },
+        {
+          "adresse": {
+            "strasse": "Landshuter Allee",
+            "hausnummer": "12-14",
+            "plz": "80637",
+            "ort": "München",
+            "region": "BAYERN",
+            "land": "DEUTSCHLAND"
+          },
+          "breite": 48.1484534,
+          "laenge": 11.5373018
+        },
+        {
+          "adresse": {
+            "strasse": "Friedrichstraße",
+            "hausnummer": "13",
+            "plz": "70174",
+            "ort": "Stuttgart",
+            "region": "BADEN_WUERTTEMBERG",
+            "land": "DEUTSCHLAND"
+          },
+          "breite": 48.7821815,
+          "laenge": 9.1775379
+        },
+        {
+          "adresse": {
+            "strasse": "Kriegsstraße",
+            "hausnummer": "100",
+            "plz": "76133",
+            "ort": "Karlsruhe, Baden",
+            "region": "BADEN_WUERTTEMBERG",
+            "land": "DEUTSCHLAND"
+          },
+          "breite": 49.0057197,
+          "laenge": 8.4049084
+        },
+        {
+          "adresse": {
+            "strasse": "Hammerbrookstraße",
+            "hausnummer": "93",
+            "plz": "20097",
+            "ort": "Hamburg",
+            "region": "HAMBURG",
+            "land": "DEUTSCHLAND"
+          },
+          "breite": 53.5451794,
+          "laenge": 10.0252962
+        },
+        {
+          "adresse": {
+            "strasse": "Eschersheimer Landstraße",
+            "hausnummer": "10",
+            "plz": "60322",
+            "ort": "Frankfurt am Main",
+            "region": "HESSEN",
+            "land": "DEUTSCHLAND"
+          },
+          "breite": 50.11920082200004,
+          "laenge": 8.678446318000056
+        },
+        {
+          "adresse": {
+            "strasse": "Rudolphstraße",
+            "hausnummer": "30",
+            "plz": "90489",
+            "ort": "Nürnberg, Mittelfranken",
+            "region": "BAYERN",
+            "land": "DEUTSCHLAND"
+          },
+          "breite": 49.4588199,
+          "laenge": 11.0926777
+        },
+        {
+          "adresse": {
+            "strasse": "Eintrachtweg",
+            "hausnummer": "19",
+            "plz": "30173",
+            "ort": "Hannover",
+            "region": "NIEDERSACHSEN",
+            "land": "DEUTSCHLAND"
+          },
+          "breite": 52.3652302,
+          "laenge": 9.7776358
+        }
+      ],
+      "homeofficemoeglich": true,
+      "homeofficetyp": "NACH_VEREINBARUNG",
+      "veroeffentlichungszeitraum": {
+        "von": "2026-11-02"
+      },
+      "datumErsteVeroeffentlichung": "2025-02-10",
+      "aenderungsdatum": "2026-11-02T08:37:59.246",
+      "istBetreut": false,
+      "hauptberuf": "Data Engineer",
+      "alternativBeruf1": "Informatiker/in",
+      "firma": "alfatraining Bildungszentrum GmbH",
+      "allianzpartnerUrl": "http://www.arbeitsagentur.de",
+      "allianzpartnerName": "arbeitsagentur.de",
+      "referenznummer": "10000-1183204759-S"
+    }
+  },
+  "tools": 5,
+  "calls": [
+    {
+      "name": "findJobs",
+      "arguments": {
+        "what": "Data Engineer",
+        "where": "München",
+        "radiusKm": 30,
+        "details": 1
+      },
+      "expect": {
+        "status": "ok",
+        "total": 141,
+        "sortedBy": "distance",
+        "picks.0.refnr": "10000-1183204759-S",
+        "picks.0.details.pay": "KEINE_ANGABEN"
+      }
+    },
+    {
+      "name": "scanMarket",
+      "arguments": {
+        "what": "Data Engineer"
+      },
+      "expect": {
+        "status": "ok",
+        "total": 141,
+        "topEmployers.top.0.label": "Google Germany GmbH",
+        "freshness.today": 2
+      }
+    },
+    {
+      "name": "getJob",
+      "arguments": {
+        "refnr": "10000-1183204759-S"
+      },
+      "expect": {
+        "status": "ok",
+        "job.referenznummer": "10000-1183204759-S"
+      }
+    },
+    {
+      "name": "searchJobs",
+      "arguments": {
+        "what": "Data Engineer",
+        "limit": 500
+      },
+      "error": true
+    }
+  ]
+}
