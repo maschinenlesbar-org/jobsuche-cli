@@ -6,6 +6,7 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import { logOf, type CliDeps } from "./io.js";
 import { pidsProblem, responseCapFor } from "./limits.js";
+import { API_KEY_CREDENTIAL } from "@maschinenlesbar.org/jobsuche-client/internal/credentials";
 import type { JobsucheClientOptions } from "@maschinenlesbar.org/jobsuche-client/internal/client";
 import { JobsucheError, JobsucheValidationError, quoteValue } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
 import { API_KEY_ENV_VAR } from "@maschinenlesbar.org/jobsuche-client/internal/obtain-key";
@@ -13,7 +14,7 @@ import { API_KEY_PHRASE, DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type
 import { baseUrlProblem, headerValueProblem, intRangeProblem, normalizeText, refnrProblem, textProblem } from "@maschinenlesbar.org/jobsuche-client/internal/validate";
 
 /** The name the API key is stored under in the credentials file (`jobsuche config set api-key`). */
-export const API_KEY_CREDENTIAL = "api-key";
+export { API_KEY_CREDENTIAL };
 
 /**
  * commander value-parser: a non-negative decimal integer.
