@@ -36,6 +36,58 @@ Check it works:
 jobsuche --help
 ```
 
+### Docker
+
+From 0.10.0 every release is also a container image for linux/amd64 and linux/arm64 on the
+GitHub Container Registry, made from the same tarball as the npm package. It needs no Node.js and no
+install. Pass the key through the environment (the image has no credentials file):
+
+```bash
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  -e JOBSUCHE_API_KEY ghcr.io/maschinenlesbar-org/jobsuche-cli:latest search --was Pflege --wo Berlin --size 5
+```
+
+The image's entrypoint is the program, so the command follows the image name directly;
+`… jobsuche-cli:latest jobsuche search …` works too.
+
+In a container with a memory limit (`--memory`) the default `--max-response-bytes` is an eighth
+of that limit (at most the usual 100 MiB), so an oversized answer is refused with a clear
+error instead of the container being killed for memory. The CLI needs at least 12 processes and
+threads (`--pids-limit 12`): below that it refuses with an error, and with 4 or fewer Node.js
+itself hangs before the CLI can check.
+
+`latest` is the newest release. For scripts, name a release and pin its digest, which the
+[release notes](https://github.com/maschinenlesbar-org/jobsuche-cli/releases) give:
+`…/jobsuche-cli:0.10.0@sha256:<digest>`. Each image carries signed build provenance;
+check it with
+
+```bash
+gh attestation verify oci://ghcr.io/maschinenlesbar-org/jobsuche-cli:latest \
+  --repo maschinenlesbar-org/jobsuche-cli
+```
+
+### MCP server
+
+From 0.10.0 the Jobsuche is also an [MCP](https://modelcontextprotocol.io/) server for AI
+agents, `@maschinenlesbar.org/jobsuche-mcp` (command `jobsuche-mcp`, image
+`ghcr.io/maschinenlesbar-org/jobsuche-mcp`): five read-only tools, to find and rank jobs for a
+candidate (re-posts merged, the top picks with pay, home office and how to apply), watch an
+employer's openings and what is new there, scan the market for a role in a region (top employers,
+places, pay cadence, freshness), page through listings and get one in full, on stdio or Streamable
+HTTP. The tools handle the skills' traps: a place the API didn't recognise, temp-agency listings
+included by default, an employer name that must match exactly. The server finds the public key by
+itself: `JOBSUCHE_API_KEY`, else the key stored with `jobsuche config set api-key`, else the
+published one, obtained at the first call (never bundled). Setup for Claude Code, Claude Desktop
+and VS Code: [MCP.md](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/MCP.md).
+
+```bash
+npm i -g @maschinenlesbar.org/jobsuche-mcp
+claude mcp add jobsuche -- jobsuche-mcp
+```
+
+Every result carries the Bundesagentur für Arbeit's terms: the data is not open data, and running
+the server as a service for others may need the BA's permission.
+
 ## Authentication
 
 The Jobsuche API requires a static `X-API-Key`. **No key is bundled with this
@@ -337,6 +389,7 @@ than `localhost`. A `user:password@` in the base URL is sent as
 - **[Usage.md](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/Usage.md)** — full use-case-driven cookbook.
 - **[GLOSSARY.md](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/GLOSSARY.md)** — every flag and domain term explained.
 - **[DEVELOPING.md](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
+- **[MCP.md](https://github.com/maschinenlesbar-org/jobsuche-cli/blob/main/MCP.md)** — the same use cases as the tools of the MCP server, for any MCP client.
 
 ## Data license
 
