@@ -1,0 +1,63 @@
+{
+  "comment": "What tools/image/smoke.mjs needs that is particular to this repo: the bin (its log topic), a command that makes one request, the exit code of a network error, the mock answer to that request (by path, under --base-url http://mock:8080; recorded live 2026-11-20 and cut to one listing), and a string the printed answer contains. The mock asks for no key, so the command sends none.",
+  "bin": "jobsuche",
+  "command": [
+    "--compact",
+    "search",
+    "--was",
+    "Data Engineer",
+    "--size",
+    "1"
+  ],
+  "networkErrorExit": 1,
+  "answers": {
+    "/jobboerse/jobsuche-service/pc/v6/jobs": {
+      "ergebnisliste": [
+        {
+          "stellenangebotsart": "SELBSTAENDIGKEIT",
+          "stellenangebotsTitel": "Data Engineer",
+          "arbeitszeitVollzeit": true,
+          "eintrittszeitraum": {
+            "von": "2026-11-23"
+          },
+          "verguetungsangabe": "KEINE_ANGABEN",
+          "vertragsdauer": "KEINE_ANGABE",
+          "stellenlokationen": [
+            {
+              "adresse": {
+                "strasse": "Landshuter Allee",
+                "hausnummer": "12-14",
+                "plz": "80637",
+                "ort": "München",
+                "region": "BAYERN",
+                "land": "DEUTSCHLAND"
+              },
+              "breite": 48.1484534,
+              "laenge": 11.5373018
+            }
+          ],
+          "homeofficemoeglich": true,
+          "homeofficetyp": "NACH_VEREINBARUNG",
+          "veroeffentlichungszeitraum": {
+            "von": "2026-11-02"
+          },
+          "datumErsteVeroeffentlichung": "2025-02-10",
+          "aenderungsdatum": "2026-11-02T08:37:59.246",
+          "hauptberuf": "Data Engineer",
+          "alternativBeruf1": "Informatiker/in",
+          "firma": "alfatraining Bildungszentrum GmbH",
+          "referenznummer": "10000-1183204759-S",
+          "entfernung": 2,
+          "alleBerufe": [
+            "Data Engineer",
+            "Informatiker/in"
+          ]
+        }
+      ],
+      "maxErgebnisse": 141,
+      "page": 1,
+      "size": 1
+    }
+  },
+  "expectStdout": "alfatraining Bildungszentrum GmbH"
+}
