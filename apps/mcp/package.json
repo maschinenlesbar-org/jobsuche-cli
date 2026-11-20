@@ -1,6 +1,6 @@
 {
   "name": "@maschinenlesbar.org/jobsuche-mcp",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "MCP server for the Jobsuche of the Bundesagentur für Arbeit: a ranked job shortlist for a candidate, an employer's openings and what is new, and a labour-market overview, for AI agents (stdio and Streamable HTTP)",
   "type": "module",
   "bin": {
