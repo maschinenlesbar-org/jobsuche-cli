@@ -52,7 +52,12 @@ const CREDENTIALS = {
   | undefined;
 // --------------------------------------------------------------------------------------
 
+// A client for a test (harness.ts: with the repository's test login, where its client needs one).
+const { newClient } = await import("./harness.js");
+
 const skip = CREDENTIALS === undefined ? "the API needs no credentials" : false;
+/** The value the adapter's key source gives (an adapter without `value` gets the default). */
+const obtainedValueOf = (obtained: object): string => (obtained as { value?: string }).value ?? "obtained-public-credential";
 const records = (lines: string[]) => lines.join("\n");
 
 test("nothing is looked up before the first tool call: the handshake and the tool list make no request", { skip }, async () => {
@@ -102,7 +107,7 @@ test("the credential never appears in a result, an error or a record, even when 
 test("an obtained credential is obtained once, at the first call, and sent; it is a secret too", { skip: skip || (CREDENTIALS?.obtained === undefined ? "nothing is obtained" : false) }, async () => {
   const c = CREDENTIALS;
   if (c?.obtained === undefined) return;
-  const obtainedValue = "obtained-public-credential";
+  const obtainedValue = obtainedValueOf(c.obtained);
   const { log, lines } = recorder();
   const upstream = makeMockTransport((request) => (c.obtained?.isRequest(request) ? c.obtained.answer(obtainedValue) : c.answer(request, `echo ${obtainedValue}`)));
   const connection = await connect({ transport: upstream, env: {}, log });
@@ -124,7 +129,7 @@ test("a lookup that fails is the call's tool error, and the next call tries agai
   if (c?.obtained === undefined) return;
   let down = true;
   const upstream = makeMockTransport((request) => {
-    if (c.obtained?.isRequest(request)) return down ? { status: 500, headers: { "content-type": "text/plain" }, body: Buffer.from("down") } : c.obtained.answer("obtained-public-credential");
+    if (c.obtained?.isRequest(request)) return down ? { status: 500, headers: { "content-type": "text/plain" }, body: Buffer.from("down") } : c.obtained.answer(obtainedValueOf(c.obtained));
     return c.answer(request, "ok");
   });
   const connection = await connect({ transport: upstream, env: {}, config: { callTimeoutMs: 4000 } });
@@ -151,7 +156,7 @@ test("a tool error and a bug's record (the server's log) never carry a secret", 
   const { log, lines } = recorder();
   const tool = TOOLS[0] as ToolDefinition;
   // The server's log, as the factory builds it.
-  const env = { client: new Client({ transport: noUpstream }), apiBase: apiBase(undefined), config: config(), log: redactingLog(log, secrets), secrets };
+  const env = { client: newClient({ transport: noUpstream }) as Client, apiBase: apiBase(undefined), config: config(), log: redactingLog(log, secrets), secrets };
   const refused = await callTool({ ...tool, run: () => Promise.reject(new ClientError("refused with s3cret-value")) }, {}, new AbortController().signal, env);
   assert.equal(refused.content[0]?.text, "refused with ***");
   const bug = await callTool({ ...tool, run: () => Promise.reject(new Error("crashed on s3cret-value")) }, {}, new AbortController().signal, env);
