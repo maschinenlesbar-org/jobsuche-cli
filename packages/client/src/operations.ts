@@ -317,6 +317,15 @@ export interface FindJobsInput extends JobFilters {
   details?: number | undefined;
 }
 
+/** A shortlist pick: a listing, its details or why it has none, and the re-posts merged into it. */
+export type Pick = Listing & {
+  details?: PickDetails;
+  /** Why the pick has no details: gone since the search, or the request failed. */
+  detailsError?: string;
+  /** The refnrs of the re-posts merged into this pick (the same title and employer at the same address). */
+  reposts?: string[];
+};
+
 export interface JobShortlist {
   status: OperationStatus;
   searched: Searched;
@@ -326,11 +335,10 @@ export interface JobShortlist {
   place?: PlaceNote;
   /** How many listings were read and ranked (the first page of up to 100). */
   read?: number;
-  /** Re-posts merged: the same title, employer and city. */
+  /** Re-posts merged: the same title and employer at the same address (their refnrs are in the pick's `reposts`). */
   duplicatesMerged?: number;
   sortedBy?: "distance" | "newest";
-  /** `detailsError` says why a pick has no details: gone since the search, or the request failed. */
-  picks?: (Listing & { details?: PickDetails; detailsError?: string })[];
+  picks?: Pick[];
   /** Matches not on the shortlist (re-posts included). */
   more?: number;
   reason?: string;
@@ -390,8 +398,8 @@ export function pickDetails(details: JobDetails): PickDetails {
 
 /**
  * A shortlist for a candidate: one search (the first page of up to 100), re-posts merged (the
- * same title, employer and first city: the direct posting, without `externeURL`, is kept, else
- * the newest), sorted by distance with `where` (ties: newest, then employer) or newest first, the
+ * same title and employer at the same first address: the direct posting, without `externeURL`, is
+ * kept, else the newest; the others' refnrs are its `reposts`), sorted by distance with `where` (ties: newest, then employer) or newest first, the
  * first `limit` kept; the top `details` picks get their details (salary, home office, contract,
  * how to apply), one request each. A place the API did not recognise is `empty` (nothing was
  * searched there), one it replaced is in `place`.
@@ -409,7 +417,8 @@ export async function findJobs(client: JobsucheClient, input: FindJobsInput): Pr
   const total = result.maxErgebnisse ?? 0;
   const place = placeNote(client, params.wo, result);
   if (place?.recognised === false) return { status: "empty", searched, tempAgencies: temp, total, place, reason: place.note };
-  const all = listingsOf(result).map(listing);
+  const entries = listingsOf(result);
+  const all = entries.map(listing);
   if (all.length === 0) {
     return {
       status: "empty",
@@ -420,17 +429,25 @@ export async function findJobs(client: JobsucheClient, input: FindJobsInput): Pr
       reason: "Nothing matched. Broaden: a shorter or more general what (or field instead), a larger radiusKm, more publishedWithinDays, or fewer filters.",
     };
   }
-  const kept = new Map<string, Listing>();
-  for (const entry of all) {
-    const key = [entry.title, entry.employer, entry.city].map((part) => fold(part ?? "")).join("\u0000");
+  // A re-post is the same opening listed again: the same title and employer at the same address
+  // (an employer with several sites, a care-home operator, lists one opening per site: those stay
+  // apart). The kept listing names the re-posts' refnrs.
+  const kept = new Map<string, { entry: Listing; reposts: string[] }>();
+  all.forEach((entry, i) => {
+    const address = entries[i]?.stellenlokationen?.[0]?.adresse;
+    const key = [entry.title, entry.employer, entry.city, entry.postcode, str(address?.strasse), str(address?.hausnummer)].map((part) => fold(part ?? "")).join("\u0000");
     const before = kept.get(key);
-    if (before === undefined) kept.set(key, entry);
-    else if ((before.externalUrl !== undefined && entry.externalUrl === undefined) || ((before.externalUrl === undefined) === (entry.externalUrl === undefined) && (entry.published ?? "") > (before.published ?? ""))) kept.set(key, entry);
-  }
-  const ranked = [...kept.values()].sort(sortBy === "distance" ? (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) || newestFirst(a, b) : newestFirst);
-  const picks: (Listing & { details?: PickDetails; detailsError?: string })[] = ranked.slice(0, limit);
+    if (before === undefined) kept.set(key, { entry, reposts: [] });
+    else if ((before.entry.externalUrl !== undefined && entry.externalUrl === undefined) || ((before.entry.externalUrl === undefined) === (entry.externalUrl === undefined) && (entry.published ?? "") > (before.entry.published ?? ""))) {
+      kept.set(key, { entry, reposts: [...before.reposts, before.entry.refnr] });
+    } else before.reposts.push(entry.refnr);
+  });
+  const ranked = [...kept.values()]
+    .map(({ entry, reposts }) => (reposts.length === 0 ? entry : { ...entry, reposts }))
+    .sort(sortBy === "distance" ? (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) || newestFirst(a, b) : newestFirst);
+  const picks: Pick[] = ranked.slice(0, limit);
   for (let i = 0; i < Math.min(detailCount, picks.length); i++) {
-    const pick = picks[i] as Listing;
+    const pick = picks[i] as Pick;
     try {
       picks[i] = { ...pick, details: pickDetails(await client.details(pick.refnr)) };
     } catch (err) {

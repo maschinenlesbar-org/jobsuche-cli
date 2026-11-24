@@ -73,7 +73,7 @@ test("findJobs: newest first without a place; distance sorting needs a place", a
   await assert.rejects(findJobs(client(mock), { what: "Data Engineer", sortBy: "distance" }), JobsucheValidationError);
 });
 
-test("findJobs: re-posts (the same title, employer and city) are merged, keeping the direct posting", async () => {
+test("findJobs: re-posts (the same title, employer and address) are merged, keeping the direct posting", async () => {
   const answer0 = hunt();
   const original = answer0.ergebnisliste?.[0] as Stellenangebot;
   assert.equal(original.externeURL, undefined);
@@ -83,6 +83,27 @@ test("findJobs: re-posts (the same title, employer and city) are merged, keeping
   assert.equal(answer.duplicatesMerged, 1);
   const refnrs = (answer.picks ?? []).map((pick) => pick.refnr);
   assert.ok(refnrs.includes(original.referenznummer) && !refnrs.includes("99999-repost-S"), "the direct posting stays, though the re-post is newer");
+  assert.deepEqual(answer.picks?.find((pick) => pick.refnr === original.referenznummer)?.reposts, ["99999-repost-S"], "the merged re-post's refnr is kept with the pick");
+});
+
+test("findJobs: openings of one employer with the same title at different addresses in one city are separate picks, not re-posts", async () => {
+  const home = (refnr: string, strasse: string, plz: string, entfernung: number): Stellenangebot =>
+    ({
+      referenznummer: refnr,
+      stellenangebotsTitel: "Pflegefachkraft (m/w/d)",
+      firma: "MÜNCHENSTIFT GmbH",
+      stellenlokationen: [{ adresse: { strasse, plz, ort: "München" } }],
+      entfernung,
+      veroeffentlichungszeitraum: { von: "2026-11-20" },
+    }) as Stellenangebot;
+  const answer0: JobSearchResult = {
+    maxErgebnisse: 4,
+    ergebnisliste: [home("1-a-S", "Rümannstraße", "80804", 5), home("1-b-S", "Dom-Pedro-Platz", "80637", 3), home("1-c-S", "Tauernstraße", "81547", 9), home("1-d-S", "Rümannstraße", "80804", 5)],
+  };
+  const answer = await findJobs(client(api(() => answer0)), { what: "Pflegefachkraft", where: "München", details: 0 });
+  assert.equal(answer.duplicatesMerged, 1, "only the two listings at the same address");
+  assert.deepEqual((answer.picks ?? []).map((pick) => pick.refnr), ["1-b-S", "1-a-S", "1-c-S"], "nearest first, each home its own pick");
+  assert.deepEqual(answer.picks?.[1]?.reposts, ["1-d-S"]);
 });
 
 test("findJobs: no match (ergebnisliste absent) is empty with what to change, and no details are fetched", async () => {

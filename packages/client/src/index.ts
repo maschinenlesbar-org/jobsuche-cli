@@ -106,6 +106,7 @@ export type {
   MarketScanInput,
   OfferType,
   OperationStatus,
+  Pick,
   PickDetails,
   PlaceNote,
   RankedFacet,

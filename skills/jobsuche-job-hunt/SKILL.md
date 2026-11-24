@@ -130,10 +130,12 @@ facetten }`. Each `ergebnisliste[]` entry is a **summary** with:
 ## Step 3 — Rank and de-duplicate
 
 1. **De-dupe.** The same job is often re-posted. Collapse entries with the same
-   `(stellenangebotsTitel, firma, stellenlokationen[0].adresse.ort)` triple; among
-   duplicates keep the one **without** `externeURL` (the direct/BA posting) if
-   present, else the newest by `veroeffentlichungszeitraum.von`. Note how many you
-   merged.
+   `stellenangebotsTitel` and `firma` at the same address (`stellenlokationen[0].adresse`:
+   `ort`, `plz`, `strasse`, `hausnummer`); among duplicates keep the one **without**
+   `externeURL` (the direct/BA posting) if present, else the newest by
+   `veroeffentlichungszeitraum.von`. Note how many you merged, and keep their
+   `referenznummer`s with the one you show. Same title and employer at **another address**
+   is another opening (a care-home operator's homes, a chain's branches): keep it.
 2. **Sort** by what the user cares about:
    - search with `--wo` → ascending `entfernung`, nearest first;
    - otherwise → newest `veroeffentlichungszeitraum.von` first.
