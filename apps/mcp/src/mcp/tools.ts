@@ -10,7 +10,7 @@
 
 import { findJobs, scanMarket, searchJobs, watchEmployer, jobboerseUrl, jobCode, refnrOf, MAX_OFFSET, OFFER_TYPES, PAGE_SIZE, type JobFilters, type OfferType, type TempAgencies } from "@maschinenlesbar.org/jobsuche-client";
 import { JobsucheApiError } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
-import type { JsonSchema, ToolDefinition } from "./server.js";
+import type { JsonSchema, ToolContext, ToolDefinition } from "./server.js";
 
 /** The service, as results and messages name it. */
 export const TITLE = "Jobsuche (Bundesagentur für Arbeit)";
@@ -116,6 +116,43 @@ function searchSource(args: Record<string, unknown>, extra: Record<string, strin
   return `pc/v6/jobs?${query.toString().replace(/\+/g, "%20")}`;
 }
 
+/** The first entry of watchEmployer's refnrs: the snapshot's size, which a cut snapshot keeps (the size cap keeps a list's first entry). */
+const snapshotSize = (n: number): string => `snapshot of ${n} listings`;
+const SNAPSHOT_SIZE = /^snapshot of (\d+) listings$/;
+
+/**
+ * watchEmployer's snapshot round trip under the size cap. The snapshot (refnrs) is the longest
+ * list of the answer, so the cap cuts it first, from its end, and every listing cut from it would
+ * count as new at the next comparison. So refnrs is sorted and starts with its size: when `known`
+ * comes back shorter than that, it was cut, and every refnr up to its last one was kept. A listing
+ * not in known is new when it sorts up to that last refnr; after it, it is new or was only cut
+ * from the snapshot, which can't be told: those are counted as maybeNew, not as new.
+ */
+async function watchWithSnapshot(args: Record<string, unknown>, context: ToolContext): Promise<Record<string, unknown>> {
+  const given = Array.isArray(args["known"]) ? (args["known"] as string[]).map((refnr) => refnr.trim()) : undefined;
+  const size = given?.map((entry) => SNAPSHOT_SIZE.exec(entry)).find((match) => match !== null);
+  const known = given?.filter((entry) => !SNAPSHOT_SIZE.test(entry));
+  const profile = await withKeyHint(() =>
+    watchEmployer(context.client, { ...filters(args), employer: str(args, "employer") ?? "", known, limit: num(args, "limit"), maxPages: Math.min(num(args, "maxPages") ?? 10, context.maxPages) }),
+  );
+  const refnrs = [...(profile.refnrs ?? [])].sort();
+  const answer: Record<string, unknown> = { ...profile, ...(profile.refnrs === undefined ? {} : { refnrs: [snapshotSize(refnrs.length), ...refnrs] }) };
+  const whole = size === undefined || size === null ? undefined : Number(size[1]);
+  if (known === undefined || whole === undefined || known.length >= whole || profile.new === undefined) return answer;
+  const passed = new Set(known);
+  const last = [...known].sort().at(-1) ?? "";
+  const fresh = refnrs.filter((refnr) => !passed.has(refnr));
+  const told = fresh.filter((refnr) => refnr <= last);
+  answer["new"] = profile.new.filter((entry) => entry.refnr <= last);
+  answer["newCount"] = told.length;
+  answer["maybeNew"] = fresh.length - told.length;
+  const note =
+    `known holds ${known.length} of the ${whole} listings of its snapshot (the size cap cut the rest): ${fresh.length - told.length} listings not in it may be new or only cut from it, and are counted as maybeNew, not new. ` +
+    "Narrow the watch (where, offerType, tempAgencies) for a snapshot that fits.";
+  answer["reason"] = typeof profile.reason === "string" ? `${profile.reason} ${note}` : note;
+  return answer;
+}
+
 /**
  * The gateway answers a wrong or outdated key, a refused network and now and then a valid key
  * with the same empty 401/403: say so, and what to do, instead of the bare status.
@@ -161,7 +198,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "Watch an employer's openings",
     description: [
       'One employer\'s open listings as a recruiting profile, and what is new since last time. Use it for "Was schreibt die Deutsche Bahn gerade aus?", "offene Stellen bei SAP in Walldorf", "is Siemens hiring in Munich?", "what\'s new at Bosch since last week?".',
-      "The profile counts every listing (the API's facets): top places, occupations and fields, freshness (today, since yesterday, last 7/14/28 days; cumulative), apprenticeships, and the newest listings. refnrs is the snapshot of every listing read (up to maxPages pages; complete says whether that is all): pass it as known next time to get new (and, when every listing was read, gone: no longer listed, filled or expired, unknown which).",
+      "The profile counts every listing (the API's facets): top places, occupations and fields, freshness (today, since yesterday, last 7/14/28 days; cumulative), apprenticeships, and the newest listings. refnrs is the snapshot of every listing read (up to maxPages pages; complete says whether that is all), its first entry its size: pass it whole as known next time to get new (and, when every listing was read, gone: no longer listed, filled or expired, unknown which). A snapshot the size cap cut is told when it comes back: what may only have been cut from it is maybeNew, not new.",
       "Traps: the API matches the registered name exactly and case-sensitively (\"Siemens AG\", not \"Siemens\"). A name that finds nothing is resolved through the employers of the listings mentioning it: one is used (resolvedFrom says so), several are status ambiguous with candidates (ask which; a group often lists under several legal entities: watch each and say so). Zero hits on a short name is a spelling problem, not proof of no openings.",
       RULES,
     ].join("\n\n"),
@@ -173,7 +210,7 @@ export const TOOLS: readonly ToolDefinition[] = [
         publishedWithinDays: FILTERS["publishedWithinDays"] as JsonSchema,
         offerType: FILTERS["offerType"] as JsonSchema,
         tempAgencies: FILTERS["tempAgencies"] as JsonSchema,
-        known: { type: "array", maxItems: 2000, items: text("A refnr from an earlier answer's refnrs.", 100), description: "The refnrs of an earlier run (its refnrs): the answer then lists what is new and gone." },
+        known: { type: "array", maxItems: 2001, items: text("An entry of an earlier answer's refnrs.", 100), description: "The refnrs of an earlier run, whole and as they came (its first entry included): the answer then lists what is new and gone." },
         limit: whole("Listings shown, newest first (1-50, default 20).", 1, 50),
         maxPages: whole("Pages of 100 read for the snapshot (1-20, default 10).", 1, 20),
       },
@@ -192,20 +229,14 @@ export const TOOLS: readonly ToolDefinition[] = [
       listings: arr,
       new: arr,
       newCount: int,
+      maybeNew: { type: "integer", description: "Listings not in known that may only have been cut from its snapshot by the size cap: not counted as new." },
       gone: arr,
       goneCount: int,
       refnrs: arr,
       candidates: arr,
     }),
     source: (args) => searchSource(args, { page: 1, size: 100 }),
-    async run(args, context) {
-      const known = Array.isArray(args["known"]) ? (args["known"] as string[]) : undefined;
-      return {
-        ...(await withKeyHint(() =>
-          watchEmployer(context.client, { ...filters(args), employer: str(args, "employer") ?? "", known, limit: num(args, "limit"), maxPages: Math.min(num(args, "maxPages") ?? 10, context.maxPages) }),
-        )),
-      };
-    },
+    run: watchWithSnapshot,
   },
   {
     name: "scanMarket",

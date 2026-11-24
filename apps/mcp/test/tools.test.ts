@@ -63,7 +63,8 @@ test("watchEmployer: a loose name is resolved and named; several registered name
   assert.equal(resolved["status"], "ok", JSON.stringify(resolved).slice(0, 300));
   assert.deepEqual([resolved["employer"], resolved["resolvedFrom"], resolved["total"]], ["Deutsche Bahn AG", "Deutsche Bahn", 3536]);
   assert.equal((resolved["listings"] as unknown[]).length, 2);
-  assert.equal((resolved["refnrs"] as unknown[]).length, 6);
+  assert.deepEqual((resolved["refnrs"] as string[]).slice(0, 1), ["snapshot of 6 listings"]);
+  assert.equal((resolved["refnrs"] as unknown[]).length, 7, "its size, then the six refnrs");
   const ambiguous = (await connection.call("watchEmployer", { employer: "Bahn" })).structuredContent ?? {};
   assert.equal(ambiguous["status"], "ambiguous");
   assert.ok((ambiguous["candidates"] as { name: string }[]).some((c) => c.name === "Deutsche Bahn AG"));
@@ -80,6 +81,46 @@ test("watchEmployer: known refnrs give what is new", async () => {
   assert.deepEqual((content["new"] as { refnr: string }[]).map((l) => l.refnr), [listed[0]?.referenznummer]);
   assert.deepEqual(content["gone"], []);
   await connection.close();
+});
+
+test("watchEmployer: refnrs starts with the snapshot's size; one the size cap cut is told apart when it comes back, so cut listings are not called new", async () => {
+  const ad = (n: number) => ({ referenznummer: `10001-${n}-S`, stellenangebotsTitel: `Stelle ${n}`, firma: "Deutsche Bahn AG", veroeffentlichungszeitraum: { von: "2026-11-20" } });
+  let listed = Array.from({ length: 400 }, (_, i) => ad(5000 + i));
+  const upstream = jobsucheApi({
+    search: (q) => {
+      const page = Number(q.get("page"));
+      return { ...EMPLOYER_DEUTSCHE_BAHN_AG, maxErgebnisse: listed.length, ergebnisliste: listed.slice((page - 1) * 100, page * 100) };
+    },
+  });
+  const connection = await connect({ transport: upstream, config: { maxResultChars: 8000 } });
+  const first = (await connection.call("watchEmployer", { employer: "Deutsche Bahn AG" })).structuredContent ?? {};
+  const snapshot = first["refnrs"] as string[];
+  assert.equal(snapshot[0], "snapshot of 400 listings");
+  assert.ok(snapshot.length < 401, "the size cap cut it");
+  assert.equal(first["truncated"], true);
+  assert.match(String(first["reason"]), /refnrs lost entries/);
+  // Nothing changed upstream: nothing is new, and what the cut took is counted apart.
+  const again = (await connection.call("watchEmployer", { employer: "Deutsche Bahn AG", known: snapshot })).structuredContent ?? {};
+  assert.equal(again["newCount"], 0);
+  assert.equal(again["maybeNew"], 400 - (snapshot.length - 1));
+  assert.match(String(again["reason"]), new RegExp(`known holds ${snapshot.length - 1} of the 400 listings of its snapshot`));
+  // Two new listings: one sorts among the snapshot's kept refnrs (new for sure), one after them (can't be told).
+  listed = [ad(1000), ...listed, ad(9999)];
+  const later = (await connection.call("watchEmployer", { employer: "Deutsche Bahn AG", known: snapshot })).structuredContent ?? {};
+  assert.equal(later["newCount"], 1);
+  assert.deepEqual((later["new"] as { refnr: string }[]).map((l) => l.refnr), ["10001-1000-S"]);
+  assert.equal(later["maybeNew"], 400 - (snapshot.length - 1) + 1);
+  await connection.close();
+  // A snapshot that fits comes back whole: no note; a list of one's own (no size entry) is compared as it is.
+  listed = Array.from({ length: 30 }, (_, i) => ad(5000 + i));
+  const whole = await connect({ transport: upstream });
+  const small = ((await whole.call("watchEmployer", { employer: "Deutsche Bahn AG" })).structuredContent ?? {})["refnrs"] as string[];
+  assert.equal(small.length, 31);
+  const round = (await whole.call("watchEmployer", { employer: "Deutsche Bahn AG", known: small })).structuredContent ?? {};
+  assert.deepEqual([round["newCount"], round["maybeNew"], round["reason"]], [0, undefined, undefined]);
+  const own = (await whole.call("watchEmployer", { employer: "Deutsche Bahn AG", known: small.slice(1, 11) })).structuredContent ?? {};
+  assert.deepEqual([own["newCount"], own["maybeNew"]], [20, undefined]);
+  await whole.close();
 });
 
 test("scanMarket: one request of size 0; employers ranked by count, agencies marked; today is bucket 0", async () => {
