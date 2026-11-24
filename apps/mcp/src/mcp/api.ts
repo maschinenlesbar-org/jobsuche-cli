@@ -12,7 +12,7 @@
 import { CredentialStore, API_KEY_CREDENTIAL } from "@maschinenlesbar.org/jobsuche-client/internal/credentials";
 import { DEFAULT_BASE_URL } from "@maschinenlesbar.org/jobsuche-client";
 import { API_KEY_ENV_VAR, obtainKey } from "@maschinenlesbar.org/jobsuche-client/internal/obtain-key";
-import { JobsucheValidationError } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
+import { JobsucheError, JobsucheValidationError } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
 import { headerValueProblem } from "@maschinenlesbar.org/jobsuche-client/internal/validate";
 import type { CredentialContext, FoundCredentials } from "./credentials.js";
 
@@ -39,6 +39,14 @@ export function apiBase(baseUrl: string | undefined): string {
   return `${(baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "")}${SERVICE_PATH}`;
 }
 
+/** The trailing advice of obtainKey's errors, written for the CLI's obtain-key command. */
+const CLI_ADVICE = /\s*(?:Retry, or copy the key from \S+ by hand\.|(?:— c|C)heck it by hand before relying on this command\.)$/;
+
+/** What to do when the published key can't be obtained, for this server. */
+const OBTAIN_HINT =
+  `Without a key of its own the server obtains the public one at its first call. To give it one: set ${API_KEY_ENV_VAR} in the MCP client's configuration of this server ` +
+  "(`jobsuche obtain-key` prints it; it is published at github.com/bundesAPI/jobsuche-api) or store it with `jobsuche config set api-key`. Otherwise the next call tries the lookup again.";
+
 /**
  * The API key, in this order: JOBSUCHE_API_KEY from the server's environment (what an MCP
  * client's config sets), the credentials file (`jobsuche config set api-key`; only when the
@@ -63,12 +71,24 @@ export async function findCredentials(context: CredentialContext): Promise<Found
       return { clientOptions: { apiKey: stored }, secrets: [raw ?? stored, stored], source: `the API key stored in ${store.path} (jobsuche config)` };
     }
   }
-  const obtained = await obtainKey({
-    transport: context.transport,
-    timeoutMs: context.timeoutMs,
-    userAgent: context.userAgent,
-    maxResponseBytes: context.maxResponseBytes,
-  });
+  let obtained;
+  try {
+    obtained = await obtainKey({
+      transport: context.transport,
+      timeoutMs: context.timeoutMs,
+      userAgent: context.userAgent,
+      maxResponseBytes: context.maxResponseBytes,
+    });
+  } catch (err) {
+    // The client's advice is for `jobsuche obtain-key` at a terminal ("by hand", "this command");
+    // say what changes it for this server instead. The error's class stays (a network error is
+    // still one: a cancelled call is told by it).
+    if (err instanceof JobsucheError) {
+      const reason = err.message.replace(CLI_ADVICE, "").trimEnd();
+      err.message = `${reason}${/[.!?)]$/.test(reason) ? "" : "."} ${OBTAIN_HINT}`;
+    }
+    throw err;
+  }
   return {
     clientOptions: { apiKey: obtained.key },
     secrets: [obtained.key],

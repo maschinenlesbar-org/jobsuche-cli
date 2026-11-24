@@ -39,7 +39,8 @@ community documentation. **No key is bundled.** The server takes it, at the firs
 One INFO record on stderr says which, never the key. The key is replaced with `***` in every log
 record, result and error (a key shorter than 16 characters only where it stands whole, not inside a
 longer word of the data). The server takes no key on its command line. A lookup that fails (the
-README unreachable) is that call's error, and the next call tries again. In a container without
+README unreachable, or no single key in it) is that call's error, saying how to give the server a
+key (the environment variable or the credentials file), and the next call tries again. In a container without
 network access to GitHub, pass the key: `docker run -i --rm -e JOBSUCHE_API_KEY ghcr.io/…`.
 
 ## Connect a client

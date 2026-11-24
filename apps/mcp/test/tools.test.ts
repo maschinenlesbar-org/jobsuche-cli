@@ -10,6 +10,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
 import { connect } from "./harness.js";
+import { KEY_SOURCE_URL } from "@maschinenlesbar.org/jobsuche-client/internal/obtain-key";
+import type { HttpResponse } from "../src/mcp/api.js";
 import { EMPLOYER_DEUTSCHE_BAHN_AG, EMPLOYER_DEUTSCHE_BAHN_NO_MATCH, jobsucheApi, jsonResponse, makeMockTransport, MARKET_PFLEGE_BERLIN, NO_MATCH, TEST_KEY, WAS_DEUTSCHE_BAHN } from "./helpers.js";
 
 const API = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service";
@@ -203,6 +205,28 @@ test("getJob: a listing the API answers 410 Gone for is empty with the reason, a
   assert.equal(gone.structuredContent?.["status"], "empty");
   assert.match(String(gone.structuredContent?.["reason"]), /gone \(filled or withdrawn/);
   await connection.close();
+});
+
+test("a key lookup that fails says what to change for this server, not what to do by hand with the CLI", async () => {
+  const doc = (body: string, status = 200): HttpResponse => ({ status, headers: { "content-type": "text/plain; charset=utf-8" }, body: Buffer.from(body) });
+  const sources: [string, HttpResponse][] = [
+    ["404", doc("gone", 404)],
+    ["no key", doc("# Jobsuche\n\nno key here\n")],
+    ["two keys", doc('curl -H "X-API-Key: jobboerse-jobsuche" …\ncurl -H "X-API-Key: jobboerse-other" …\n')],
+  ];
+  for (const [what, answer] of sources) {
+    const upstream = makeMockTransport((request) => (request.url === KEY_SOURCE_URL ? answer : jsonResponse(NO_MATCH)));
+    const connection = await connect({ transport: upstream, env: {} });
+    const result = await connection.call("searchJobs", { what: "Pflege" });
+    const text = result.content[0]?.text ?? "";
+    assert.equal(result.isError, true, what);
+    assert.doesNotMatch(text, /by hand|this command/, `${what}: ${text}`);
+    assert.match(text, /set JOBSUCHE_API_KEY in the MCP client's configuration/, what);
+    assert.match(text, /jobsuche obtain-key/, what);
+    assert.match(text, /jobsuche config set api-key/, what);
+    assert.match(text, /next call tries the lookup again/, what);
+    await connection.close();
+  }
 });
 
 test("a refused key (the gateway's empty 403) is a tool error that says what to check", async () => {

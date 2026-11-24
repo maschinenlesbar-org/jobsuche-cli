@@ -820,7 +820,7 @@ what it returns. `findCredentials` takes `JOBSUCHE_API_KEY` from the server's en
 `CredentialStore.usable`, else the published key through the client's `obtainKey` (as `jobsuche
 obtain-key`), over the server's limited transport and inside the call's deadline. A JOBSUCHE_API_KEY
 no header can carry, or a file `jobsuche config` would refuse, is the call's error naming the fix,
-never skipped. A lookup that fails is tried again at the next call. Not at start: the handshake, the
+never skipped. A lookup that fails is tried again at the next call; its error keeps the reason and, in place of the client's advice for the CLI ("by hand"), says how to give the server a key (`OBTAIN_HINT`). Not at start: the handshake, the
 tool list, the image's smoke test and the tests that start the bin need neither the network nor a
 credentials file. One INFO record of `jobsuche-mcp.config` names the source, never the key; every
 form of the key is a secret from then on, replaced with `***` in every record the server logs
