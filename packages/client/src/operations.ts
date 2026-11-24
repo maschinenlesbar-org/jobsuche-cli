@@ -18,7 +18,7 @@
 // Ambiguity is reported, never guessed; an empty answer says what was searched and what to change.
 
 import type { JobsucheClient } from "./client.js";
-import { JobsucheApiError, JobsucheValidationError } from "./errors.js";
+import { JobsucheApiError, JobsucheParseError, JobsucheValidationError } from "./errors.js";
 import type { JobDetails, JobSearchParams, JobSearchResult, JsonObject, Stellenangebot } from "./types.js";
 import { MAX_UMKREIS, MAX_VEROEFFENTLICHT_SEIT, normalizeText, textProblem, type Angebotsart } from "./validate.js";
 
@@ -216,6 +216,32 @@ function counts(facets: JsonObject | undefined, name: string): Record<string, nu
   const out: Record<string, number> = {};
   for (const [label, count] of Object.entries(raw)) if (typeof count === "number" && Number.isFinite(count)) out[label] = count;
   return out;
+}
+
+/** The facets every search with matches carries, which the profiles and the market scan are built from. */
+const CORE_FACETS = ["arbeitgeber", "arbeitsort", "beruf", "berufsfeld", "veroeffentlichtseit"] as const;
+
+/**
+ * Throws when a search that counted matches lacks the facets its overview is built from: the core
+ * facets (CORE_FACETS) missing, or a facet among them or `alsoRead` that has no `counts` object
+ * (a renamed field). Every count would read as 0 otherwise. A facet in `alsoRead` may be absent:
+ * the API leaves out a facet no listing has a value for.
+ */
+function checkFacets(result: JobSearchResult, total: number, alsoRead: readonly string[] = []): void {
+  if (total === 0) return;
+  const facets = result.facetten;
+  const facet = (name: string): unknown => (facets !== null && typeof facets === "object" && !Array.isArray(facets) ? (facets as JsonObject)[name] : undefined);
+  const counted = (name: string): boolean => {
+    const value = facet(name);
+    const raw = value !== null && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject)["counts"] : undefined;
+    return raw !== null && typeof raw === "object" && !Array.isArray(raw);
+  };
+  const bad = [...CORE_FACETS.filter((name) => !counted(name)), ...alsoRead.filter((name) => facet(name) !== undefined && !counted(name))];
+  if (bad.length > 0) {
+    throw new JobsucheParseError(
+      `The search counted ${total} matches but its facets (facetten) lack counts for ${bad.join(", ")}: the API's answer has changed shape, and the overview would read every count as 0.`,
+    );
+  }
 }
 
 /** The facet `name` ranked, highest count first (ties by label), its first `top` labels. */
@@ -587,6 +613,7 @@ export async function watchEmployer(client: JobsucheClient, input: WatchEmployer
     }
   }
   const total = first.maxErgebnisse ?? 0;
+  checkFacets(first, total);
   const read = listingsOf(first).map(listing);
   if (known !== undefined) {
     for (let page = 2; page <= maxPages && read.length < total; page++) {
@@ -670,6 +697,9 @@ export interface MarketScan {
   reason?: string;
 }
 
+/** The facets scanMarket reads besides the core ones (each may be absent when no listing has a value). */
+const MARKET_FACETS = ["verguetung", "befristung", "arbeitszeit", "angebotsart", "homeoffice", "ausbildungsverguetung", "zeitarbeit", "pav", "quereinstieg"];
+
 /** A name that reads as a staffing or placement agency: not the end employer. */
 const AGENCY_NAME = /personal(?:dienst|management|service|vermittlung|leasing|partner|agentur)|personaldienstleist|zeitarbeit|arbeitsvermittlung|arbeitnehmerüberlassung|recruit|staffing|randstad|adecco|manpower|tempton|\bdis ag\b|hays\b|ärztevermittlung|fachkräfte für deutschland/i;
 
@@ -699,6 +729,7 @@ export async function scanMarket(client: JobsucheClient, input: MarketScanInput)
       reason: "No listing matches, so there is no market to describe. Broaden: field instead of what, a larger radiusKm, no publishedWithinDays, or fewer filters.",
     };
   }
+  checkFacets(result, total, MARKET_FACETS);
   const f = result.facetten;
   const c = (name: string): Record<string, number> => counts(f, name);
   const employers = rankFacet(f, "arbeitgeber", top);

@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JobsucheClient } from "../src/client.js";
-import { JobsucheValidationError } from "../src/errors.js";
+import { JobsucheParseError, JobsucheValidationError } from "../src/errors.js";
 import type { HttpRequest } from "../src/http.js";
 import { findJobs, listing, scanMarket, searchJobs, watchEmployer } from "../src/operations.js";
 import type { JobSearchResult, Stellenangebot } from "../src/types.js";
@@ -265,6 +265,25 @@ test("scanMarket: one size-0 search; the facets ranked by count, agencies marked
   assert.equal(answer.tempAgencyListings, 914);
   assert.equal(answer.privatePlacementListings, 1605);
   assert.equal(answer.offerTypes?.apprenticeship, 310);
+});
+
+test("scanMarket and watchEmployer: matches without their facets, or facets without counts, are an error, not a market of zeros", async () => {
+  const withoutFacets = (answer: object): object => Object.fromEntries(Object.entries(answer).filter(([key]) => key !== "facetten"));
+  const renamed = (answer: { facetten: Record<string, { counts: object }> }): object => ({
+    ...answer,
+    facetten: Object.fromEntries(Object.entries(answer.facetten).map(([name, facet]) => [name, { anzahl: facet.counts }])),
+  });
+  for (const [what, answer] of [["no facets", withoutFacets(MARKET_PFLEGE_BERLIN)], ["counts renamed", renamed(MARKET_PFLEGE_BERLIN)]] as const) {
+    await assert.rejects(scanMarket(client(api(() => answer)), { what: "Pflege" }), (err: Error) => {
+      assert.ok(err instanceof JobsucheParseError, `${what}: ${err.message}`);
+      assert.match(err.message, /6406 matches/);
+      assert.match(err.message, /arbeitgeber/);
+      return true;
+    });
+  }
+  const partly = { ...MARKET_PFLEGE_BERLIN, facetten: { ...MARKET_PFLEGE_BERLIN.facetten, befristung: { anzahl: { "1": 3 } } } };
+  await assert.rejects(scanMarket(client(api(() => partly)), { what: "Pflege" }), /befristung/);
+  await assert.rejects(watchEmployer(client(api(() => withoutFacets(EMPLOYER_DEUTSCHE_BAHN_AG))), { employer: "Deutsche Bahn AG" }), JobsucheParseError);
 });
 
 test("scanMarket: no demand (no ergebnisliste, no facetten) is empty with what to broaden", async () => {
