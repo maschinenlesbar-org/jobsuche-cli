@@ -136,6 +136,26 @@ test("findJobs: a pick whose listing is gone (404) carries a note; the shortlist
   assert.match(answer.picks?.[0]?.detailsError ?? "", /gone/);
 });
 
+test("findJobs: a detail request that fails (500, the gateway's empty 403, a reset) is a note on that pick; the shortlist stands", async () => {
+  let n = 0;
+  const mock = makeMockTransport((request) => {
+    if (!request.url.includes("/pc/v4/jobdetails/")) return jsonResponse(hunt());
+    n += 1;
+    if (n === 2) return jsonResponse({ message: "Interner Serverfehler" }, 500);
+    if (n === 3) return { status: 403, headers: { "content-type": "text/plain" }, body: Buffer.from(" ") };
+    if (n === 4) throw Object.assign(new Error("socket hang up"), { code: "ECONNRESET" });
+    return jsonResponse(DETAILS_10000_1183204759_S);
+  });
+  const answer = await findJobs(new JobsucheClient({ transport: mock.transport, apiKey: "test-key-only", maxRetries: 0 }), { what: "Data Engineer", where: "München", details: 5 });
+  assert.equal(answer.status, "ok");
+  const picks = answer.picks ?? [];
+  assert.ok(picks[0]?.details !== undefined && picks[4]?.details !== undefined, "the others have their details");
+  assert.match(picks[1]?.detailsError ?? "", /^No details: HTTP 500 .*Interner Serverfehler.*getJob/);
+  assert.match(picks[2]?.detailsError ?? "", /^No details: HTTP 403 .*getJob/);
+  assert.match(picks[3]?.detailsError ?? "", /^No details: .*socket hang up.*getJob/);
+  assert.equal(picks[1]?.details, undefined);
+});
+
 test("listing: a missing address is left out, never null; several places are counted", () => {
   const short = listing({ referenznummer: "1-2-S", stellenlokationen: [{}, { adresse: { ort: "Köln" } }] } as Stellenangebot);
   assert.equal("city" in short, false);

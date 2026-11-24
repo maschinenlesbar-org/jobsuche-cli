@@ -139,7 +139,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "Find jobs for a candidate",
     description: [
       'Find and rank job listings for a candidate. Use it for "Jobs als Pflegefachkraft in München", "Ausbildung Mechatroniker Stuttgart", "Stellen im Umkreis von 30 km um Köln", "find me nursing jobs near Munich", "what data-engineer roles are open in Berlin?", "recent jobs within 30 km of Köln".',
-      "One search reads up to 100 listings; re-posts (same title, employer and city) are merged, keeping the direct posting; picks are sorted nearest first with where (distanceKm), else newest first; the top `details` picks (default 3, one request each) get pay, home office, working time, contract, start and where to apply. total is every match; more is what isn't on the shortlist (narrow or use searchJobs to page).",
+      "One search reads up to 100 listings; re-posts (same title, employer and city) are merged, keeping the direct posting; picks are sorted nearest first with where (distanceKm), else newest first; the top `details` picks (default 3, one request each) get pay, home office, working time, contract, start and where to apply (a pick whose details failed says why in detailsError; getJob tries again). total is every match; more is what isn't on the shortlist (narrow or use searchJobs to page).",
       "Traps: a place the API didn't recognise is status empty (nothing was searched there), and one it replaced is in place: tell the user. Temp-agency listings are included unless tempAgencies is exclude; tempAgencies says which. Salary is only where stated (salaryFrom/salaryTo); say \"not stated\" otherwise. Apprenticeships: offerType apprenticeship.",
       RULES,
     ].join("\n\n"),

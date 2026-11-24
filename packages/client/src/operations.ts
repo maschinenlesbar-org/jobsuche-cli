@@ -18,7 +18,7 @@
 // Ambiguity is reported, never guessed; an empty answer says what was searched and what to change.
 
 import type { JobsucheClient } from "./client.js";
-import { JobsucheApiError, JobsucheParseError, JobsucheValidationError } from "./errors.js";
+import { JobsucheApiError, JobsucheError, JobsucheParseError, JobsucheValidationError } from "./errors.js";
 import type { JobDetails, JobSearchParams, JobSearchResult, JsonObject, Stellenangebot } from "./types.js";
 import { MAX_UMKREIS, MAX_VEROEFFENTLICHT_SEIT, normalizeText, textProblem, type Angebotsart } from "./validate.js";
 
@@ -329,6 +329,7 @@ export interface JobShortlist {
   /** Re-posts merged: the same title, employer and city. */
   duplicatesMerged?: number;
   sortedBy?: "distance" | "newest";
+  /** `detailsError` says why a pick has no details: gone since the search, or the request failed. */
   picks?: (Listing & { details?: PickDetails; detailsError?: string })[];
   /** Matches not on the shortlist (re-posts included). */
   more?: number;
@@ -433,9 +434,14 @@ export async function findJobs(client: JobsucheClient, input: FindJobsInput): Pr
     try {
       picks[i] = { ...pick, details: pickDetails(await client.details(pick.refnr)) };
     } catch (err) {
-      // An expired listing (404) is a note on that pick, not the end of the shortlist.
-      if (!(err instanceof JobsucheApiError && err.status === 404)) throw err;
-      picks[i] = { ...pick, detailsError: "No details: the listing is gone (withdrawn or filled) since the search." };
+      // The details are an addition: a failed request is a note on that pick, never the end of
+      // the shortlist (the search and the other picks stand). An expired listing (404, 410) says so.
+      if (!(err instanceof JobsucheError)) throw err;
+      const gone = err instanceof JobsucheApiError && (err.status === 404 || err.status === 410);
+      picks[i] = {
+        ...pick,
+        detailsError: gone ? "No details: the listing is gone (withdrawn or filled) since the search." : `No details: ${err.message.replace(/\.$/, "")}. The shortlist stands; getJob with this refnr tries again.`,
+      };
     }
   }
   return {

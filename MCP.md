@@ -103,7 +103,8 @@ says which; the employer filter is the registered name, exact and case-sensitive
 not "Siemens"), so a loose name is resolved through the listings that mention it, or asked back
 when it may mean several; the facets list at most 100 labels alphabetically, so they are ranked
 here; the freshness counts are cumulative and "today" is its own bucket; staffing and placement
-agencies, which top many employer rankings, are marked; a listing gone since the search says so.
+agencies, which top many employer rankings, are marked; a listing gone since the search says so,
+and a shortlist pick whose details request failed says why, the rest of the shortlist standing.
 
 Every tool only reads. An answer is JSON (`structuredContent` and the same as text), with the
 `source` it came from (whole, never cut like the data; an answer a redirect fetched from another
