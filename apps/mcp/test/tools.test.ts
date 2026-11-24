@@ -9,6 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
+import { TOOLS } from "../src/mcp/tools.js";
 import { connect } from "./harness.js";
 import { KEY_SOURCE_URL } from "@maschinenlesbar.org/jobsuche-client/internal/obtain-key";
 import type { HttpResponse } from "../src/mcp/api.js";
@@ -226,6 +227,45 @@ test("a key lookup that fails says what to change for this server, not what to d
     assert.match(text, /jobsuche config set api-key/, what);
     assert.match(text, /next call tries the lookup again/, what);
     await connection.close();
+  }
+});
+
+test("an upstream failure says what to do: the BA's side failed or couldn't be reached, try again; nothing in the request was wrong", async () => {
+  const failures: [string, () => HttpResponse, RegExp][] = [
+    ["500", () => jsonResponse({ message: "Interner Serverfehler" }, 500), /HTTP 500.*failed on its side.*nothing in the request was wrong.*try again in a minute/s],
+    ["502 page", () => ({ status: 502, headers: { "content-type": "text/html" }, body: Buffer.from("<html>Bad Gateway</html>") }), /HTTP 502.*failed on its side.*try again in a minute/s],
+    ["refused", () => { throw Object.assign(new Error("connect ECONNREFUSED 10.0.0.1:443"), { code: "ECONNREFUSED" }); }, /ECONNREFUSED.*could not be reached or did not answer in time.*try again shortly/s],
+  ];
+  for (const [what, answer, expected] of failures) {
+    const connection = await connect({ transport: makeMockTransport(answer) });
+    for (const [tool, args] of [["searchJobs", { what: "Pflege" }], ["getJob", { refnr: "10001-1002716922-S" }]] as const) {
+      const result = await connection.call(tool, args);
+      assert.equal(result.isError, true, `${what} ${tool}`);
+      assert.match(result.content[0]?.text ?? "", expected, `${what} ${tool}`);
+    }
+    await connection.close();
+  }
+});
+
+test("the deadline's advice fits every tool: each option it names is named with the tools that take it", async () => {
+  const hanging = { transport: (): Promise<never> => new Promise<never>(() => {}) };
+  const connection = await connect({ transport: hanging, config: { callTimeoutMs: 30 } });
+  const text = (await connection.call("getJob", { refnr: "10001-1002716922-S" })).content[0]?.text ?? "";
+  await connection.close();
+  assert.match(text, /took longer than .* and was stopped/);
+  assert.match(text, /try again shortly/);
+  assert.match(text, /JOBSUCHE_API_KEY/, "a slow key lookup at the first call is named too");
+  const schemas = new Map(TOOLS.map((tool) => [tool.name, Object.keys((tool.inputSchema as { properties: Record<string, unknown> }).properties)]));
+  const pairs = [...text.matchAll(/(\w+(?: or \w+)*) \((\w+(?:, \w+)*)\)/g)];
+  assert.ok(pairs.length >= 3, text);
+  for (const [, options, tools] of pairs) {
+    for (const tool of (tools as string).split(", ")) {
+      for (const option of (options as string).split(" or ")) assert.ok(schemas.get(tool)?.includes(option), `${tool} takes no ${option}: ${text}`);
+    }
+  }
+  const named = new Set(pairs.flatMap(([, options]) => (options as string).split(" or ")));
+  for (const option of ["details", "maxPages", "limit"]) {
+    assert.ok(!new RegExp(`\\b${option}\\b`).test(text) || named.has(option), `${option} named without its tools`);
   }
 });
 

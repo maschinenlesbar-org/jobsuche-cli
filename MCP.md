@@ -119,7 +119,9 @@ texts cut further (each with that mark) or, when that isn't enough, its other li
 `truncated`. One that can't be cut down so far is a tool error that says to ask for less. A failure
 is a tool error that says what to change (one over 5000 characters loses its middle, never its end,
 where the reason is); the gateway's empty 403 (a wrong key, a refused network, now and then a valid
-key) says what to check.
+key) says what to check, a 429 or 5xx that the BA's side failed and to try again in a minute, a
+request without an answer that the service could not be reached; a call stopped at its deadline
+names what each tool can ask for less of.
 
 ## Options
 
