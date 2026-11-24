@@ -736,17 +736,25 @@ export interface JobPage {
   place?: PlaceNote;
   offset: number;
   listings?: Listing[];
-  /** Where the next slice starts, when there are more matches. */
+  /** Where the next slice starts, when there are more matches the API lists. */
   nextOffset?: number;
   reason?: string;
 }
 
-/** The furthest offset searchJobs reads from: the API pages no further than its 10,000th listing or so. */
-export const MAX_OFFSET = 9_999;
+/**
+ * The most matches the API lists: it answers pages up to the 100th of 100 and refuses the next
+ * ("Ergebnismenge überschritten", HTTP 400). The rest of a larger search is reached by narrowing it.
+ */
+export const MAX_LISTED = 10_000;
+
+/** The furthest offset searchJobs reads from: the last match the API lists. */
+export const MAX_OFFSET = MAX_LISTED - 1;
 
 /**
  * Listings `offset` to `offset + limit` in the API's order, short; `nextOffset` when there are
  * more. Read in the API's pages of 100: one request, or two when the slice spans a page border.
+ * A slice ends at the API's last listed match (MAX_LISTED): no page beyond it is asked for, and
+ * `reason` says that the rest is reached by narrowing the search.
  */
 export async function searchJobs(client: JobsucheClient, input: SearchJobsInput): Promise<JobPage> {
   const params = searchParams(input);
@@ -754,8 +762,9 @@ export async function searchJobs(client: JobsucheClient, input: SearchJobsInput)
   const limit = whole("limit", input.limit, 25, 1, PAGE_SIZE);
   const searched = searchedOf(input);
   const temp = tempAgenciesNote(input.tempAgencies);
+  const end = Math.min(offset + limit, MAX_LISTED);
   const firstPage = Math.floor(offset / PAGE_SIZE) + 1;
-  const lastPage = Math.floor((offset + limit - 1) / PAGE_SIZE) + 1;
+  const lastPage = Math.floor((end - 1) / PAGE_SIZE) + 1;
   const result = await client.search({ ...params, page: firstPage, size: PAGE_SIZE });
   const total = result.maxErgebnisse ?? 0;
   const place = placeNote(client, params.wo, result);
@@ -765,7 +774,7 @@ export async function searchJobs(client: JobsucheClient, input: SearchJobsInput)
     read.push(...listingsOf(await client.search({ ...params, page: lastPage, size: PAGE_SIZE })));
   }
   const start = offset - (firstPage - 1) * PAGE_SIZE;
-  const listings = read.slice(start, start + limit).map(listing);
+  const listings = read.slice(start, start + (end - offset)).map(listing);
   if (listings.length === 0) {
     return {
       status: "empty",
@@ -778,5 +787,16 @@ export async function searchJobs(client: JobsucheClient, input: SearchJobsInput)
     };
   }
   const next = offset + listings.length;
-  return { status: "ok", searched, tempAgencies: temp, total, ...(place === undefined ? {} : { place }), offset, listings, ...(next < total ? { nextOffset: next } : {}) };
+  const beyond = next >= MAX_LISTED && total > MAX_LISTED;
+  return {
+    status: "ok",
+    searched,
+    tempAgencies: temp,
+    total,
+    ...(place === undefined ? {} : { place }),
+    offset,
+    listings,
+    ...(next < Math.min(total, MAX_LISTED) ? { nextOffset: next } : {}),
+    ...(beyond ? { reason: `The API lists no further than its 10,000th match (of ${total}): narrow the search (place, radiusKm, publishedWithinDays, offerType) to reach the others.` } : {}),
+  };
 }

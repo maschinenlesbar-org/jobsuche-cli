@@ -81,6 +81,7 @@ export {
   findJobs,
   jobboerseUrl,
   listing,
+  MAX_LISTED,
   MAX_OFFSET,
   OFFER_TYPES,
   PAGE_SIZE,

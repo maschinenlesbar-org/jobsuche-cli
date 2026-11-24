@@ -92,7 +92,7 @@ For scripts and shared configs, pin a release and its digest from the
 | `findJobs` | Jobs for a candidate: one search of up to 100 listings, re-posts merged (the direct posting kept), nearest first with a place or newest first, the top picks with their details (pay when stated, home office, working time, contract, start, where to apply). |
 | `watchEmployer` | One employer's openings as a profile (top places, occupations and fields, freshness, apprenticeships, the newest listings), its registered name resolved from a loose one; with an earlier answer's reference numbers, what is new and what is gone. |
 | `scanMarket` | A labour-market overview from one request without listings: total demand, top employers (agencies marked), places, occupations, fields, pay cadence, contract and working-time mix, home office, freshness. |
-| `searchJobs` | Listings in the API's own order, a slice at a time (offset, limit), with the same filters. |
+| `searchJobs` | Listings in the API's own order, a slice at a time (offset, limit), with the same filters; the API lists the first 10,000 matches, the rest is reached by narrowing the search. |
 | `getJob` | One listing in full by its reference number: the description, pay, working time, contract, places, where to apply, and its link on the BA's job board. |
 
 The tools carry the API's traps so a model doesn't have to: the API never fails on a place it

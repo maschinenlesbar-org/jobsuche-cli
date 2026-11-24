@@ -243,7 +243,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "Search job listings",
     description: [
       'Job listings in the API\'s own order, a slice at a time, with the same filters. Use it to go beyond findJobs\'s shortlist ("zeig mir mehr", "show me more", "next page", "alle Stellen auflisten") or to list an employer\'s listings by its registered name.',
-      "offset is 0-based, limit up to 100; nextOffset says where the next slice starts. Each listing is short (title, employer, city, distanceKm with where, published, refnr, url); getJob gives everything about one.",
+      "offset is 0-based, limit up to 100; nextOffset says where the next slice starts. The API lists only the first 10,000 matches: a larger search is narrowed to reach the rest (reason says so). Each listing is short (title, employer, city, distanceKm with where, published, refnr, url); getJob gives everything about one.",
       "Traps: a place the API didn't recognise is status empty; temp-agency listings are included unless tempAgencies is exclude; employer is the exact, case-sensitive registered name.",
       RULES,
     ].join("\n\n"),

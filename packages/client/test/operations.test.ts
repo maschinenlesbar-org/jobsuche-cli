@@ -282,3 +282,21 @@ test("searchJobs: a slice across a page border reads both pages, and only those"
   assert.deepEqual(searches(mock).map((q) => q.get("page")), ["2", "3"]);
   assert.deepEqual([slice.listings?.[0]?.refnr, slice.listings?.[19]?.refnr, slice.nextOffset], ["p2-90", "p3-9", 210]);
 });
+
+test("searchJobs: the API lists no further than its 10 000th match: a slice stops there, with no nextOffset beyond it and the reason", async () => {
+  const page = (n: number) =>
+    n > 100 ? { status: 400, message: "Ergebnismenge überschritten" } : { maxErgebnisse: 50_000, ergebnisliste: Array.from({ length: 100 }, (_, i) => ({ referenznummer: `p${n}-${i}` })) };
+  const mock = makeMockTransport((request) => {
+    const n = Number(new URL(request.url).searchParams.get("page"));
+    return n > 100 ? jsonResponse(page(n), 400) : jsonResponse(page(n));
+  });
+  const across = await searchJobs(client(mock), { what: "Pflege", offset: 9990, limit: 20 });
+  assert.deepEqual(searches(mock).map((q) => q.get("page")), ["100"], "page 101 is never asked for");
+  assert.equal(across.status, "ok");
+  assert.deepEqual([across.listings?.length, across.listings?.[9]?.refnr, across.nextOffset], [10, "p100-99", undefined]);
+  assert.match(across.reason ?? "", /no further than its 10,000th match \(of 50000\).*narrow/i);
+  const last = await searchJobs(client(mock), { what: "Pflege", offset: 9950, limit: 100 });
+  assert.deepEqual([last.listings?.length, last.nextOffset], [50, undefined]);
+  const before = await searchJobs(client(mock), { what: "Pflege", offset: 9800, limit: 100 });
+  assert.deepEqual([before.listings?.length, before.nextOffset, before.reason], [100, 9900, undefined]);
+});
