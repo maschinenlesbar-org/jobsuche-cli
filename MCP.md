@@ -106,9 +106,10 @@ here; the freshness counts are cumulative and "today" is its own bucket; staffin
 agencies, which top many employer rankings, are marked; a listing gone since the search says so.
 
 Every tool only reads. An answer is JSON (`structuredContent` and the same as text), with the
-`source` it came from and the data licence. A failure is a tool error that says what to change;
-the gateway's empty 403 (a wrong key, a refused network, now and then a valid key) says what to
-check.
+`source` it came from (an answer a redirect fetched from another host says so there: "… (answered by
+https://other.example after a redirect)", and a WARN record names both) and the data licence. A
+failure is a tool error that says what to change; the gateway's empty 403 (a wrong key, a refused
+network, now and then a valid key) says what to check.
 
 ## Options
 
