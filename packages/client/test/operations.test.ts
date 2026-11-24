@@ -199,6 +199,17 @@ test("watchEmployer: several registered names are ambiguous, with the candidates
   assert.equal(searches(mock).length, 2, "no profile is fetched for a guess");
 });
 
+test("watchEmployer: the exact registered name with filters that match nothing says so, not that the name is misspelt", async () => {
+  const mock = api((query) => (query.get("was") !== null ? WAS_DEUTSCHE_BAHN : noMatch()));
+  const answer = await watchEmployer(client(mock), { employer: "Deutsche Bahn AG", where: "Garmisch-Partenkirchen" });
+  assert.equal(answer.status, "empty");
+  assert.equal(answer.employer, "Deutsche Bahn AG");
+  assert.equal(answer.resolvedFrom, undefined);
+  assert.match(answer.reason ?? "", /"Deutsche Bahn AG" is a registered employer name \(\d+ listings nationwide\), but none matches the other filters/);
+  assert.doesNotMatch(answer.reason ?? "", /spelling/);
+  assert.equal(searches(mock).length, 2, "the name lookup, and no second search under the same name");
+});
+
 test("watchEmployer: a name equal to a registered one but for case wins alone", async () => {
   const mock = api((query) => {
     if (query.get("was") !== null) return WAS_DEUTSCHE_BAHN;

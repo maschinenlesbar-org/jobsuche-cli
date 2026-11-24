@@ -529,7 +529,21 @@ export async function watchEmployer(client: JobsucheClient, input: WatchEmployer
     return { status: "empty", employer, searched: searchedFor(employer), tempAgencies: temp, total: 0, place, reason: place.note };
   }
   if ((first.maxErgebnisse ?? 0) === 0) {
-    const candidates = (await employerCandidates(client, asked)).filter((c) => c.name !== asked);
+    const found = await employerCandidates(client, asked);
+    // The name is registered as given: the other filters are what matched nothing.
+    const exact = found.find((c) => c.name === asked);
+    if (exact !== undefined) {
+      return {
+        status: "empty",
+        employer: asked,
+        searched: searchedFor(asked),
+        tempAgencies: temp,
+        total: 0,
+        ...(place === undefined ? {} : { place }),
+        reason: `"${asked}" is a registered employer name (${exact.listings} listings nationwide), but none matches the other filters (place, radius, days, offer type, temp agencies). Widen them.`,
+      };
+    }
+    const candidates = found;
     if (candidates.length > 1) {
       return {
         status: "ambiguous",
