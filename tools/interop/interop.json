@@ -112,6 +112,26 @@
           },
           "maxCount": 141
         },
+        "arbeitsort": {
+          "counts": {
+            "München": 120,
+            "Garching b. München": 21
+          },
+          "maxCount": 141
+        },
+        "beruf": {
+          "counts": {
+            "Data Engineer": 64,
+            "Softwareentwickler/in": 77
+          },
+          "maxCount": 141
+        },
+        "berufsfeld": {
+          "counts": {
+            "Informatik": 141
+          },
+          "maxCount": 141
+        },
         "veroeffentlichtseit": {
           "counts": {
             "0": 2,
