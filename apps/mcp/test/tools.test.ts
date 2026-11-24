@@ -142,6 +142,19 @@ test("getJob: a long description is passed whole (the end of an ad says where to
   await connection.close();
 });
 
+test("getJob given the API's base64 code answers the reference number and its link, and cites the request it made", async () => {
+  const upstream = jobsucheApi({ details: (refnr) => ({ referenznummer: refnr, stellenangebotsTitel: "Pflegefachkraft" }) });
+  const connection = await connect({ transport: upstream });
+  const code = Buffer.from("10001-1002695250-S").toString("base64");
+  const found = (await connection.call("getJob", { refnr: code })).structuredContent ?? {};
+  assert.equal(found["status"], "ok");
+  assert.equal(found["refnr"], "10001-1002695250-S");
+  assert.equal(found["url"], "https://www.arbeitsagentur.de/jobsuche/jobdetail/10001-1002695250-S");
+  assert.equal(found["source"], `${API}/pc/v4/jobdetails/${code}`);
+  assert.ok(upstream.calls.at(-1)?.url.endsWith(`/pc/v4/jobdetails/${code}`), "the request made is the one cited");
+  await connection.close();
+});
+
 test("a refused key (the gateway's empty 403) is a tool error that says what to check", async () => {
   const connection = await connect({ transport: makeMockTransport(() => ({ ...jsonResponse({}), status: 403, headers: { "content-type": "text/plain" }, body: Buffer.from(" ") })) });
   const result = await connection.call("searchJobs", { what: "Pflege" });

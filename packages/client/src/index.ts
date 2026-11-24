@@ -1,6 +1,6 @@
 // Public entry point for the API client library.
 
-export { JobsucheClient, woNote } from "./client.js";
+export { JobsucheClient, jobCode, refnrOf, woNote } from "./client.js";
 export type { JobsucheClientOptions } from "./client.js";
 export {
   RequestEngine,

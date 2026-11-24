@@ -8,7 +8,7 @@
 // carries the BA's terms and a link, and MCP.md says that running this server as a service for
 // others may need the BA's permission.
 
-import { findJobs, scanMarket, searchJobs, watchEmployer, jobboerseUrl, MAX_OFFSET, OFFER_TYPES, PAGE_SIZE, type JobFilters, type OfferType, type TempAgencies } from "@maschinenlesbar.org/jobsuche-client";
+import { findJobs, scanMarket, searchJobs, watchEmployer, jobboerseUrl, jobCode, refnrOf, MAX_OFFSET, OFFER_TYPES, PAGE_SIZE, type JobFilters, type OfferType, type TempAgencies } from "@maschinenlesbar.org/jobsuche-client";
 import { JobsucheApiError } from "@maschinenlesbar.org/jobsuche-client/internal/errors";
 import type { JsonSchema, ToolDefinition } from "./server.js";
 
@@ -271,9 +271,11 @@ export const TOOLS: readonly ToolDefinition[] = [
     inputSchema: input({ refnr: text('The reference number ("10001-1002716922-S").', 100) }, ["refnr"]),
     outputSchema: output({ refnr: { type: "string" }, url: { type: "string" }, job: obj }),
     maxFieldLength: JOB_TEXT_LENGTH,
-    source: (args) => `pc/v4/jobdetails/${encodeURIComponent(Buffer.from((str(args, "refnr") ?? "").trim(), "utf8").toString("base64"))}`,
+    // Given the API's base64 code, the answer names the reference number it encodes, and source
+    // the code as it was sent (not encoded a second time).
+    source: (args) => `pc/v4/jobdetails/${encodeURIComponent(jobCode(str(args, "refnr") ?? ""))}`,
     async run(args, context) {
-      const refnr = (str(args, "refnr") ?? "").trim();
+      const refnr = refnrOf(str(args, "refnr") ?? "");
       try {
         const job = await withKeyHint(() => context.client.details(refnr));
         return { status: "ok", refnr, url: jobboerseUrl(refnr), job };

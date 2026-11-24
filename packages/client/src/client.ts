@@ -164,10 +164,7 @@ export class JobsucheClient {
    *   as `"1002716922"`, which is NOT base64 of a refnr, is correctly encoded.
    */
   async details(refnr: string): Promise<JobDetails> {
-    const trimmed = normalizeToken(assertValid("refnr", refnr as unknown, refnrProblem) as string);
-    const code = this.isEncodedCode(trimmed)
-      ? trimmed
-      : Buffer.from(trimmed, "utf8").toString("base64");
+    const code = jobCode(assertValid("refnr", refnr as unknown, refnrProblem) as string);
     const path = `${SERVICE}/pc/v4/jobdetails/${encodeURIComponent(code)}`;
     return checked(`GET ${this.engine.describeUrl(path)}`, await this.engine.getJson<unknown>(path), jobDetailsProblem, "job listing", this.#scrub);
   }
@@ -180,22 +177,37 @@ export class JobsucheClient {
   woNote(wo: string | undefined, result: JobSearchResult): string | undefined {
     return woNote(wo, result, this.#scrub);
   }
+}
 
-  /**
-   * True only when `value` is already a base64-encoded `encryptedJobCode`.
-   *
-   * A refnr is never base64 of itself, so charset sniffing produces false
-   * positives (e.g. the numeric refnr "1002716922" is valid base64 charset).
-   * Instead we round-trip: decode as base64 and accept only if the decoded bytes
-   * (a) re-encode to exactly the input and (b) look like a plausible refnr. This
-   * cannot misclassify a raw refnr as encoded.
-   */
-  private isEncodedCode(value: string): boolean {
-    if (value.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return false;
-    const decoded = Buffer.from(value, "base64");
-    if (decoded.toString("base64") !== value) return false;
-    return REFNR_PATTERN.test(decoded.toString("utf8"));
-  }
+/**
+ * The reference number `value` names: `value` itself (trimmed), or, when it is the API's
+ * base64-encoded `encryptedJobCode` of one, the refnr it encodes. Detection is exact (not charset
+ * sniffing): a value counts as a code only when it decodes to a string that matches the refnr
+ * pattern and re-encodes to itself, so a raw refnr such as "1002716922" stays as it is.
+ */
+export function refnrOf(value: string): string {
+  return decodedCode(normalizeToken(value)) ?? normalizeToken(value);
+}
+
+/** The `encryptedJobCode` the details of `refnr` (or of that code itself) are requested by. */
+export function jobCode(refnr: string): string {
+  const trimmed = normalizeToken(refnr);
+  return decodedCode(trimmed) === undefined ? Buffer.from(trimmed, "utf8").toString("base64") : trimmed;
+}
+
+/**
+ * The refnr `value` encodes, when it is a base64-encoded `encryptedJobCode`; else undefined.
+ * A refnr is never base64 of itself, so charset sniffing produces false positives (the numeric
+ * refnr "1002716922" is valid base64 charset). Instead the value round-trips: decoded, it must
+ * re-encode to exactly the input and look like a plausible refnr. This cannot misclassify a raw
+ * refnr as encoded.
+ */
+function decodedCode(value: string): string | undefined {
+  if (value.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return undefined;
+  const decoded = Buffer.from(value, "base64");
+  if (decoded.toString("base64") !== value) return undefined;
+  const text = decoded.toString("utf8");
+  return REFNR_PATTERN.test(text) ? text : undefined;
 }
 
 /** `text` in NFC, lower-cased, with blanks collapsed, for comparing two place names. */

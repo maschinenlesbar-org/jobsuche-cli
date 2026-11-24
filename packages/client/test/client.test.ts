@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { JobsucheClient, woNote } from "../src/client.js";
+import { JobsucheClient, jobCode, refnrOf, woNote } from "../src/client.js";
 import {
   JobsucheApiError,
   JobsucheError,
@@ -60,6 +60,15 @@ test("details passes an already-encoded code through unchanged", async () => {
     new URL(mt.last().url).pathname,
     `${SERVICE}/pc/v4/jobdetails/MTAwMDEtMTAwMjcxNjkyMi1T`,
   );
+});
+
+test("refnrOf decodes the API's base64 code to its reference number; jobCode is the code a refnr is requested by", () => {
+  assert.equal(refnrOf("MTAwMDEtMTAwMjcxNjkyMi1T"), "10001-1002716922-S");
+  assert.equal(refnrOf(" 10001-1002716922-S "), "10001-1002716922-S");
+  assert.equal(refnrOf("1002716922"), "1002716922", "a numeric refnr is not taken for a code");
+  assert.equal(jobCode("10001-1002716922-S"), "MTAwMDEtMTAwMjcxNjkyMi1T");
+  assert.equal(jobCode("MTAwMDEtMTAwMjcxNjkyMi1T"), "MTAwMDEtMTAwMjcxNjkyMi1T");
+  assert.equal(jobCode("1002716922"), "MTAwMjcxNjkyMg==");
 });
 
 test("details base64-encodes a hyphenless numeric refnr (no false-positive passthrough)", async () => {
