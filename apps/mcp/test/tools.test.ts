@@ -127,6 +127,21 @@ test("getJob: the whole listing and its job-board link; a gone listing is empty 
   await connection.close();
 });
 
+test("getJob: a long description is passed whole (the end of an ad says where to apply); only a very long one is cut, and says so", async () => {
+  const apply = "Bewerbung: https://example.org/bewerbungsformular/stelle-42";
+  const ad = (length: number): string => `${"Wir suchen Verstärkung. ".repeat(Math.ceil(length / 24)).slice(0, length - apply.length)}${apply}`;
+  const connection = await connect({ transport: jobsucheApi({ details: (refnr) => ({ referenznummer: refnr, stellenangebotsTitel: "Dozent", stellenangebotsBeschreibung: ad(refnr.startsWith("1") ? 4239 : 30_000) }) }) });
+  const long = (await connection.call("getJob", { refnr: "10000-1183204759-S" })).structuredContent ?? {};
+  const description = (long["job"] as { stellenangebotsBeschreibung: string }).stellenangebotsBeschreibung;
+  assert.equal(description.length, 4239);
+  assert.match(description, /Bewerbung: https:\/\/example\.org\/bewerbungsformular\/stelle-42$/);
+  assert.equal(long["truncated"], undefined);
+  const huge = (await connection.call("getJob", { refnr: "20000-1183204759-S" })).structuredContent ?? {};
+  assert.match((huge["job"] as { stellenangebotsBeschreibung: string }).stellenangebotsBeschreibung, /…\[cut, 30000 characters in all\]$/);
+  assert.equal(huge["truncated"], true);
+  await connection.close();
+});
+
 test("a refused key (the gateway's empty 403) is a tool error that says what to check", async () => {
   const connection = await connect({ transport: makeMockTransport(() => ({ ...jsonResponse({}), status: 403, headers: { "content-type": "text/plain" }, body: Buffer.from(" ") })) });
   const result = await connection.call("searchJobs", { what: "Pflege" });
