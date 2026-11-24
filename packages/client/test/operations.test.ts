@@ -198,8 +198,34 @@ test("watchEmployer: the exact name gives a profile ranked by count, freshness f
   assert.deepEqual(answer.freshness, { today: 0, sinceYesterday: 79, last7Days: 247, last14Days: 508, last28Days: 825, all: 3536 }, "no 0 bucket: nothing today");
   assert.equal(answer.read, 6);
   assert.equal(answer.complete, false);
-  assert.equal(searches(mock).length, 1, "no snapshot: one page");
+  assert.equal(searches(mock).length, 2, "the mock repeats its one page: the second adds nothing new, and reading stops");
   assert.equal(answer.refnrs?.length, 6);
+  assert.match(answer.reason ?? "", /Only 6 of 3536 listings were read.*refnrs is a snapshot of those/);
+});
+
+test("watchEmployer: the first snapshot reads every page, as the comparison does: unchanged listings are never new", async () => {
+  const all = Array.from({ length: 350 }, (_, i) => ({ ...EMPLOYER_DEUTSCHE_BAHN_AG.ergebnisliste[0], referenznummer: `10001-${1000 + i}-S` }));
+  const mock = api((query) => {
+    const page = Number(query.get("page"));
+    return { ...EMPLOYER_DEUTSCHE_BAHN_AG, maxErgebnisse: 350, ergebnisliste: all.slice((page - 1) * 100, page * 100) };
+  });
+  const first = await watchEmployer(client(mock), { employer: "Deutsche Bahn AG" });
+  assert.deepEqual([first.read, first.complete, first.refnrs?.length, first.reason], [350, true, 350, undefined]);
+  assert.equal(searches(mock).length, 4);
+  const again = await watchEmployer(client(mock), { employer: "Deutsche Bahn AG", known: first.refnrs });
+  assert.deepEqual([again.newCount, again.goneCount], [0, 0]);
+});
+
+test("watchEmployer: a listing that a page border shift shows twice is in the snapshot once", async () => {
+  const all = Array.from({ length: 150 }, (_, i) => ({ ...EMPLOYER_DEUTSCHE_BAHN_AG.ergebnisliste[0], referenznummer: `10001-${1000 + i}-S` }));
+  // Page 2 starts one listing early: a listing published meanwhile pushed the border.
+  const mock = api((query) => {
+    const page = Number(query.get("page"));
+    return { ...EMPLOYER_DEUTSCHE_BAHN_AG, maxErgebnisse: 150, ergebnisliste: page === 1 ? all.slice(0, 100) : all.slice(99, 150) };
+  });
+  const answer = await watchEmployer(client(mock), { employer: "Deutsche Bahn AG" });
+  assert.equal(answer.refnrs?.length, 150);
+  assert.equal(new Set(answer.refnrs).size, 150);
 });
 
 test("watchEmployer: a name that isn't the registered one is resolved through the listings that mention it", async () => {

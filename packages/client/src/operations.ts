@@ -484,7 +484,7 @@ export interface WatchEmployerInput extends Omit<JobFilters, "employer" | "what"
   known?: readonly string[] | undefined;
   /** Listings shown, newest first (1–50, default 20). */
   limit?: number | undefined;
-  /** Pages of 100 read for a snapshot comparison (1–20, default 10). */
+  /** Pages of 100 read for the snapshot (1–20, default 10). */
   maxPages?: number | undefined;
 }
 
@@ -510,7 +510,7 @@ export interface EmployerProfile {
   freshness?: Freshness;
   /** Apprenticeship and dual-study listings among them. */
   apprenticeships?: number;
-  /** Listings read (pages of 100); `complete` when that is all of them. */
+  /** Listings read (pages of 100, up to `maxPages`, with or without `known`); `complete` when that is all of them. */
   read?: number;
   complete?: boolean;
   /** The newest listings read. */
@@ -556,9 +556,9 @@ async function employerCandidates(client: JobsucheClient, text: string): Promise
  * case-sensitively ("Siemens AG", not "Siemens"): when the name finds nothing, the registered
  * names the text may mean are looked up; one is used (`resolvedFrom` says so), several are
  * `ambiguous` with the candidates (ask which; a group of legal entities is several names), none
- * is `empty` with what to try. With `known` (a snapshot's reference numbers) the listings are
- * read page by page (up to `maxPages`) and compared: new ones, and with every listing read, gone
- * ones.
+ * is `empty` with what to try. The listings are read page by page (up to `maxPages`; `refnrs` is
+ * the snapshot of them, each once); with `known` (an earlier snapshot) they are compared: new
+ * ones, and with every listing read, gone ones.
  */
 export async function watchEmployer(client: JobsucheClient, input: WatchEmployerInput): Promise<EmployerProfile> {
   const filters: JobFilters = { ...input, employer: input.employer };
@@ -637,13 +637,24 @@ export async function watchEmployer(client: JobsucheClient, input: WatchEmployer
   }
   const total = first.maxErgebnisse ?? 0;
   checkFacets(first, total);
-  const read = listingsOf(first).map(listing);
-  if (known !== undefined) {
-    for (let page = 2; page <= maxPages && read.length < total; page++) {
-      const next = listingsOf(await client.search({ ...params, arbeitgeber: employer, page, size: PAGE_SIZE })).map(listing);
-      if (next.length === 0) break;
-      read.push(...next);
+  // The snapshot is every listing up to maxPages pages, with or without `known`: a first run that
+  // read less would make the next comparison call every listing beyond it new. A page border that
+  // shifts while reading (a listing published meanwhile) shows a listing twice: it is kept once.
+  const read: Listing[] = [];
+  const seen = new Set<string>();
+  const add = (entries: Listing[]): number => {
+    const before = read.length;
+    for (const entry of entries) {
+      if (seen.has(entry.refnr)) continue;
+      seen.add(entry.refnr);
+      read.push(entry);
     }
+    return read.length - before;
+  };
+  add(listingsOf(first).map(listing));
+  for (let page = 2; page <= maxPages && read.length < total; page++) {
+    // A page that adds nothing new ends the reading (no listing, or the same ones again).
+    if (add(listingsOf(await client.search({ ...params, arbeitgeber: employer, page, size: PAGE_SIZE })).map(listing)) === 0) break;
   }
   const complete = read.length >= total;
   const newest = [...read].sort(newestFirst);
@@ -679,6 +690,10 @@ export async function watchEmployer(client: JobsucheClient, input: WatchEmployer
       profile.reason = `Only ${read.length} of ${total} listings were read (maxPages ${maxPages}): new ones are among those read, and what is gone can't be told.`;
     }
     delete profile.listings;
+  } else if (!complete) {
+    profile.reason =
+      `Only ${read.length} of ${total} listings were read (maxPages ${maxPages}): refnrs is a snapshot of those, so a later comparison tells what is new only among the listings it reads, ` +
+      "and not what is gone. Narrow the watch (where, offerType, tempAgencies) to cover every listing.";
   }
   profile.refnrs = read.map((entry) => entry.refnr);
   return profile;
