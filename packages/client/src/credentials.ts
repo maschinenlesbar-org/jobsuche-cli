@@ -285,6 +285,11 @@ export class CredentialStore {
       if ((err as { code?: unknown }).code === "ENOENT") return {};
       throw new CredentialsError(`Could not read the credentials file ${this.path}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
     }
+    if (stats.isSymbolicLink()) {
+      throw new CredentialsError(
+        `${this.path} is a symbolic link; a credentials file is never read through a link (it could point anywhere): replace the link with the file itself, or remove it and run \`jobsuche config set api-key\`.`,
+      );
+    }
     if (!stats.isFile()) throw new CredentialsError(`${this.path} is not a regular file; it cannot be the credentials file.`);
     if (process.platform !== "win32") {
       if (typeof process.getuid === "function" && stats.uid !== process.getuid()) {
