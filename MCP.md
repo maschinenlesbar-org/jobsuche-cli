@@ -91,7 +91,7 @@ For scripts and shared configs, pin a release and its digest from the
 |---|---|
 | `findJobs` | Jobs for a candidate: one search of up to 100 listings, re-posts (the same title and employer at the same address) merged (the direct posting kept, the others' refnrs listed), nearest first among them with a place or newest first, the top picks with their details (pay when stated, home office, working time, contract, start, where to apply). |
 | `watchEmployer` | One employer's openings as a profile (top places, occupations and fields, freshness, apprenticeships, the newest listings), its registered name resolved from a loose one; the reference numbers of every listing (up to `maxPages` pages) as a snapshot (sorted, after an entry that gives its size), and with an earlier answer's snapshot, what is new and what is gone; a snapshot the size cap cut is told apart when it comes back, and what may only have been cut from it is `maybeNew`, not new. |
-| `scanMarket` | A labour-market overview from one request without listings: total demand, top employers (agencies marked), places, occupations, fields, pay cadence, contract and working-time mix, home office, freshness. |
+| `scanMarket` | A labour-market overview from one request without listings (and one for the employers of its temp-agency listings, which marks the agencies by the API's own flag): total demand, top employers (agencies marked), places, occupations, fields, pay cadence, contract and working-time mix, home office, freshness. |
 | `searchJobs` | Listings in the API's own order, a slice at a time (offset, limit), with the same filters; the API lists the first 10,000 matches, the rest is reached by narrowing the search. |
 | `getJob` | One listing in full by its reference number: the description, pay, working time, contract, places, where to apply, and its link on the BA's job board. |
 
@@ -154,7 +154,7 @@ key) says what to check.
   minute to the API, pauses the requests to a host that answers HTTP 429 (as long as its Retry-After
   asks, at most 30 s; those to another host go on), and stops a tool call after its deadline (a tool
   that has read part of its answer by then may answer with that part, and says so). A tool answers
-  with one request (`findJobs` adds one per enriched pick, at most 5; `watchEmployer` reads every page of
+  with one request (`findJobs` adds one per enriched pick, at most 5; `scanMarket` one for the employers of its temp-agency listings; `watchEmployer` reads every page of
   the employer's listings for its snapshot, up to `maxPages`, default 10). A request those limits would hold longer than it or its
   call may wait is not sent: the call fails at once, naming the limit and when to ask again (and the
   log says so).

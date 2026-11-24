@@ -37,6 +37,15 @@ function api(search: (query: URLSearchParams) => unknown, details: (refnr: strin
 
 const client = (mock: MockTransport): JobsucheClient => new JobsucheClient({ transport: mock.transport, apiKey: "test-key-only" });
 const hunt = (): JobSearchResult => structuredClone(HUNT_DATA_ENGINEER_MUENCHEN) as JobSearchResult;
+/** The temp-agency listings of MARKET_PFLEGE_BERLIN's search (crafted from it): their employers. */
+const TEMP_PFLEGE_BERLIN = {
+  maxErgebnisse: 914,
+  facetten: {
+    arbeitgeber: {
+      counts: { "Go.med Personaldienstleistung GmbH": 65, "Neo Temp GmbH": 60, "Time Tec Personalservice GmbH": 57, "Tempton Personaldienstleistungen GmbH": 50, "Vivantes Netzwerk für Gesundheit GmbH": 3 },
+    },
+  },
+};
 const noMatch = (wo?: string): JobSearchResult => ({ maxErgebnisse: 0, page: 1, size: 100, ...(wo === undefined ? {} : { woOutput: { bereinigterOrt: wo, suchmodus: "UMKREISSUCHE" } }) });
 
 // --- findJobs ---------------------------------------------------------------------------------
@@ -314,9 +323,9 @@ test("watchEmployer: a snapshot over more listings than maxPages reads says it c
 // --- scanMarket -------------------------------------------------------------------------------
 
 test("scanMarket: one size-0 search; the facets ranked by count, agencies marked, today is bucket 0", async () => {
-  const mock = api(() => MARKET_PFLEGE_BERLIN);
+  const mock = api((query) => (query.get("zeitarbeit") === "true" ? TEMP_PFLEGE_BERLIN : MARKET_PFLEGE_BERLIN));
   const answer = await scanMarket(client(mock), { what: "Pflege", where: "Berlin", radiusKm: 25 });
-  assert.equal(mock.calls.length, 1);
+  assert.equal(mock.calls.length, 2, "the market, and its temp-agency listings' employers");
   assert.equal(searches(mock)[0]?.get("size"), "0");
   assert.equal(answer.status, "ok");
   assert.equal(answer.total, 6406);
@@ -351,6 +360,23 @@ test("scanMarket and watchEmployer: matches without their facets, or facets with
   const partly = { ...MARKET_PFLEGE_BERLIN, facetten: { ...MARKET_PFLEGE_BERLIN.facetten, befristung: { anzahl: { "1": 3 } } } };
   await assert.rejects(scanMarket(client(api(() => partly)), { what: "Pflege" }), /befristung/);
   await assert.rejects(watchEmployer(client(api(() => withoutFacets(EMPLOYER_DEUTSCHE_BAHN_AG))), { employer: "Deutsche Bahn AG" }), JobsucheParseError);
+});
+
+test("scanMarket: an employer most of whose listings the API flags as temp-agency work is marked agencyLike, whatever its name", async () => {
+  const mock = api((query) => (query.get("zeitarbeit") === "true" ? TEMP_PFLEGE_BERLIN : MARKET_PFLEGE_BERLIN));
+  const answer = await scanMarket(client(mock), { what: "Pflege", where: "Berlin", radiusKm: 25, top: 12 });
+  const marked = (label: string): boolean | undefined => answer.topEmployers?.top.find((e) => e.label === label)?.agencyLike;
+  assert.equal(searches(mock)[1]?.get("zeitarbeit"), "true");
+  assert.equal(searches(mock)[1]?.get("size"), "0");
+  assert.equal(searches(mock)[1]?.get("was"), "Pflege", "the same filters");
+  assert.equal(marked("Neo Temp GmbH"), true, "a name the pattern doesn't know, flagged by the API's listings");
+  assert.equal(marked("Go.med Personaldienstleistung GmbH"), true);
+  assert.equal(marked("Vivantes Netzwerk für Gesundheit GmbH"), undefined, "a few temp-agency listings don't make a hospital an agency");
+  assert.equal(marked("Deutsche Bahn AG"), undefined);
+  const only = api(() => MARKET_PFLEGE_BERLIN);
+  const onlyTemp = await scanMarket(client(only), { what: "Pflege", tempAgencies: "only" });
+  assert.equal(only.calls.length, 1, "with temp-agency listings only, no second request");
+  assert.ok(onlyTemp.topEmployers?.top.every((e) => e.agencyLike === true));
 });
 
 test("scanMarket: no demand (no ergebnisliste, no facetten) is empty with what to broaden", async () => {

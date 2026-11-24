@@ -713,7 +713,10 @@ export interface MarketScan {
   /** Every match: the total demand. */
   total: number;
   place?: PlaceNote;
-  /** Top employers by open listings; `agencyLike` marks a name that reads as a staffing or placement agency. */
+  /**
+   * Top employers by open listings; `agencyLike` marks a staffing or placement agency: an employer
+   * at least half of whose listings the API flags as temp-agency work, or whose name reads as one.
+   */
   topEmployers?: { top: { label: string; count: number; agencyLike?: true }[]; listed: number };
   places?: RankedFacet;
   occupations?: RankedFacet;
@@ -739,14 +742,16 @@ export interface MarketScan {
 const MARKET_FACETS = ["verguetung", "befristung", "arbeitszeit", "angebotsart", "homeoffice", "ausbildungsverguetung", "zeitarbeit", "pav", "quereinstieg"];
 
 /** A name that reads as a staffing or placement agency: not the end employer. */
-const AGENCY_NAME = /personal(?:dienst|management|service|vermittlung|leasing|partner|agentur)|personaldienstleist|zeitarbeit|arbeitsvermittlung|arbeitnehmerüberlassung|recruit|staffing|randstad|adecco|manpower|tempton|\bdis ag\b|hays\b|ärztevermittlung|fachkräfte für deutschland/i;
+const AGENCY_NAME = /personal(?:dienst|management|service|vermittlung|leasing|partner|agentur|beratung)|personaldienstleist|zeitarbeit|arbeitsvermittlung|arbeitnehmerüberlassung|recruit|staffing|randstad|adecco|manpower|tempton|\bdis ag\b|hays\b|ärztevermittlung|fachkräfte für deutschland/i;
 
 /**
  * A labour-market overview from one search with size 0: the API counts the whole matching set in
  * its facets, so no listing is downloaded and nothing is paged. Each ranking is sorted by count
  * (the API lists labels alphabetically) and holds at most the API's top 100. Staffing and
- * placement agencies rank high in many fields: their names are marked `agencyLike`, the
- * temp-agency and private-placement counts are given. "Today" is the freshness facet's 0 bucket.
+ * placement agencies rank high in many fields: they are marked `agencyLike` (at least half of
+ * their listings flagged as temp-agency work, read from a second size-0 search of those listings
+ * when there are any, or a name that reads as an agency), the temp-agency and private-placement
+ * counts are given. "Today" is the freshness facet's 0 bucket.
  */
 export async function scanMarket(client: JobsucheClient, input: MarketScanInput): Promise<MarketScan> {
   const params = searchParams(input);
@@ -771,6 +776,13 @@ export async function scanMarket(client: JobsucheClient, input: MarketScanInput)
   const f = result.facetten;
   const c = (name: string): Record<string, number> => counts(f, name);
   const employers = rankFacet(f, "arbeitgeber", top);
+  // Which employers are temp agencies, from the API's own flag: the employers of the matches'
+  // temp-agency listings (one more size-0 request, only when there are such listings among them).
+  // A name alone misses most agencies ("Neo Temp GmbH", "DEKRA Arbeit GmbH").
+  const tempMode = input.tempAgencies ?? "include";
+  const tempListings = tempMode === "include" ? (c("zeitarbeit")["true"] ?? 0) : 0;
+  const byTempListings = tempListings > 0 ? counts((await client.search({ ...params, zeitarbeit: true, page: 1, size: 0 })).facetten, "arbeitgeber") : {};
+  const agencyLike = (label: string, count: number): boolean => tempMode === "only" || AGENCY_NAME.test(label) || (byTempListings[label] ?? 0) * 2 >= count;
   const pay = c("verguetung");
   const contract = c("befristung");
   const time = c("arbeitszeit");
@@ -784,7 +796,7 @@ export async function scanMarket(client: JobsucheClient, input: MarketScanInput)
     tempAgencies: temp,
     total,
     ...(place === undefined ? {} : { place }),
-    topEmployers: { top: employers.top.map((entry) => (AGENCY_NAME.test(entry.label) ? { ...entry, agencyLike: true as const } : entry)), listed: employers.listed },
+    topEmployers: { top: employers.top.map((entry) => (agencyLike(entry.label, entry.count) ? { ...entry, agencyLike: true as const } : entry)), listed: employers.listed },
     places: rankFacet(f, "arbeitsort", top),
     occupations: rankFacet(f, "beruf", top),
     fields: rankFacet(f, "berufsfeld", top),
