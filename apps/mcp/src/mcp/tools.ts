@@ -280,7 +280,8 @@ export const TOOLS: readonly ToolDefinition[] = [
         const job = await withKeyHint(() => context.client.details(refnr));
         return { status: "ok", refnr, url: jobboerseUrl(refnr), job };
       } catch (err) {
-        if (!(err instanceof JobsucheApiError && err.status === 404)) throw err;
+        // 404, or 410 Gone, which says the same: the listing is gone.
+        if (!(err instanceof JobsucheApiError && (err.status === 404 || err.status === 410))) throw err;
         return { status: "empty", refnr, reason: `No listing with refnr "${refnr}": it is gone (filled or withdrawn; listings expire) or the number is mistyped. Search again with findJobs or searchJobs.` };
       }
     },

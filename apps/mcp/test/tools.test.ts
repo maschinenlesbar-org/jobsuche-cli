@@ -155,6 +155,15 @@ test("getJob given the API's base64 code answers the reference number and its li
   await connection.close();
 });
 
+test("getJob: a listing the API answers 410 Gone for is empty with the reason, as a 404", async () => {
+  const connection = await connect({ transport: makeMockTransport(() => jsonResponse({ message: "Gone" }, 410)) });
+  const gone = await connection.call("getJob", { refnr: "10001-1002716922-S" });
+  assert.notEqual(gone.isError, true, gone.content[0]?.text);
+  assert.equal(gone.structuredContent?.["status"], "empty");
+  assert.match(String(gone.structuredContent?.["reason"]), /gone \(filled or withdrawn/);
+  await connection.close();
+});
+
 test("a refused key (the gateway's empty 403) is a tool error that says what to check", async () => {
   const connection = await connect({ transport: makeMockTransport(() => ({ ...jsonResponse({}), status: 403, headers: { "content-type": "text/plain" }, body: Buffer.from(" ") })) });
   const result = await connection.call("searchJobs", { what: "Pflege" });
