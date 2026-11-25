@@ -395,8 +395,11 @@ hold for any transport a library user writes (`fetch`, a node:http wrapper, a
 test double), not only the built-in one:
 
 - `timeoutMs`: the request carries an `AbortSignal` (`HttpRequest.signal`) that
-  fires at the deadline; the call rejects then (`JobsucheNetworkError`) whether
-  the transport stops or not.
+  fires at the deadline, with the timeout error as its reason; the call rejects then
+  (`JobsucheNetworkError`) whether the transport stops or not. The built-in transport
+  stops with the signal's reason, and for a signal some other caller aborted (the MCP
+  server's tool call: its deadline, a cancellation) it says "Request aborted by its
+  caller before it finished", never a timeout it didn't have.
 - `maxResponseBytes`: checked on the body that came back; the message names the
   option and the CLI flag. Over the cap is a `JobsucheResponseTooLargeError` (a
   `JobsucheNetworkError`, with the cap in `maxResponseBytes`), from the default transport and
