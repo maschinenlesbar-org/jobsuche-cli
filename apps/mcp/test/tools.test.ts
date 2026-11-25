@@ -66,8 +66,7 @@ test("watchEmployer: a loose name is resolved and named; several registered name
   assert.equal(resolved["status"], "ok", JSON.stringify(resolved).slice(0, 300));
   assert.deepEqual([resolved["employer"], resolved["resolvedFrom"], resolved["total"]], ["Deutsche Bahn AG", "Deutsche Bahn", 3536]);
   assert.equal((resolved["listings"] as unknown[]).length, 2);
-  assert.deepEqual((resolved["refnrs"] as string[]).slice(0, 1), ["snapshot of 6 listings"]);
-  assert.equal((resolved["refnrs"] as unknown[]).length, 7, "its size, then the six refnrs");
+  assert.equal((resolved["refnrs"] as unknown[]).length, 6, "the six refnrs, nothing else");
   const ambiguous = (await connection.call("watchEmployer", { employer: "Bahn" })).structuredContent ?? {};
   assert.equal(ambiguous["status"], "ambiguous");
   assert.ok((ambiguous["candidates"] as { name: string }[]).some((c) => c.name === "Deutsche Bahn AG"));
@@ -102,8 +101,7 @@ test("watchEmployer: the size cap never cuts the snapshot: other lists give way,
   const result = await connection.call("watchEmployer", { employer: "Deutsche Bahn AG" });
   const first = result.structuredContent ?? {};
   assert.equal(first["status"], "ok", result.content[0]?.text);
-  const refnrs = (first["refnrs"] as string[]).filter((entry) => !entry.startsWith("snapshot of"));
-  assert.deepEqual(refnrs, listed.map((l) => l.referenznummer).sort(), "every listing of the snapshot");
+  assert.deepEqual([...(first["refnrs"] as string[])].sort(), listed.map((l) => l.referenznummer).sort(), "every listing of the snapshot");
   assert.ok(JSON.stringify(first).length <= 9000);
   assert.match(String(first["reason"]), /listings lost entries/, "the other list gave way");
   await connection.close();
@@ -114,42 +112,25 @@ test("watchEmployer: the size cap never cuts the snapshot: other lists give way,
   await tight.close();
 });
 
-test("watchEmployer: refnrs starts with the snapshot's size; one the size cap cut is told apart when it comes back, so cut listings are not called new", async () => {
+test("watchEmployer: refnrs is only the snapshot; passed back, nothing is new; an earlier version's size entry in known is no listing", async () => {
+  // The size cap no longer cuts the snapshot, so it needs no entry that gives its size, and a
+  // known shorter than its snapshot is no longer guessed about (maybeNew).
   const ad = (n: number) => ({ referenznummer: `10001-${n}-S`, stellenangebotsTitel: `Stelle ${n}`, firma: "Deutsche Bahn AG", veroeffentlichungszeitraum: { von: "2026-11-20" } });
-  let listed = Array.from({ length: 400 }, (_, i) => ad(5000 + i));
-  const upstream = jobsucheApi({
-    search: (q) => {
-      const page = Number(q.get("page"));
-      return { ...EMPLOYER_DEUTSCHE_BAHN_AG, maxErgebnisse: listed.length, ergebnisliste: listed.slice((page - 1) * 100, page * 100) };
-    },
-  });
+  let listed = Array.from({ length: 30 }, (_, i) => ad(5000 + i));
+  const upstream = jobsucheApi({ search: () => ({ ...EMPLOYER_DEUTSCHE_BAHN_AG, maxErgebnisse: listed.length, ergebnisliste: listed }) });
   const connection = await connect({ transport: upstream });
-  const first = (await connection.call("watchEmployer", { employer: "Deutsche Bahn AG" })).structuredContent ?? {};
-  // The size cap no longer cuts it: a snapshot cut from its end, as an earlier version's cap did.
-  const snapshot = (first["refnrs"] as string[]).slice(0, 301);
-  assert.equal(snapshot[0], "snapshot of 400 listings");
-  // Nothing changed upstream: nothing is new, and what the cut took is counted apart.
-  const again = (await connection.call("watchEmployer", { employer: "Deutsche Bahn AG", known: snapshot })).structuredContent ?? {};
-  assert.equal(again["newCount"], 0);
-  assert.equal(again["maybeNew"], 400 - (snapshot.length - 1));
-  assert.match(String(again["reason"]), new RegExp(`known holds ${snapshot.length - 1} of the 400 listings of its snapshot`));
-  // Two new listings: one sorts among the snapshot's kept refnrs (new for sure), one after them (can't be told).
-  listed = [ad(1000), ...listed, ad(9999)];
-  const later = (await connection.call("watchEmployer", { employer: "Deutsche Bahn AG", known: snapshot })).structuredContent ?? {};
-  assert.equal(later["newCount"], 1);
-  assert.deepEqual((later["new"] as { refnr: string }[]).map((l) => l.refnr), ["10001-1000-S"]);
-  assert.equal(later["maybeNew"], 400 - (snapshot.length - 1) + 1);
+  const snapshot = ((await connection.call("watchEmployer", { employer: "Deutsche Bahn AG" })).structuredContent ?? {})["refnrs"] as string[];
+  assert.deepEqual([...snapshot].sort(), listed.map((l) => l.referenznummer).sort());
+  const round = (await connection.call("watchEmployer", { employer: "Deutsche Bahn AG", known: snapshot })).structuredContent ?? {};
+  assert.deepEqual([round["newCount"], round["goneCount"], round["maybeNew"], round["reason"]], [0, 0, undefined, undefined]);
+  // A snapshot of the earlier form starts with "snapshot of N listings": not a listing, so not gone.
+  listed = [ad(1000), ...listed];
+  const earlier = (await connection.call("watchEmployer", { employer: "Deutsche Bahn AG", known: ["snapshot of 30 listings", ...snapshot] })).structuredContent ?? {};
+  assert.deepEqual([earlier["newCount"], earlier["goneCount"], earlier["maybeNew"]], [1, 0, undefined]);
+  // A list of one's own is compared as it is.
+  const own = (await connection.call("watchEmployer", { employer: "Deutsche Bahn AG", known: snapshot.slice(0, 10) })).structuredContent ?? {};
+  assert.deepEqual([own["newCount"], own["maybeNew"]], [21, undefined]);
   await connection.close();
-  // A snapshot that fits comes back whole: no note; a list of one's own (no size entry) is compared as it is.
-  listed = Array.from({ length: 30 }, (_, i) => ad(5000 + i));
-  const whole = await connect({ transport: upstream });
-  const small = ((await whole.call("watchEmployer", { employer: "Deutsche Bahn AG" })).structuredContent ?? {})["refnrs"] as string[];
-  assert.equal(small.length, 31);
-  const round = (await whole.call("watchEmployer", { employer: "Deutsche Bahn AG", known: small })).structuredContent ?? {};
-  assert.deepEqual([round["newCount"], round["maybeNew"], round["reason"]], [0, undefined, undefined]);
-  const own = (await whole.call("watchEmployer", { employer: "Deutsche Bahn AG", known: small.slice(1, 11) })).structuredContent ?? {};
-  assert.deepEqual([own["newCount"], own["maybeNew"]], [20, undefined]);
-  await whole.close();
 });
 
 test("scanMarket: one request of size 0; employers ranked by count, agencies marked; today is bucket 0", async () => {
