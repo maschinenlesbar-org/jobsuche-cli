@@ -86,6 +86,34 @@ test("watchEmployer: known refnrs give what is new", async () => {
   await connection.close();
 });
 
+test("watchEmployer: the size cap never cuts the snapshot: other lists give way, else the size error names refnrs", async () => {
+  // The snapshot is passed back as known: a part of it would make every listing cut from it new
+  // at the next comparison. 400 listings under a cap of 9000 characters used to lose entries from
+  // refnrs, the longest list.
+  const ad = (n: number) => ({ referenznummer: `10001-${n}-S`, stellenangebotsTitel: `Stelle ${n}`, firma: "Deutsche Bahn AG", veroeffentlichungszeitraum: { von: "2026-11-20" } });
+  const listed = Array.from({ length: 400 }, (_, i) => ad(5000 + i));
+  const upstream = jobsucheApi({
+    search: (q) => {
+      const page = Number(q.get("page"));
+      return { ...EMPLOYER_DEUTSCHE_BAHN_AG, maxErgebnisse: listed.length, ergebnisliste: listed.slice((page - 1) * 100, page * 100) };
+    },
+  });
+  const connection = await connect({ transport: upstream, config: { maxResultChars: 9000 } });
+  const result = await connection.call("watchEmployer", { employer: "Deutsche Bahn AG" });
+  const first = result.structuredContent ?? {};
+  assert.equal(first["status"], "ok", result.content[0]?.text);
+  const refnrs = (first["refnrs"] as string[]).filter((entry) => !entry.startsWith("snapshot of"));
+  assert.deepEqual(refnrs, listed.map((l) => l.referenznummer).sort(), "every listing of the snapshot");
+  assert.ok(JSON.stringify(first).length <= 9000);
+  assert.match(String(first["reason"]), /listings lost entries/, "the other list gave way");
+  await connection.close();
+  const tight = await connect({ transport: upstream, config: { maxResultChars: 3000 } });
+  const refused = await tight.call("watchEmployer", { employer: "Deutsche Bahn AG" });
+  assert.equal(refused.isError, true);
+  assert.match(refused.content[0]?.text ?? "", /size cap \(3000 characters.*refnrs is kept whole \(a part would be wrong data\)/);
+  await tight.close();
+});
+
 test("watchEmployer: refnrs starts with the snapshot's size; one the size cap cut is told apart when it comes back, so cut listings are not called new", async () => {
   const ad = (n: number) => ({ referenznummer: `10001-${n}-S`, stellenangebotsTitel: `Stelle ${n}`, firma: "Deutsche Bahn AG", veroeffentlichungszeitraum: { von: "2026-11-20" } });
   let listed = Array.from({ length: 400 }, (_, i) => ad(5000 + i));
@@ -95,13 +123,11 @@ test("watchEmployer: refnrs starts with the snapshot's size; one the size cap cu
       return { ...EMPLOYER_DEUTSCHE_BAHN_AG, maxErgebnisse: listed.length, ergebnisliste: listed.slice((page - 1) * 100, page * 100) };
     },
   });
-  const connection = await connect({ transport: upstream, config: { maxResultChars: 8000 } });
+  const connection = await connect({ transport: upstream });
   const first = (await connection.call("watchEmployer", { employer: "Deutsche Bahn AG" })).structuredContent ?? {};
-  const snapshot = first["refnrs"] as string[];
+  // The size cap no longer cuts it: a snapshot cut from its end, as an earlier version's cap did.
+  const snapshot = (first["refnrs"] as string[]).slice(0, 301);
   assert.equal(snapshot[0], "snapshot of 400 listings");
-  assert.ok(snapshot.length < 401, "the size cap cut it");
-  assert.equal(first["truncated"], true);
-  assert.match(String(first["reason"]), /refnrs lost entries/);
   // Nothing changed upstream: nothing is new, and what the cut took is counted apart.
   const again = (await connection.call("watchEmployer", { employer: "Deutsche Bahn AG", known: snapshot })).structuredContent ?? {};
   assert.equal(again["newCount"], 0);

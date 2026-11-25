@@ -210,7 +210,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "Watch an employer's openings",
     description: [
       'One employer\'s open listings as a recruiting profile, and what is new since last time. Use it for "Was schreibt die Deutsche Bahn gerade aus?", "offene Stellen bei SAP in Walldorf", "is Siemens hiring in Munich?", "what\'s new at Bosch since last week?".',
-      "The profile counts every listing (the API's facets): top places, occupations and fields, freshness (today, since yesterday, last 7/14/28 days; cumulative), apprenticeships, and the newest listings. refnrs is the snapshot of every listing read (up to maxPages pages; complete says whether that is all), its first entry its size: pass it whole as known next time to get new (and, when every listing was read, gone: no longer listed, filled or expired, unknown which). A snapshot the size cap cut is told when it comes back: what may only have been cut from it is maybeNew, not new.",
+      "The profile counts every listing (the API's facets): top places, occupations and fields, freshness (today, since yesterday, last 7/14/28 days; cumulative), apprenticeships, and the newest listings. refnrs is the snapshot of every listing read (up to maxPages pages; complete says whether that is all), its first entry its size: pass it whole as known next time to get new (and, when every listing was read, gone: no longer listed, filled or expired, unknown which). The size cap never cuts refnrs (a part would be wrong data): the other lists give way, else the call is the size error. A snapshot an earlier version's cap cut is told when it comes back: what may only have been cut from it is maybeNew, not new.",
       "Traps: the API matches the registered name exactly and case-sensitively (\"Siemens AG\", not \"Siemens\"). A name that finds nothing is resolved through the employers of the listings mentioning it: one is used (resolvedFrom says so), several are status ambiguous with candidates (ask which; a group often lists under several legal entities: watch each and say so). Zero hits on a short name is a spelling problem, not proof of no openings.",
       RULES,
     ].join("\n\n"),
@@ -248,6 +248,9 @@ export const TOOLS: readonly ToolDefinition[] = [
       candidates: arr,
     }),
     source: (args) => searchSource(args, { page: 1, size: 100 }),
+    // The snapshot is passed back as known: a part of it would be wrong data (every listing cut
+    // from it new at the next comparison), so the size cap cuts the other lists, or refuses.
+    keepWhole: ["refnrs"],
     run: watchWithSnapshot,
   },
   {
